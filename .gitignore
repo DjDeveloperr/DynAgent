@@ -1,0 +1,16 @@
+# Dependencies & build artifacts
+node_modules/
+.build/
+*.log
+
+# Runtime / local state (not source)
+.kiro/
+.agent/
+
+# macOS / editor
+.DS_Store
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcodeproj

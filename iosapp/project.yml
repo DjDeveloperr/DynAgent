@@ -1,0 +1,23 @@
+name: DynAgentMobile
+options:
+  bundleIdPrefix: dev.dynagent
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  DynAgentMobile:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.dynagent.mobile
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        # Tailscale uses plain HTTP to an IP, so allow non-TLS loads.
+        INFOPLIST_KEY_NSAppTransportSecurity: ""
+    info:
+      path: Sources/Info.plist
+      properties:
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
