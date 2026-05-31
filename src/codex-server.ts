@@ -330,6 +330,111 @@ async function handleResponses(req: Request): Promise<Response> {
   })
 }
 
+// --- Chat Completions handler (OpenAI-compatible, for Pi etc.) ---
+
+async function handleChatCompletions(req: Request): Promise<Response> {
+  const body = await req.json() as any
+  const modelId = (body.model || "claude-opus-4.8").replace(/^kiro\//, "")
+  const stream = body.stream ?? false
+
+  // Convert chat messages to AI SDK format
+  const messages: any[] = []
+  let system: string | undefined
+  for (const msg of body.messages || []) {
+    if (msg.role === "system" || msg.role === "developer") {
+      system = (system ? system + "\n" : "") + (typeof msg.content === "string" ? msg.content : msg.content?.map((p: any) => p.text || "").join("") || "")
+    } else if (msg.role === "user") {
+      messages.push({ role: "user", content: typeof msg.content === "string" ? msg.content : msg.content?.map((p: any) => p.text || "").join("") || "" })
+    } else if (msg.role === "assistant") {
+      if (msg.tool_calls?.length) {
+        messages.push({ role: "assistant", content: msg.tool_calls.map((tc: any) => ({ type: "tool-call", toolCallId: tc.id, toolName: tc.function.name, args: JSON.parse(tc.function.arguments || "{}") })) })
+      } else {
+        messages.push({ role: "assistant", content: typeof msg.content === "string" ? msg.content : msg.content?.map((p: any) => p.text || "").join("") || "" })
+      }
+    } else if (msg.role === "tool") {
+      messages.push({ role: "tool", content: [{ type: "tool-result", toolCallId: msg.tool_call_id || "", result: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content) }] })
+    }
+  }
+
+  // Convert tools
+  const tools: ToolSet = {}
+  for (const t of body.tools || []) {
+    if (t.type === "function" && t.function) {
+      tools[t.function.name] = { description: t.function.description || "", parameters: t.function.parameters || {} } as any
+    }
+  }
+  const hasTools = Object.keys(tools).length > 0
+
+  const completionId = `chatcmpl-${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`
+
+  if (!stream) {
+    const result = await generateText({
+      model: provider.languageModel(modelId),
+      messages: messages as any,
+      tools: hasTools ? tools as any : undefined,
+      system,
+    })
+
+    const choice: any = { index: 0, finish_reason: result.toolCalls?.length ? "tool_calls" : "stop" }
+    const msg: any = { role: "assistant", content: result.text || null }
+    if (result.toolCalls?.length) {
+      msg.tool_calls = result.toolCalls.map((tc: any) => ({ id: tc.toolCallId, type: "function", function: { name: tc.toolName, arguments: JSON.stringify(tc.input) } }))
+    }
+    choice.message = msg
+
+    return Response.json({ id: completionId, object: "chat.completion", created: Math.floor(Date.now() / 1000), model: `kiro/${modelId}`, choices: [choice], usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } })
+  }
+
+  // Streaming
+  const encoder = new TextEncoder()
+  const readable = new ReadableStream({
+    async start(controller) {
+      const send = (data: unknown) => { controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)) }
+
+      try {
+        const result = streamText({
+          model: provider.languageModel(modelId),
+          messages: messages as any,
+          tools: hasTools ? tools as any : undefined,
+          system,
+        })
+
+        let sentRole = false
+        const toolCallBuffers: Map<number, { id: string; name: string; args: string }> = new Map()
+        let toolIdx = 0
+
+        for await (const part of result.fullStream) {
+          if (part.type === "text-delta") {
+            if (!sentRole) {
+              send({ id: completionId, object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: `kiro/${modelId}`, choices: [{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: null }] })
+              sentRole = true
+            }
+            send({ id: completionId, object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: `kiro/${modelId}`, choices: [{ index: 0, delta: { content: part.text }, finish_reason: null }] })
+          } else if (part.type === "tool-call") {
+            if (!sentRole) {
+              send({ id: completionId, object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: `kiro/${modelId}`, choices: [{ index: 0, delta: { role: "assistant", content: null }, finish_reason: null }] })
+              sentRole = true
+            }
+            const argsStr = JSON.stringify(part.input)
+            send({ id: completionId, object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: `kiro/${modelId}`, choices: [{ index: 0, delta: { tool_calls: [{ index: toolIdx, id: part.toolCallId, type: "function", function: { name: part.toolName, arguments: argsStr } }] }, finish_reason: null }] })
+            toolIdx++
+          }
+        }
+
+        const finishReason = toolIdx > 0 ? "tool_calls" : "stop"
+        send({ id: completionId, object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: `kiro/${modelId}`, choices: [{ index: 0, delta: {}, finish_reason: finishReason }] })
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"))
+      } catch (err: any) {
+        send({ error: { message: err.message || "Internal error", type: "server_error" } })
+      } finally {
+        controller.close()
+      }
+    },
+  })
+
+  return new Response(readable, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" } })
+}
+
 // --- HTTP Server ---
 
 const server = Bun.serve({
@@ -354,6 +459,11 @@ const server = Bun.serve({
     // Responses API
     if (url.pathname === "/v1/responses" && req.method === "POST") {
       return handleResponses(req)
+    }
+
+    // Chat Completions API (for Pi and other OpenAI-compatible clients)
+    if (url.pathname === "/v1/chat/completions" && req.method === "POST") {
+      return handleChatCompletions(req)
     }
 
     return new Response("Not Found", { status: 404 })

@@ -2,6 +2,12 @@ import Foundation
 
 enum Role: String, Codable { case user, assistant, tool }
 
+/// Which backend harness to use.
+enum Harness: String, Codable, CaseIterable {
+    case dynagent = "DynAgent"
+    case codex = "Codex"
+}
+
 /// One rendered item in a conversation transcript.
 final class ChatMessage: Codable {
     let role: Role
@@ -22,13 +28,16 @@ final class Conversation: Codable {
     var id = UUID().uuidString
     var title = "New Chat"
     var model: String
+    var harness: Harness = .dynagent
     var workspace = ""
     var messages: [ChatMessage] = []
     var status: Status = .idle
 
-    init(model: String, workspace: String = "") { self.model = model; self.workspace = workspace }
+    init(model: String, workspace: String = "", harness: Harness = .dynagent) {
+        self.model = model; self.workspace = workspace; self.harness = harness
+    }
 
-    enum CodingKeys: String, CodingKey { case id, title, model, workspace, messages }
+    enum CodingKeys: String, CodingKey { case id, title, model, harness, workspace, messages }
 
     /// User/assistant text turns for the server (tool rows are server-side detail).
     var history: [[String: String]] {

@@ -12,10 +12,57 @@ final class ComposerTextView: NSTextView {
     }
 }
 
+/// Animated "Thinking" label with shimmer effect.
+final class ShimmerLabel: NSView {
+    private let label = NSTextField(labelWithString: "Thinking")
+    private let gradient = CAGradientLayer()
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.textColor = .tertiaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor),
+            label.topAnchor.constraint(equalTo: topAnchor),
+            label.bottomAnchor.constraint(equalTo: bottomAnchor),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor),
+        ])
+        wantsLayer = true
+        translatesAutoresizingMaskIntoConstraints = false
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func layout() {
+        super.layout()
+        setupShimmer()
+    }
+
+    private func setupShimmer() {
+        gradient.frame = bounds.insetBy(dx: -bounds.width, dy: 0)
+        gradient.startPoint = CGPoint(x: 0, y: 0.5)
+        gradient.endPoint = CGPoint(x: 1, y: 0.5)
+        let base = NSColor.tertiaryLabelColor.cgColor
+        let highlight = NSColor.labelColor.cgColor
+        gradient.colors = [base, base, highlight, base, base]
+        gradient.locations = [0, 0.35, 0.5, 0.65, 1.0]
+        layer?.mask = gradient
+
+        let anim = CABasicAnimation(keyPath: "locations")
+        anim.fromValue = [0, 0.0, 0.1, 0.2, 0.3]
+        anim.toValue = [0.7, 0.8, 0.9, 1.0, 1.0]
+        anim.duration = 1.5
+        anim.repeatCount = .infinity
+        gradient.add(anim, forKey: "shimmer")
+    }
+}
+
 /// Detail pane: a centered transcript (user / assistant / tool rows) and a composer card.
 final class ChatViewController: NSViewController, NSTextViewDelegate {
     var client: AgentClient!
     var onActivity: (() -> Void)?
+    var onTitleGenerated: ((Conversation, String) -> Void)?
 
     private(set) var conversation: Conversation?
     private let transcript = NSStackView()
@@ -23,6 +70,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private let composer = ComposerTextView()
     private let placeholder = NSTextField(labelWithString: "Message the agent…  (⏎ to send, ⇧⏎ for newline)")
     private let modelPopup = NSPopUpButton()
+    private let harnessPopup = NSPopUpButton()
+    private let reasoningPopup = NSPopUpButton()
     private let contextLabel = NSTextField(labelWithString: "")
     private let sendButton = NSButton()
     private let spinner = NSProgressIndicator()
@@ -31,9 +80,15 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private let emptyStack = NSStackView()
     private var labels: [ObjectIdentifier: NSTextField] = [:]
     private var streaming = false
-    private let maxColumn: CGFloat = 760
+    private let maxColumn: CGFloat = 100_000
+    private var shimmerView: ShimmerLabel?
+    /// The current assistant message being streamed into (for proper interleaving).
+    private var currentAssistant: ChatMessage?
 
     var selectedModel: String { modelPopup.titleOfSelectedItem ?? "auto" }
+    var selectedHarness: Harness { Harness(rawValue: harnessPopup.titleOfSelectedItem ?? "") ?? .dynagent }
+    var selectedReasoning: String { reasoningPopup.titleOfSelectedItem ?? "high" }
+    var onHarnessChanged: ((Harness) -> Void)?
 
     func setModels(_ ids: [String]) {
         modelPopup.removeAllItems()
@@ -79,10 +134,21 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         placeholder.font = .systemFont(ofSize: 13.5)
         placeholder.translatesAutoresizingMaskIntoConstraints = false
 
-        // Composer footer: model selector + context usage on the left, send on the right.
+        // Composer footer: harness + model selector + context usage on the left, send on the right.
+        harnessPopup.controlSize = .small
+        harnessPopup.font = .systemFont(ofSize: 11)
+        harnessPopup.bezelStyle = .texturedRounded
+        harnessPopup.addItems(withTitles: Harness.allCases.map(\.rawValue))
+        harnessPopup.target = self
+        harnessPopup.action = #selector(harnessDidChange)
         modelPopup.controlSize = .small
         modelPopup.font = .systemFont(ofSize: 11)
         modelPopup.bezelStyle = .texturedRounded
+        reasoningPopup.controlSize = .small
+        reasoningPopup.font = .systemFont(ofSize: 11)
+        reasoningPopup.bezelStyle = .texturedRounded
+        reasoningPopup.addItems(withTitles: ["high", "medium", "low"])
+        reasoningPopup.selectItem(withTitle: "high")
         contextLabel.font = .monospacedDigitSystemFont(ofSize: 10.5, weight: .regular)
         contextLabel.textColor = .tertiaryLabelColor
 
@@ -108,17 +174,20 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         sendStack.addSubview(sendButton)
         sendStack.addSubview(spinner)
 
-        let footer = NSStackView(views: [modelPopup, contextLabel, NSView(), sendStack] as [NSView])
+        let footer = NSStackView(views: [harnessPopup, modelPopup, reasoningPopup, contextLabel, NSView(), sendStack] as [NSView])
         footer.orientation = .horizontal
         footer.spacing = 8
         footer.translatesAutoresizingMaskIntoConstraints = false
 
-        let card = NSView()
+        let card = NSVisualEffectView()
+        card.material = .hudWindow
+        card.blendingMode = .withinWindow
+        card.state = .active
         card.wantsLayer = true
         card.layer?.cornerRadius = 14
-        card.layer?.borderWidth = 1
-        card.layer?.borderColor = NSColor.separatorColor.cgColor
-        card.layer?.backgroundColor = NSColor.textBackgroundColor.withAlphaComponent(0.6).cgColor
+        card.layer?.masksToBounds = true
+        card.layer?.borderWidth = 0.5
+        card.layer?.borderColor = NSColor.white.withAlphaComponent(0.2).cgColor
         card.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(composerScroll)
         card.addSubview(placeholder)
@@ -129,6 +198,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         emptySub.font = .systemFont(ofSize: 13)
         emptySub.textColor = .secondaryLabelColor
         emptySub.alignment = .center
+        emptySub.lineBreakMode = .byWordWrapping
         emptySub.maximumNumberOfLines = 3
         emptySub.preferredMaxLayoutWidth = 360
         emptyStack.orientation = .vertical
@@ -143,7 +213,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         root.addSubview(emptyStack)
 
         NSLayoutConstraint.activate([
-            scroll.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor),
+            scroll.topAnchor.constraint(equalTo: root.topAnchor),
             scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             scroll.bottomAnchor.constraint(equalTo: card.topAnchor, constant: -12),
@@ -202,6 +272,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     func show(_ c: Conversation) {
         conversation = c
+        currentAssistant = nil
         labels.removeAll()
         transcript.arrangedSubviews.forEach { $0.removeFromSuperview() }
         for m in c.messages { addRow(for: m) }
@@ -223,25 +294,43 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         guard !text.isEmpty else { return }
         composer.string = ""
         textDidChange(Notification(name: NSText.didChangeNotification))
-        if c.title == "New Chat" { c.title = String(text.prefix(40)) }
+
+        let isFirstMessage = c.messages.isEmpty
 
         let user = ChatMessage(role: .user, text: text)
         c.messages.append(user); addRow(for: user)
-        let assistant = ChatMessage(role: .assistant, text: "")
-        c.messages.append(assistant); addRow(for: assistant)
         updateEmptyState()
+
+        // Show "Thinking" shimmer
+        showThinking()
 
         setStreaming(true)
         c.status = .thinking
         onActivity?()
-        client.chat(model: selectedModel, conversationId: c.id, cwd: c.workspace, messages: c.history) { [weak self, weak c] ev in
+
+        // Generate title in parallel on first message
+        if isFirstMessage {
+            generateTitle(for: c, prompt: text)
+        }
+
+        currentAssistant = nil
+        let handler: (AgentClient.Event) -> Void = { [weak self, weak c] ev in
             guard let self, let c else { return }
             switch ev {
             case .text(let t):
-                assistant.text += t
-                self.labels[ObjectIdentifier(assistant)]?.stringValue = assistant.text
+                self.hideThinking()
+                if self.currentAssistant == nil {
+                    let assistant = ChatMessage(role: .assistant, text: "")
+                    c.messages.append(assistant)
+                    self.addRow(for: assistant)
+                    self.currentAssistant = assistant
+                }
+                self.currentAssistant!.text += t
+                self.labels[ObjectIdentifier(self.currentAssistant!)]?.stringValue = self.currentAssistant!.text
             case .tool(let n):
+                self.hideThinking()
                 c.status = .running; self.onActivity?()
+                self.currentAssistant = nil
                 let tool = ChatMessage(role: .tool, text: "", toolName: n)
                 c.messages.append(tool); self.addRow(for: tool)
             case .toolResult(let n):
@@ -250,22 +339,76 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                     self.labels[ObjectIdentifier(t)]?.attributedStringValue = self.toolString(t)
                 }
             case .error(let e):
-                assistant.text += (assistant.text.isEmpty ? "" : "\n") + "⚠︎ " + e
-                self.labels[ObjectIdentifier(assistant)]?.stringValue = assistant.text
+                self.hideThinking()
+                if self.currentAssistant == nil {
+                    let assistant = ChatMessage(role: .assistant, text: "")
+                    c.messages.append(assistant)
+                    self.addRow(for: assistant)
+                    self.currentAssistant = assistant
+                }
+                self.currentAssistant!.text += (self.currentAssistant!.text.isEmpty ? "" : "\n") + "⚠︎ " + e
+                self.labels[ObjectIdentifier(self.currentAssistant!)]?.stringValue = self.currentAssistant!.text
                 c.status = .error; self.finish()
             case .done:
+                self.hideThinking()
                 c.status = .idle; self.finish()
             }
             self.scrollToBottom()
         }
+
+        // Route to correct harness
+        if selectedHarness == .codex {
+            client.codexChat(model: selectedModel, messages: c.history, onEvent: handler)
+        } else {
+            client.chat(model: selectedModel, conversationId: c.id, cwd: c.workspace, messages: c.history, onEvent: handler)
+        }
     }
 
-    private func finish() { setStreaming(false); onActivity?() }
+    private func finish() { setStreaming(false); currentAssistant = nil; onActivity?() }
+
+    @objc private func harnessDidChange() { onHarnessChanged?(selectedHarness) }
 
     private func setStreaming(_ on: Bool) {
         streaming = on
         sendButton.isHidden = on
         on ? spinner.startAnimation(nil) : spinner.stopAnimation(nil)
+    }
+
+    // MARK: - Thinking shimmer
+
+    private func showThinking() {
+        guard shimmerView == nil else { return }
+        let s = ShimmerLabel()
+        shimmerView = s
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(s)
+        NSLayoutConstraint.activate([
+            s.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            s.topAnchor.constraint(equalTo: container.topAnchor),
+            s.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        transcript.addArrangedSubview(container)
+        container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
+        scrollToBottom()
+    }
+
+    private func hideThinking() {
+        guard let s = shimmerView else { return }
+        s.superview?.removeFromSuperview()
+        shimmerView = nil
+    }
+
+    // MARK: - Title generation
+
+    private func generateTitle(for c: Conversation, prompt: String) {
+        Task { @MainActor in
+            let title = await client.generateTitle(prompt: prompt, model: selectedModel)
+            if !title.isEmpty && title != "New Chat" {
+                c.title = title
+                onTitleGenerated?(c, title)
+            }
+        }
     }
 
     func textDidChange(_ notification: Notification) {
