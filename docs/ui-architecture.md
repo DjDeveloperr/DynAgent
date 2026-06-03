@@ -92,6 +92,7 @@
 - `AppWorktreeCoordinator.swift`: tested worktree bridge for workspace path detection, branch-name normalization, create-result parsing, and create failure handling.
 - `AppSidebarSyncModel.swift`: tested Codex sidebar-state bridge for width clamping/correction payloads, resize tolerance, and collapsed section/workspace payloads.
 - `AppLayoutMetricsCoordinator.swift`: tested layout metrics persistence bridge for live width-regression diagnostics and hot-reload verification payloads.
+- `AppSplitLayoutChrome.swift`: tested AppKit builder for the top-level sidebar/main/git split, split item sizing priorities, collapsed git inspector default, and autoresizing installation.
 - `AppHotStateModel.swift`: tested hot-reload state serializer/restorer for conversations, active Codex thread status, workspace refs, model cache, and selection.
 - `AppHotStateCoordinator.swift`: tested hot-reload dictionary bridge for restore, immediate saves, debounced saves, and pending-save cancellation.
 - `MainWindowFrameModel.swift`: tested main-window frame state model for initial saved-frame restoration, requested/applied frame tracking, live-resize state, and unexpected-shrink recovery.

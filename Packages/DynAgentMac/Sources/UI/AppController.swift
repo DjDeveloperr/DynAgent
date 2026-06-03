@@ -142,35 +142,21 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             self?.openConversationFromDock(id: id)
         }
 
-        let split = RootSplitViewController()
+        let splitLayout = AppSplitLayoutChrome.makeRootSplit(
+            sidebar: sidebar,
+            workspaceArea: workspaceArea,
+            primaryChatView: chat.view,
+            gitPanel: gitPanel,
+            cwdProvider: { [weak self] in self?.active.path ?? FileManager.default.currentDirectoryPath }
+        )
+        let split = splitLayout.root
         rootSplitController = split
-        splitView = split.splitView
-        split.splitView.dividerStyle = .thin
-        split.splitView.autosaveName = nil
-        splitResizeObserver = NotificationCenter.default.addObserver(forName: NSSplitView.didResizeSubviewsNotification, object: split.splitView, queue: .main) { [weak self] note in
+        splitView = splitLayout.splitView
+        sidebarItem = splitLayout.sidebarItem
+        gitItem = splitLayout.gitItem
+        splitResizeObserver = NotificationCenter.default.addObserver(forName: NSSplitView.didResizeSubviewsNotification, object: splitLayout.splitView, queue: .main) { [weak self] note in
             self?.splitViewDidResizeSubviews(note)
         }
-        let side = NSSplitViewItem(viewController: sidebar)
-        sidebarItem = side
-        side.minimumThickness = SidebarLayoutModel.minimumWidth
-        side.maximumThickness = SidebarLayoutModel.maximumWidth
-        side.canCollapse = true
-        side.holdingPriority = NSLayoutConstraint.Priority(251)
-        side.preferredThicknessFraction = 0
-        split.addSplitViewItem(side)
-        workspaceArea.cwdProvider = { [weak self] in self?.active.path ?? FileManager.default.currentDirectoryPath }
-        workspaceArea.setPrimary(chat.view, title: "")
-        let mainItem = NSSplitViewItem(viewController: workspaceArea)
-        mainItem.minimumThickness = 360
-        mainItem.maximumThickness = WindowLayoutChrome.defaultMaximumWindowSize.width
-        mainItem.holdingPriority = NSLayoutConstraint.Priority(1)
-        split.addSplitViewItem(mainItem)
-        gitItem = NSSplitViewItem(viewController: gitPanel)
-        gitItem.minimumThickness = 300; gitItem.maximumThickness = 520; gitItem.canCollapse = true
-        gitItem.preferredThicknessFraction = 0.30
-        gitItem.holdingPriority = NSLayoutConstraint.Priority(249)
-        split.addSplitViewItem(gitItem)
-        gitItem.isCollapsed = true
 
         window.title = "DynAgent"
         DispatchQueue.main.async { [weak self] in self?.window.subtitle = "" }
@@ -184,11 +170,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
         setMainWindowFrame(desiredFrame)
-        split.splitView.translatesAutoresizingMaskIntoConstraints = true
-        split.view.frame = NSRect(origin: .zero, size: desiredFrame.size)
-        split.view.autoresizingMask = [.width, .height]
-        split.splitView.frame = split.view.bounds
-        split.splitView.autoresizingMask = [.width, .height]
+        AppSplitLayoutChrome.installAutoresizing(on: split, size: desiredFrame.size)
         rootContentController = split
         window.contentViewController = split
         split.deactivateInternalSplitSizingConstraints()
