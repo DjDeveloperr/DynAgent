@@ -53,6 +53,7 @@
 - `SidebarArchiveConfirmationModel.swift`: tested archive confirmation reducer for first-click confirmation, second-click archive, hover-out cancellation, and reload decisions.
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
 - `SearchOverlayModel.swift`: tested pure search overlay model for bounded chat/message matching, recency sorting, result limiting, and row detail labels.
+- `SearchOverlayChrome.swift`: tested AppKit search overlay panel, backdrop, padded search field, scroll/stack layout, and result-row chrome.
 - `ComposerModel.swift`: tested composer behavior model for model/reasoning menu data, picker selection, draft keys, attachment message text, draft snapshots, attachment normalization, context state, and send/stop state.
 - `ComposerSelectionModel.swift`: tested composer model/reasoning selection state for Codex availability, harness sync plans, model-list sync plans, conversation adoption actions, desired-model adoption, fallback selection, and picker updates.
 - `ComposerSessionModel.swift`: tested composer session state transitions for attachment add/remove, draft restoration, placeholder visibility, and send clearing.

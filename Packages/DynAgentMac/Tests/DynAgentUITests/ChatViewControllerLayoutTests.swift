@@ -76,6 +76,46 @@ final class ChatViewControllerLayoutTests: XCTestCase {
         )
     }
 
+    func testLoadedThreadCanGrowAfterInitialShellRender() {
+        let controller = ChatViewController()
+        controller.loadView()
+        let fixture = resizableHost(controller, width: 900, height: 780)
+
+        let conversation = Conversation(model: "gpt-5.5", workspace: "/Users/dj/Developer/dynamic_agent", harness: .codex)
+        conversation.title = "Resize after latest thread loads"
+        conversation.needsLoad = true
+
+        controller.showShell(conversation)
+        layoutMounted(controller, in: fixture.host)
+        assertLayout(
+            in: controller,
+            viewWidth: 900,
+            expectedReadableWidth: Double(ChatLayoutModel.readableWidth(for: 900)),
+            file: #filePath,
+            line: #line
+        )
+
+        conversation.needsLoad = false
+        conversation.messages = [
+            ChatMessage(role: .user, text: "Load latest contents, then keep the canvas resizable."),
+            ChatMessage(role: .assistant, text: "The loaded transcript should not freeze the pre-load width."),
+        ]
+        conversation.messages[1].isFinal = true
+        controller.show(conversation)
+        layoutMounted(controller, in: fixture.host)
+
+        fixture.width.constant = 1_320
+        layoutMounted(controller, in: fixture.host)
+
+        assertLayout(
+            in: controller,
+            viewWidth: 1_320,
+            expectedReadableWidth: Double(ChatLayoutModel.maxReadableWidth),
+            file: #filePath,
+            line: #line
+        )
+    }
+
     private func assertLayout(
         in controller: ChatViewController,
         viewWidth: Double,
@@ -101,19 +141,24 @@ final class ChatViewControllerLayoutTests: XCTestCase {
     }
 
     private func host(_ controller: ChatViewController, width: CGFloat, height: CGFloat) -> NSView {
+        resizableHost(controller, width: width, height: height).host
+    }
+
+    private func resizableHost(_ controller: ChatViewController, width: CGFloat, height: CGFloat) -> (host: NSView, width: NSLayoutConstraint) {
         let host = NSView(frame: NSRect(x: 0, y: 0, width: width, height: height))
         host.translatesAutoresizingMaskIntoConstraints = false
         controller.view.translatesAutoresizingMaskIntoConstraints = false
         host.addSubview(controller.view)
+        let widthConstraint = host.widthAnchor.constraint(equalToConstant: width)
         NSLayoutConstraint.activate([
-            host.widthAnchor.constraint(equalToConstant: width),
+            widthConstraint,
             host.heightAnchor.constraint(equalToConstant: height),
             controller.view.leadingAnchor.constraint(equalTo: host.leadingAnchor),
             controller.view.trailingAnchor.constraint(equalTo: host.trailingAnchor),
             controller.view.topAnchor.constraint(equalTo: host.topAnchor),
             controller.view.bottomAnchor.constraint(equalTo: host.bottomAnchor),
         ])
-        return host
+        return (host, widthConstraint)
     }
 
     private func layoutMounted(_ controller: ChatViewController, in host: NSView) {
