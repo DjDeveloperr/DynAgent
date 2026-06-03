@@ -34,7 +34,7 @@ final class SidebarViewController: NSViewController {
     private var allRows: [SidebarRow] = []
     private weak var hoveredRow: SidebarRow?
     private var sectionAddActions: [ObjectIdentifier: () -> Void] = [:]
-    private var pendingArchiveId: String?
+    private var archiveConfirmation = SidebarArchiveConfirmationState.idle
     private var archiveCancelWorkItem: DispatchWorkItem?
     private let hoverTip = SidebarHoverTipWindow()
     private var hoverTipWorkItem: DispatchWorkItem?
@@ -173,7 +173,7 @@ final class SidebarViewController: NSViewController {
         hideHoverTip()
         hoveredRow?.clearHover()
         hoveredRow = nil
-        if pendingArchiveId != nil {
+        if archiveConfirmation.hasPendingArchive {
             cancelPendingArchive(immediate: true)
         }
     }
@@ -353,7 +353,7 @@ final class SidebarViewController: NSViewController {
         var rowRef: SidebarRow?
         let row = SidebarRow(height: 32, onClick: { [weak self] in self?.select(c) }, menu: { [weak self] in self?.menu(for: c) ?? NSMenu() }, onHoverChanged: { [weak self] hovering in
             guard let self else { return }
-            let confirming = self.pendingArchiveId == c.id
+            let confirming = SidebarArchiveConfirmationModel.isConfirming(conversationId: c.id, state: self.archiveConfirmation)
             pinButton?.isHidden = !hovering || confirming
             archiveButton?.isHidden = !hovering && !confirming
             timeLabel?.isHidden = model.isWorking || hovering || confirming
@@ -361,8 +361,12 @@ final class SidebarViewController: NSViewController {
             spinnerView?.isHidden = !model.isWorking || hovering || confirming
             titleToTime?.isActive = !hovering && !confirming
             titleToActions?.isActive = hovering || confirming
-            if !hovering, confirming { self.scheduleArchiveCancel(for: c.id) }
-            if hovering, confirming { self.archiveCancelWorkItem?.cancel() }
+            if SidebarArchiveConfirmationModel.shouldScheduleCancel(hovering: hovering, conversationId: c.id, state: self.archiveConfirmation) {
+                self.scheduleArchiveCancel(for: c.id)
+            }
+            if SidebarArchiveConfirmationModel.shouldCancelScheduledCancel(hovering: hovering, conversationId: c.id, state: self.archiveConfirmation) {
+                self.archiveCancelWorkItem?.cancel()
+            }
             if let row = rowRef {
                 if hovering { self.scheduleHoverTip(title: model.tooltip.title, detail: model.tooltip.detail, row: row) }
                 else { self.hideHoverTip() }
@@ -464,46 +468,49 @@ final class SidebarViewController: NSViewController {
     }
 
     private func archiveButtonClicked(_ sender: SidebarActionButton, conversation c: Conversation, pin: SidebarActionButton?) {
-        if pendingArchiveId == c.id {
+        switch SidebarArchiveConfirmationModel.clickArchive(conversationId: c.id, state: archiveConfirmation) {
+        case .confirmArchive(let state):
             archiveCancelWorkItem?.cancel()
             archiveCancelWorkItem = nil
-            pendingArchiveId = nil
+            archiveConfirmation = state
             onArchive?(c)
             return
+        case .showConfirmation(let state):
+            archiveConfirmation = state
+            archiveCancelWorkItem?.cancel()
+            sender.attributedTitle = NSAttributedString(
+                string: "Confirm",
+                attributes: [
+                    .foregroundColor: NSColor.systemRed,
+                    .font: NSFont.systemFont(ofSize: 12, weight: .semibold)
+                ]
+            )
+            sender.image = nil
+            sender.imagePosition = .noImage
+            sender.toolTip = "Click again to archive"
+            sender.invalidateIntrinsicContentSize()
+            sender.superview?.needsLayout = true
+            pin?.isHidden = true
         }
-        pendingArchiveId = c.id
-        archiveCancelWorkItem?.cancel()
-        sender.attributedTitle = NSAttributedString(
-            string: "Confirm",
-            attributes: [
-                .foregroundColor: NSColor.systemRed,
-                .font: NSFont.systemFont(ofSize: 12, weight: .semibold)
-            ]
-        )
-        sender.image = nil
-        sender.imagePosition = .noImage
-        sender.toolTip = "Click again to archive"
-        sender.invalidateIntrinsicContentSize()
-        sender.superview?.needsLayout = true
-        pin?.isHidden = true
     }
 
     private func scheduleArchiveCancel(for id: String) {
         archiveCancelWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
-            guard self?.pendingArchiveId == id else { return }
-            self?.cancelPendingArchive(immediate: true)
+            guard let self,
+                  SidebarArchiveConfirmationModel.isConfirming(conversationId: id, state: self.archiveConfirmation) else { return }
+            self.cancelPendingArchive(immediate: true)
         }
         archiveCancelWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + SidebarArchiveConfirmationModel.cancelDelay, execute: item)
     }
 
     private func cancelPendingArchive(immediate: Bool) {
-        let hadPending = pendingArchiveId != nil
         archiveCancelWorkItem?.cancel()
         archiveCancelWorkItem = nil
-        pendingArchiveId = nil
-        if immediate && hadPending { reload() }
+        let result = SidebarArchiveConfirmationModel.cancel(state: archiveConfirmation)
+        archiveConfirmation = result.state
+        if immediate && result.shouldReload { reload() }
     }
 
     private func addMoreToggle(_ w: Workspace, total: Int) {
