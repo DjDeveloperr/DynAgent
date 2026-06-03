@@ -173,7 +173,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     func setHeaderTitle(_ title: String) {
-        headerTitle.stringValue = title.nilIfEmpty ?? "New Chat"
+        headerTitle.stringValue = ChatTitleModel.displayTitle(title)
     }
 
     var layoutMetrics: [String: Any] {
@@ -1015,8 +1015,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func generateTitle(for c: Conversation, prompt: String) {
         Task { @MainActor in
-            let title = await client.generateTitle(prompt: prompt, model: selectedModel)
-            if !title.isEmpty && title != "New Chat" {
+            if let title = ChatTitleModel.acceptedGeneratedTitle(
+                await client.generateTitle(prompt: prompt, model: selectedModel)
+            ) {
                 c.title = title
                 onTitleGenerated?(c, title)
             }

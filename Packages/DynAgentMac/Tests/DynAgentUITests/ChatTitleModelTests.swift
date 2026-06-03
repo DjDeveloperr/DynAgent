@@ -17,4 +17,13 @@ final class ChatTitleModelTests: XCTestCase {
         XCTAssertEqual(ChatTitleModel.displayTitle(for: conversation), "New Chat")
         XCTAssertEqual(ChatTitleModel.displayTitle(for: nil), "New Chat")
     }
+
+    func testAcceptedGeneratedTitleTrimsAndRejectsFallbackTitles() {
+        XCTAssertEqual(ChatTitleModel.acceptedGeneratedTitle("  Fix width bug  "), "Fix width bug")
+        XCTAssertNil(ChatTitleModel.acceptedGeneratedTitle(""))
+        XCTAssertNil(ChatTitleModel.acceptedGeneratedTitle(" \n\t "))
+        XCTAssertNil(ChatTitleModel.acceptedGeneratedTitle(nil))
+        XCTAssertNil(ChatTitleModel.acceptedGeneratedTitle("New Chat"))
+        XCTAssertNil(ChatTitleModel.acceptedGeneratedTitle("  New Chat  "))
+    }
 }

@@ -10,4 +10,9 @@ enum ChatTitleModel {
     static func displayTitle(for conversation: Conversation?) -> String {
         displayTitle(conversation?.title)
     }
+
+    static func acceptedGeneratedTitle(_ rawTitle: String?) -> String? {
+        let title = displayTitle(rawTitle)
+        return title == fallbackTitle ? nil : title
+    }
 }

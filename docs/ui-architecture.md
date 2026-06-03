@@ -10,7 +10,7 @@
 - `ChatActionMenuChrome.swift`: tested AppKit chat-title action menu construction for pin, rename, archive, and detached-window actions.
 - `ChatEmptyStateChrome.swift`: tested AppKit new-chat empty-state title/subtitle/action chrome and liquid-glass action wrappers.
 - `ChatHeaderChrome.swift`: tested AppKit in-chat title and ellipsis action-button styling/placement.
-- `ChatTitleModel.swift`: tested shared chat title trimming/fallback policy for window titles, toolbar labels, chat headers, and dock recent entries.
+- `ChatTitleModel.swift`: tested shared chat title trimming/fallback and generated-title acceptance policy for window titles, toolbar labels, chat headers, and dock recent entries.
 - `ChatPresentationModel.swift`: tested pure chat presentation decisions for transcript render-cache reuse, loading shell labels, and empty-state visibility/subtitles.
 - `SettingsOverlayChrome.swift`: tested AppKit settings pill, settings/usage menu, and settings sheet chrome.
 - `MarkdownRenderer.swift`: tested markdown rendering for chat text, links, inline code, bullets, code fences, and directive tokens.
