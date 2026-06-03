@@ -14,7 +14,8 @@
 - `SidebarModel.swift`: tested pure grouping model for pinned chats, projectless chats, project workspaces, archived filtering, and recency ordering.
 - `SidebarRowModel.swift`: tested pure row-presentation model for short relative timestamps, workspace/chat tooltip content, worktree indicators, and working/pinned/unread state.
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
-- `ComposerModel.swift`: tested composer behavior model for model/reasoning labels, draft keys, attachment message text, context state, and send/stop state.
+- `ComposerModel.swift`: tested composer behavior model for model/reasoning labels, draft keys, attachment message text, draft snapshots, attachment normalization, context state, and send/stop state.
+- `ComposerChrome.swift`: reusable AppKit composer text input, context ring, and attachment chip views.
 - `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, wide fallback sizing, split divider planning, and post-load width invariants.
 - `WindowHosting.swift`: full-window host and split-view pinning used by the hot-reloadable macOS UI.
 
@@ -50,4 +51,3 @@ Pure models should move toward platform-neutral Swift where possible (`MarkdownR
 ## Next Extraction Targets
 
 - Transcript virtualization or reusable transcript row data source for large threads.
-- Composer visual component split from `ChatViewController`.

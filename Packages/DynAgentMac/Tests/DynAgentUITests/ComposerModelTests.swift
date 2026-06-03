@@ -78,6 +78,43 @@ final class ComposerModelTests: XCTestCase {
         )
     }
 
+    func testAttachmentAdditionsNormalizeAndDeduplicatePaths() {
+        let existing = [ComposerAttachment(url: URL(fileURLWithPath: "/tmp/a.png"))]
+        let additions = ComposerModel.attachmentAdditions(
+            existing: existing,
+            incoming: [
+                URL(fileURLWithPath: "/tmp/a.png"),
+                URL(fileURLWithPath: "/tmp/b.swift"),
+                URL(fileURLWithPath: "/tmp/b.swift"),
+            ]
+        )
+
+        XCTAssertEqual(additions.map { $0.url.path }, ["/tmp/b.swift"])
+    }
+
+    func testDraftSnapshotRoundTripsAndRestoresExistingAttachmentsOnly() {
+        let attachments = [
+            ComposerAttachment(url: URL(fileURLWithPath: "/tmp/a.png")),
+            ComposerAttachment(url: URL(fileURLWithPath: "/tmp/missing.swift")),
+        ]
+        let snapshot = ComposerModel.draftSnapshot(text: "hello", attachments: attachments)
+        let decoded = ComposerModel.decodeDraftSnapshot(from: ComposerModel.encodeDraftSnapshot(snapshot))
+
+        XCTAssertEqual(decoded, snapshot)
+        XCTAssertFalse(snapshot.isEmpty)
+        XCTAssertEqual(
+            ComposerModel.restoredAttachments(from: decoded) { $0.hasSuffix("a.png") }.map { $0.url.path },
+            ["/tmp/a.png"]
+        )
+    }
+
+    func testDraftSnapshotEmptyAndImageDetection() {
+        XCTAssertTrue(ComposerDraftSnapshot(text: "", attachments: []).isEmpty)
+        XCTAssertFalse(ComposerDraftSnapshot(text: "x", attachments: []).isEmpty)
+        XCTAssertTrue(ComposerModel.isImageFile(URL(fileURLWithPath: "/tmp/screen.HEIC")))
+        XCTAssertFalse(ComposerModel.isImageFile(URL(fileURLWithPath: "/tmp/main.swift")))
+    }
+
     func testSendStateStopsOnlyWhenStreamingWithEmptyComposerAndNoAttachments() {
         XCTAssertEqual(ComposerModel.sendState(streaming: true, trimmedText: "", hasAttachments: false),
                        ComposerSendState(symbol: "stop.fill", accessibilityDescription: "Stop", isStop: true))

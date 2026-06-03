@@ -3,67 +3,6 @@ import AppKit
 /// View whose origin is top-left so transcript content grows downward.
 final class FlippedView: NSView { override var isFlipped: Bool { true } }
 
-/// NSTextView that sends on Return and inserts a newline on Shift+Return.
-final class ComposerTextView: NSTextView {
-    var onSend: (() -> Void)?
-    var onPasteAttachments: (([URL]) -> Void)?
-    override func keyDown(with e: NSEvent) {
-        if e.keyCode == 36, !e.modifierFlags.contains(.shift) { onSend?(); return }
-        super.keyDown(with: e)
-    }
-
-    override func paste(_ sender: Any?) {
-        let urls = Self.attachmentURLs(from: NSPasteboard.general)
-        if !urls.isEmpty {
-            onPasteAttachments?(urls)
-            if NSPasteboard.general.string(forType: .string) == nil { return }
-        }
-        super.paste(sender)
-    }
-
-    private static func attachmentURLs(from pasteboard: NSPasteboard) -> [URL] {
-        var urls: [URL] = []
-        if let items = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] {
-            urls.append(contentsOf: items)
-        }
-        if let data = pasteboard.data(forType: .png) ?? pasteboard.data(forType: .tiff),
-           let url = savePastedImage(data: data, ext: pasteboard.data(forType: .png) != nil ? "png" : "tiff") {
-            urls.append(url)
-        }
-        return urls
-    }
-
-    private static func savePastedImage(data: Data, ext: String) -> URL? {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".dynagent")
-            .appendingPathComponent("attachments")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let url = dir.appendingPathComponent(UUID().uuidString).appendingPathExtension(ext)
-        do {
-            try data.write(to: url)
-            return url
-        } catch {
-            return nil
-        }
-    }
-}
-
-private struct ComposerAttachment: Equatable {
-    let id = UUID()
-    let url: URL
-}
-
-private struct ComposerDraftSnapshot: Codable {
-    var text: String
-    var attachments: [String]
-}
-
-private extension URL {
-    var isImageFile: Bool {
-        ["png", "jpg", "jpeg", "gif", "heic", "webp", "tiff"].contains(pathExtension.lowercased())
-    }
-}
-
 /// Non-editable, selectable rich text view that keeps Markdown attributes during selection.
 final class MessageTextView: NSTextView {
     override var intrinsicContentSize: NSSize {
@@ -244,21 +183,6 @@ final class WorkDivider: NSView {
         let verb = active ? "Working for" : "Worked for"
         if total < 60 { return "\(verb) \(total)s" }
         return "\(verb) \(total / 60)m \(total % 60)s"
-    }
-}
-
-/// Small ring that fills to show context usage; exact % shown on hover.
-final class ContextRing: NSView {    var fraction: Double = 0 { didSet { needsDisplay = true } }
-    override var intrinsicContentSize: NSSize { NSSize(width: 27, height: 27) }
-    override func draw(_ r: NSRect) {
-        let rect = bounds.insetBy(dx: 4, dy: 4)
-        NSColor.secondaryLabelColor.withAlphaComponent(0.42).setStroke()
-        let bg = NSBezierPath(ovalIn: rect); bg.lineWidth = 2.3; bg.stroke()
-        guard fraction > 0 else { return }
-        let c = NSPoint(x: rect.midX, y: rect.midY); let radius = rect.width / 2
-        let p = NSBezierPath()
-        p.appendArc(withCenter: c, radius: radius, startAngle: 90, endAngle: 90 - 360 * CGFloat(min(fraction, 1)), clockwise: true)
-        NSColor.controlAccentColor.setStroke(); p.lineWidth = 2.3; p.stroke()
     }
 }
 
@@ -1427,11 +1351,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func addAttachments(_ urls: [URL]) {
-        let existing = Set(attachments.map { $0.url.standardizedFileURL.path })
-        let additions = urls
-            .map { $0.standardizedFileURL }
-            .filter { !existing.contains($0.path) }
-            .map { ComposerAttachment(url: $0) }
+        let additions = ComposerModel.attachmentAdditions(existing: attachments, incoming: urls)
         guard !additions.isEmpty else { return }
         attachments.append(contentsOf: additions)
         renderAttachments()
@@ -1449,62 +1369,13 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         attachmentScroll.isHidden = attachments.isEmpty
         attachmentHeightConstraint?.constant = attachments.isEmpty ? 0 : 66
         for attachment in attachments {
-            attachmentStack.addArrangedSubview(attachmentChip(attachment))
+            let chip = ComposerAttachmentChip.make(attachment: attachment, target: self, removeAction: #selector(removeAttachment(_:)))
+            attachmentRemoveIds[ObjectIdentifier(chip.removeButton)] = attachment.id
+            attachmentStack.addArrangedSubview(chip.view)
         }
         attachmentStack.layoutSubtreeIfNeeded()
         let size = attachmentStack.fittingSize
         attachmentStack.frame = NSRect(x: 0, y: 0, width: max(size.width, attachmentScroll.contentView.bounds.width), height: max(66, size.height))
-    }
-
-    private func attachmentChip(_ attachment: ComposerAttachment) -> NSView {
-        let iconOrPreview: NSView
-        if attachment.url.isImageFile, let image = NSImage(contentsOf: attachment.url) {
-            let preview = NSImageView(image: image)
-            preview.imageScaling = .scaleProportionallyUpOrDown
-            preview.wantsLayer = true
-            preview.layer?.cornerRadius = 7
-            preview.layer?.masksToBounds = true
-            preview.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                preview.widthAnchor.constraint(equalToConstant: 48),
-                preview.heightAnchor.constraint(equalToConstant: 48),
-            ])
-            iconOrPreview = preview
-        } else {
-            let icon = NSImageView(image: NSImage(systemSymbolName: "doc", accessibilityDescription: nil) ?? NSImage())
-            icon.contentTintColor = .secondaryLabelColor
-            icon.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                icon.widthAnchor.constraint(equalToConstant: 16),
-                icon.heightAnchor.constraint(equalToConstant: 16),
-            ])
-            iconOrPreview = icon
-        }
-
-        let button = NSButton(title: attachment.url.lastPathComponent, target: nil, action: nil)
-        button.isBordered = false
-        button.font = .systemFont(ofSize: 12, weight: .medium)
-        button.contentTintColor = .secondaryLabelColor
-        button.toolTip = attachment.url.path
-        button.lineBreakMode = .byTruncatingMiddle
-
-        let close = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Remove attachment")?
-            .withSymbolConfiguration(.init(pointSize: 9, weight: .bold)) ?? NSImage(), target: self, action: #selector(removeAttachment(_:)))
-        close.isBordered = false
-        close.contentTintColor = .tertiaryLabelColor
-        attachmentRemoveIds[ObjectIdentifier(close)] = attachment.id
-
-        let stack = NSStackView(views: [iconOrPreview, button, close])
-        stack.orientation = .horizontal
-        stack.spacing = 5
-        stack.alignment = .centerY
-        stack.edgeInsets = NSEdgeInsets(top: attachment.url.isImageFile ? 5 : 6, left: 8, bottom: attachment.url.isImageFile ? 5 : 6, right: 5)
-        stack.wantsLayer = true
-        stack.layer?.cornerRadius = 8
-        stack.layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(0.12).cgColor
-        stack.toolTip = attachment.url.path
-        button.widthAnchor.constraint(lessThanOrEqualToConstant: attachment.url.isImageFile ? 150 : 190).isActive = true
-        return stack
     }
 
     @objc private func removeAttachment(_ sender: NSButton) {
@@ -1519,14 +1390,11 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         guard !restoringComposerDraft, let c = conversation else { return }
         draftSaveWorkItem?.cancel()
         draftSaveWorkItem = nil
-        let snapshot = ComposerDraftSnapshot(
-            text: composer.string,
-            attachments: attachments.map { $0.url.standardizedFileURL.path }
-        )
+        let snapshot = ComposerModel.draftSnapshot(text: composer.string, attachments: attachments)
         let key = composerDraftKey(for: c)
-        if snapshot.text.isEmpty && snapshot.attachments.isEmpty {
+        if snapshot.isEmpty {
             UserDefaults.standard.removeObject(forKey: key)
-        } else if let data = try? JSONEncoder().encode(snapshot) {
+        } else if let data = ComposerModel.encodeDraftSnapshot(snapshot) {
             UserDefaults.standard.set(data, forKey: key)
         }
     }
@@ -1542,13 +1410,10 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private func restoreComposerDraft(for c: Conversation) {
         let key = composerDraftKey(for: c)
         let data = UserDefaults.standard.data(forKey: key)
-        let snapshot = data.flatMap { try? JSONDecoder().decode(ComposerDraftSnapshot.self, from: $0) }
+        let snapshot = ComposerModel.decodeDraftSnapshot(from: data)
         restoringComposerDraft = true
         composer.string = snapshot?.text ?? ""
-        attachments = (snapshot?.attachments ?? [])
-            .map { URL(fileURLWithPath: $0).standardizedFileURL }
-            .filter { FileManager.default.fileExists(atPath: $0.path) }
-            .map { ComposerAttachment(url: $0) }
+        attachments = ComposerModel.restoredAttachments(from: snapshot) { FileManager.default.fileExists(atPath: $0) }
         renderAttachments()
         restoringComposerDraft = false
         placeholder.isHidden = !composer.string.isEmpty
@@ -1986,7 +1851,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func messageTextWithAttachments(_ text: String) -> String {
-        ComposerModel.messageText(typedText: text, attachmentPaths: attachments.map(\.url.path))
+        ComposerModel.messageText(typedText: text, attachmentPaths: ComposerModel.normalizedAttachmentPaths(attachments))
     }
 
     private func stop() {

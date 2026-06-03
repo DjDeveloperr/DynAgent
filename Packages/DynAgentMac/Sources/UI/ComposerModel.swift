@@ -22,6 +22,25 @@ struct ComposerContextState: Equatable {
     var tooltip: String
 }
 
+struct ComposerAttachment: Equatable {
+    let id: UUID
+    let url: URL
+
+    init(url: URL, id: UUID = UUID()) {
+        self.id = id
+        self.url = url
+    }
+}
+
+struct ComposerDraftSnapshot: Codable, Equatable {
+    var text: String
+    var attachments: [String]
+
+    var isEmpty: Bool {
+        text.isEmpty && attachments.isEmpty
+    }
+}
+
 enum ComposerModel {
     static let defaultDraftPrefix = "DynAgentComposerDraft."
 
@@ -100,6 +119,43 @@ enum ComposerModel {
             fraction: value / 100,
             tooltip: "context \(Int(value))%"
         )
+    }
+
+    static func isImageFile(_ url: URL) -> Bool {
+        ["png", "jpg", "jpeg", "gif", "heic", "webp", "tiff"].contains(url.pathExtension.lowercased())
+    }
+
+    static func normalizedAttachmentPaths(_ attachments: [ComposerAttachment]) -> [String] {
+        attachments.map { $0.url.standardizedFileURL.path }
+    }
+
+    static func attachmentAdditions(existing: [ComposerAttachment], incoming urls: [URL]) -> [ComposerAttachment] {
+        var seen = Set(normalizedAttachmentPaths(existing))
+        var additions: [ComposerAttachment] = []
+        for url in urls.map(\.standardizedFileURL) {
+            guard seen.insert(url.path).inserted else { continue }
+            additions.append(ComposerAttachment(url: url))
+        }
+        return additions
+    }
+
+    static func draftSnapshot(text: String, attachments: [ComposerAttachment]) -> ComposerDraftSnapshot {
+        ComposerDraftSnapshot(text: text, attachments: normalizedAttachmentPaths(attachments))
+    }
+
+    static func encodeDraftSnapshot(_ snapshot: ComposerDraftSnapshot) -> Data? {
+        try? JSONEncoder().encode(snapshot)
+    }
+
+    static func decodeDraftSnapshot(from data: Data?) -> ComposerDraftSnapshot? {
+        data.flatMap { try? JSONDecoder().decode(ComposerDraftSnapshot.self, from: $0) }
+    }
+
+    static func restoredAttachments(from snapshot: ComposerDraftSnapshot?, fileExists: (String) -> Bool) -> [ComposerAttachment] {
+        (snapshot?.attachments ?? [])
+            .map { URL(fileURLWithPath: $0).standardizedFileURL }
+            .filter { fileExists($0.path) }
+            .map { ComposerAttachment(url: $0) }
     }
 
     static func shortCodexModelName(_ id: String) -> String {
