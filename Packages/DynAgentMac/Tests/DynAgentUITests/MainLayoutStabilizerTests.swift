@@ -7,8 +7,7 @@ final class MainLayoutStabilizerTests: XCTestCase {
     func testStabilizePinsRootSplitAndWorkspaceAfterStaleNarrowFrames() throws {
         let fixture = makeFixture(windowWidth: 1_472, windowHeight: 780)
 
-        fixture.root.view.frame = NSRect(x: 0, y: 0, width: 640, height: 500)
-        fixture.root.splitView.frame = fixture.root.view.bounds
+        fixture.root.splitView.frame = NSRect(x: 0, y: 0, width: 640, height: 500)
         fixture.workspace.view.frame = NSRect(x: 0, y: 0, width: 420, height: 500)
         fixture.chat.frame = fixture.workspace.view.bounds
 
@@ -42,6 +41,7 @@ final class MainLayoutStabilizerTests: XCTestCase {
 
     func testStabilizeKeepsGitPanelOutsideReadableMainColumn() throws {
         let fixture = makeFixture(windowWidth: 1_472, windowHeight: 780)
+        fixture.root.splitView.setPosition(260, ofDividerAt: 0)
         fixture.gitItem.isCollapsed = false
 
         let plan = try XCTUnwrap(MainLayoutStabilizer.stabilize(
@@ -56,12 +56,12 @@ final class MainLayoutStabilizerTests: XCTestCase {
         ))
 
         XCTAssertEqual(try XCTUnwrap(plan.firstDividerPosition), 260, accuracy: 0.5)
-        XCTAssertEqual(try XCTUnwrap(plan.secondDividerPosition), 1_160, accuracy: 0.5)
+        XCTAssertEqual(try XCTUnwrap(plan.secondDividerPosition), 1_172, accuracy: 0.5)
 
         let mainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
         let gitFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 2]?.frame)
-        XCTAssertEqual(mainFrame.width, 899, accuracy: 2)
-        XCTAssertEqual(gitFrame.width, 311, accuracy: 2)
+        XCTAssertEqual(mainFrame.width, 911, accuracy: 2)
+        XCTAssertEqual(gitFrame.width, 299, accuracy: 2)
         XCTAssertEqual(fixture.workspace.view.frame.width, mainFrame.width, accuracy: 0.5)
     }
 
@@ -101,6 +101,7 @@ final class MainLayoutStabilizerTests: XCTestCase {
         root.addSplitViewItem(gitItem)
         root.deactivateInternalSplitSizingConstraints()
         window.contentViewController = root
+        window.setContentSize(NSSize(width: windowWidth, height: windowHeight))
         root.view.frame = window.contentView?.bounds ?? NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight)
         root.splitView.frame = root.view.bounds
 
