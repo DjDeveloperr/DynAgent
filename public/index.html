@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>dynamic_agent</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+         background: #0d1117; color: #e6edf3; display: flex; flex-direction: column; height: 100vh; }
+  header { display: flex; gap: 12px; align-items: center; padding: 10px 16px;
+           border-bottom: 1px solid #30363d; background: #161b22; }
+  header b { color: #58a6ff; }
+  header .cwd { color: #8b949e; margin-left: auto; font-size: 12px; }
+  select, button, textarea { font: inherit; background: #0d1117; color: #e6edf3;
+           border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  #log { flex: 1; overflow-y: auto; padding: 16px; }
+  .msg { margin: 0 0 14px; white-space: pre-wrap; word-break: break-word; }
+  .msg .role { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #8b949e; margin-bottom: 4px; }
+  .user .role { color: #58a6ff; }
+  .assistant .role { color: #3fb950; }
+  .tool { color: #d29922; font-size: 12px; }
+  .err { color: #f85149; }
+  form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #30363d; background: #161b22; }
+  textarea { flex: 1; resize: none; height: 44px; }
+</style>
+</head>
+<body>
+<header>
+  <b>dynamic_agent</b>
+  <select id="model"></select>
+  <span class="cwd" id="cwd"></span>
+</header>
+<div id="log"></div>
+<form id="form">
+  <textarea id="input" placeholder="Ask the agent…  (Enter to send, Shift+Enter for newline)"></textarea>
+  <button id="send" type="submit">Send</button>
+</form>
+<script>
+const API = location.origin;
+const $ = (id) => document.getElementById(id);
+const log = $("log"), modelSel = $("model"), input = $("input"), send = $("send");
+const messages = [];
+
+const scroll = () => (log.scrollTop = log.scrollHeight);
+function bubble(role) {
+  const el = document.createElement("div");
+  el.className = "msg " + role;
+  el.innerHTML = `<div class="role">${role}</div><div class="body"></div>`;
+  log.appendChild(el); scroll();
+  return el.querySelector(".body");
+}
+function line(parent, cls, text) {
+  const d = document.createElement("div");
+  d.className = cls; d.textContent = text;
+  parent.appendChild(d); scroll();
+}
+
+async function init() {
+  try {
+    const [models, cwd] = await Promise.all([
+      fetch(API + "/models").then((r) => r.json()),
+      fetch(API + "/cwd").then((r) => r.json()),
+    ]);
+    modelSel.innerHTML = models.map((m) => `<option value="${m.id}">${m.name}</option>`).join("");
+    $("cwd").textContent = cwd.name || cwd.cwd || "";
+  } catch (e) {
+    $("cwd").textContent = "server offline";
+  }
+}
+
+async function ask(text) {
+  messages.push({ role: "user", content: text });
+  bubble("user").textContent = text;
+  const body = bubble("assistant");
+  send.disabled = true;
+  let assistant = "";
+  try {
+    const res = await fetch(API + "/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: modelSel.value, messages }),
+    });
+    if (!res.ok || !res.body) throw new Error("HTTP " + res.status);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const events = buf.split("\n\n");
+      buf = events.pop() || "";
+      for (const block of events) {
+        const data = block.split("\n").filter((l) => l.startsWith("data: "))
+          .map((l) => l.slice(6)).join("");
+        if (!data) continue;
+        let ev; try { ev = JSON.parse(data); } catch { continue; }
+        if (ev.type === "text") { assistant += ev.text; body.firstChild ? null : null; render(body, assistant); }
+        else if (ev.type === "tool") line(body, "tool", "⚙ " + ev.name + " " + JSON.stringify(ev.input));
+        else if (ev.type === "tool-result") line(body, "tool", "✓ " + ev.name);
+        else if (ev.type === "error") line(body, "err", "error: " + ev.error);
+        else if (ev.type === "done") line(body, "tool", "■ done" + (ev.status ? " (" + ev.status + ")" : "") + (ev.summary ? ": " + ev.summary : ""));
+      }
+    }
+    if (assistant) messages.push({ role: "assistant", content: assistant });
+  } catch (e) {
+    line(body, "err", "error: " + e.message);
+  } finally {
+    send.disabled = false; input.focus();
+  }
+}
+
+// Keep the streamed text in its own node so tool lines append after it.
+function render(body, text) {
+  let t = body.querySelector(".text");
+  if (!t) { t = document.createElement("div"); t.className = "text"; body.prepend(t); }
+  t.textContent = text; scroll();
+}
+
+$("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text || send.disabled) return;
+  input.value = "";
+  ask(text);
+});
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("form").requestSubmit(); }
+});
+
+init();
+</script>
+</body>
+</html>

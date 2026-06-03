@@ -7,9 +7,12 @@ import { createKiroProvider } from "./provider/kiro"
 import { ToolRegistry } from "./agent/tools"
 import { builtins } from "./agent/builtins"
 import { Agent } from "./agent/agent"
+import { codex } from "./codex"
+import { piModels, piChat } from "./pi"
 
 const cwd = process.env.AGENT_CWD ?? process.cwd()
 const toolsDir = join(cwd, ".agent", "tools")
+const webDir = join(import.meta.dir, "..", "public")
 const port = Number(process.env.PORT ?? 4319)
 const pexec = promisify(execFile)
 const git = (dir: string, ...args: string[]) =>
@@ -65,77 +68,141 @@ Bun.serve({
 
     if (url.pathname === "/models") return json(await provider.listModels())
 
-    // Codex harness: models from codex-server (port 4100)
+    // Codex harness: real models from `codex app-server` (WebSocket)
     if (url.pathname === "/codex/models") {
       try {
-        const res = await fetch("http://127.0.0.1:4100/v1/models")
-        const data = await res.json() as { data?: Array<{ id: string }> }
-        return json((data.data || []).map((m: { id: string }) => ({ id: m.id, name: m.id })))
+        return json(await codex.listModels())
       } catch {
-        return json({ error: "codex-server not running (start with: bun src/codex-server.ts)" }, 503)
+        return json({ error: "codex app-server not running (pm2 start codex-appserver)" }, 503)
       }
     }
 
-    // Codex harness: stream chat completions through codex-server
-    if (url.pathname === "/codex/chat" && req.method === "POST") {
-      const { model, messages } = (await req.json()) as { model: string; messages: Array<{ role: string; content: string }> }
+    // Codex harness: list threads for a workspace (cwd)
+    if (url.pathname === "/codex/threads") {
       try {
-        const res = await fetch("http://127.0.0.1:4100/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": "Bearer dummy" },
-          body: JSON.stringify({ model, messages, stream: true }),
-        })
-        if (!res.ok || !res.body) return json({ error: `codex-server: ${res.status}` }, 502)
-        // Transform OpenAI SSE stream to our event format
-        const enc = new TextEncoder()
-        let closed = false
-        const stream = new ReadableStream({
-          async start(controller) {
-            const send = (e: unknown) => {
-              if (closed) return
-              try { controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`)) } catch {}
-            }
-            try {
-              const reader = res.body!.getReader()
-              const decoder = new TextDecoder()
-              let buf = ""
-              while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-                buf += decoder.decode(value, { stream: true })
-                const lines = buf.split("\n")
-                buf = lines.pop() || ""
-                for (const line of lines) {
-                  if (!line.startsWith("data: ")) continue
-                  const payload = line.slice(6).trim()
-                  if (payload === "[DONE]") { send({ type: "done" }); break }
-                  try {
-                    const chunk = JSON.parse(payload)
-                    const delta = chunk.choices?.[0]?.delta
-                    if (delta?.content) send({ type: "text", text: delta.content })
-                    if (delta?.tool_calls) {
-                      for (const tc of delta.tool_calls) {
-                        if (tc.function?.name) send({ type: "tool", name: tc.function.name })
-                      }
-                    }
-                    if (chunk.choices?.[0]?.finish_reason) send({ type: "done" })
-                  } catch {}
-                }
-              }
-            } catch (e: any) {
-              send({ type: "error", error: e.message })
-            } finally {
-              if (!closed) { closed = true; try { controller.close() } catch {} }
-            }
-          },
-          cancel() { closed = true }
-        })
-        return new Response(stream, {
-          headers: { ...CORS, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
-        })
-      } catch (e: any) {
-        return json({ error: "codex-server not running" }, 503)
+        return json(await codex.listThreads(url.searchParams.get("cwd") || undefined))
+      } catch {
+        return json({ error: "codex app-server not running" }, 503)
       }
+    }
+
+    // Codex Desktop workspace index from ~/.codex.
+    if (url.pathname === "/codex/workspaces") {
+      try {
+        return json(await codex.listWorkspaces())
+      } catch (e: any) {
+        return json({ error: e.message }, 500)
+      }
+    }
+
+    // Codex Desktop sidebar collapsed groups/sections from ~/.codex.
+    if (url.pathname === "/codex/sidebar") {
+      try {
+        if (req.method === "POST") return json(await codex.setSidebarState(await req.json() as Parameters<typeof codex.setSidebarState>[0]))
+        return json(await codex.sidebarState())
+      } catch (e: any) {
+        return json({ error: e.message }, 500)
+      }
+    }
+
+    // Codex harness: steer a running turn (inject a message mid-turn)
+    if (url.pathname === "/codex/steer" && req.method === "POST") {
+      const { threadId, text } = (await req.json()) as { threadId: string; text: string }
+      try { await codex.steer(threadId, text); return json({ ok: true }) }
+      catch (e: any) { return json({ error: e.message }, 400) }
+    }
+
+    // Codex harness: explicit user stop. Plain HTTP disconnects are treated as UI detach/reload.
+    if (url.pathname === "/codex/cancel" && req.method === "POST") {
+      const { threadId } = (await req.json()) as { threadId: string }
+      try { await codex.cancel(threadId); return json({ ok: true }) }
+      catch (e: any) { return json({ error: e.message }, 400) }
+    }
+
+    // Codex harness: archive a thread in the real Codex app-server.
+    if (url.pathname === "/codex/archive" && req.method === "POST") {
+      const { threadId } = (await req.json()) as { threadId: string }
+      try { await codex.archiveThread(threadId); return json({ ok: true }) }
+      catch (e: any) { return json({ error: e.message }, 400) }
+    }
+
+    // Codex harness: rename a thread in the real Codex app-server.
+    if (url.pathname === "/codex/rename" && req.method === "POST") {
+      const { threadId, name } = (await req.json()) as { threadId: string; name: string }
+      try { await codex.renameThread(threadId, name); return json({ ok: true }) }
+      catch (e: any) { return json({ error: e.message }, 400) }
+    }
+
+    // Codex harness: pin state is mirrored through Codex Desktop's global state.
+    if (url.pathname === "/codex/pin" && req.method === "POST") {
+      const { threadId, pinned } = (await req.json()) as { threadId: string; pinned: boolean }
+      try { await codex.setThreadPinned(threadId, Boolean(pinned)); return json({ ok: true }) }
+      catch (e: any) { return json({ error: e.message }, 400) }
+    }
+
+    // Codex harness: read a thread's message history
+    if (url.pathname.startsWith("/codex/thread/")) {
+      try {
+        return json(await codex.readThread(url.pathname.slice("/codex/thread/".length)))
+      } catch (e: any) {
+        return json({ error: e.message }, 502)
+      }
+    }
+
+    // Codex harness: stream a turn through the real codex app-server
+    if (url.pathname === "/codex/chat" && req.method === "POST") {
+      const { model, text, cwd: reqCwd, threadId, effort } = (await req.json()) as {
+        model: string; text: string; cwd?: string; threadId?: string; effort?: string
+      }
+      const enc = new TextEncoder()
+      let closed = false
+      const ac = new AbortController()
+      const stream = new ReadableStream({
+        async start(controller) {
+          const send = (e: unknown) => {
+            if (closed) return
+            try { controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`)) } catch {}
+          }
+          try {
+            await codex.chat({
+              cwd: reqCwd || cwd, model, effort, threadId, text, signal: ac.signal,
+              onEvent: (ev) => send(ev),
+            })
+          } catch (e: any) {
+            send({ type: "error", error: e.message })
+          } finally {
+            if (!closed) { closed = true; try { controller.close() } catch {} }
+          }
+        },
+        cancel() { closed = true },
+      })
+      return new Response(stream, {
+        headers: { ...CORS, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+      })
+    }
+
+    // Pi harness: models from the `pi` CLI
+    if (url.pathname === "/pi/models") {
+      try { return json(await piModels()) } catch (e: any) { return json({ error: e.message }, 503) }
+    }
+
+    // Pi harness: stream a turn through the `pi` CLI
+    if (url.pathname === "/pi/chat" && req.method === "POST") {
+      const { model, text, cwd: reqCwd, sessionId } = (await req.json()) as { model: string; text: string; cwd?: string; sessionId: string }
+      const enc = new TextEncoder()
+      let closed = false
+      const ac = new AbortController()
+      const stream = new ReadableStream({
+        async start(controller) {
+          const send = (e: unknown) => { if (!closed) try { controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`)) } catch {} }
+          try {
+            await piChat({ model, text, cwd: reqCwd || cwd, sessionId, signal: ac.signal, onEvent: (ev) => send(ev) })
+          } catch (e: any) { send({ type: "error", error: e.message }) }
+          finally { if (!closed) { closed = true; try { controller.close() } catch {} } }
+        },
+        cancel() { closed = true; ac.abort() },
+      })
+      return new Response(stream, { headers: { ...CORS, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" } })
     }
 
     if (url.pathname === "/cwd") return json({ cwd, name: cwd.split("/").pop() || cwd })
@@ -173,13 +240,18 @@ Bun.serve({
     // Git status + diff for a workspace.
     if (url.pathname === "/git") {
       const dir = url.searchParams.get("cwd") || cwd
+      const staged = url.searchParams.get("scope") === "staged"
       try {
         const [branch, statusRaw, diff] = await Promise.all([
           git(dir, "rev-parse", "--abbrev-ref", "HEAD").catch(() => "—"),
           pexec("git", ["-C", dir, "status", "--porcelain"], { maxBuffer: 1 << 24 }).then((r) => r.stdout),
-          git(dir, "diff"),
+          git(dir, staged ? "diff" : "diff", ...(staged ? ["--cached"] : [])),
         ])
-        const files = statusRaw.split("\n").filter(Boolean).map((l) => ({ x: l.slice(0, 2), path: l.slice(3) }))
+        const files = statusRaw
+          .split("\n")
+          .filter(Boolean)
+          .filter((l) => !staged || (l[0] !== " " && l[0] !== "?"))
+          .map((l) => ({ x: l.slice(0, 2), path: l.slice(3) }))
         return json({ branch, files, diff })
       } catch (e: any) {
         const msg = e?.stderr || e?.message || ""
@@ -290,6 +362,26 @@ Bun.serve({
     }
 
     // Create a git worktree (new branch) under <repo>/.worktrees/<branch>.
+    // List existing git worktrees for a repo (porcelain), excluding the main one.
+    if (url.pathname === "/worktrees") {
+      const dir = url.searchParams.get("cwd") || cwd
+      try {
+        const out = await git(dir, "worktree", "list", "--porcelain")
+        const trees: Array<{ path: string; branch: string }> = []
+        let path = ""
+        for (const line of out.split("\n")) {
+          if (line.startsWith("worktree ")) path = line.slice(9)
+          else if (line.startsWith("branch ")) trees.push({ path, branch: line.slice(7).replace("refs/heads/", "") })
+          else if (line === "detached" && path) trees.push({ path, branch: path.split("/").slice(-2, -1)[0] || "detached" })
+        }
+        // drop the main worktree (first entry / matches dir root)
+        const root = await git(dir, "rev-parse", "--show-toplevel").catch(() => dir)
+        return json(trees.filter((t) => t.path !== root))
+      } catch (e: any) {
+        return json({ error: e?.stderr || e?.message }, 400)
+      }
+    }
+
     if (url.pathname === "/worktree" && req.method === "POST") {
       const { cwd: dir, branch } = (await req.json()) as { cwd: string; branch: string }
       try {
@@ -365,11 +457,13 @@ Bun.serve({
       return json({ result })
     }
 
-    // Browser control: get current state
+    // Browser control: get current state (fresh round-trip, not a stale cache)
     if (url.pathname === "/browser/state") {
       const id = url.searchParams.get("id") || undefined
-      const state = browserStates.get(id || "_default") || { url: "", title: "" }
-      return json(state)
+      const resultId = crypto.randomUUID()
+      browserActions.push({ type: "eval", script: "JSON.stringify({url:location.href,title:document.title})", id, resultId })
+      const raw = await waitForBrowserResult(resultId)
+      try { return json(JSON.parse(raw)) } catch { return json({ url: "", title: "", error: raw }) }
     }
 
     // App reports terminal output (called by the macOS app)
@@ -461,6 +555,12 @@ Bun.serve({
       return new Response(stream, {
         headers: { ...CORS, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
       })
+    }
+
+    // Static web frontend (served from <repo>/public)
+    if (req.method === "GET") {
+      const file = Bun.file(join(webDir, url.pathname === "/" ? "index.html" : url.pathname))
+      if (await file.exists()) return new Response(file, { headers: CORS })
     }
 
     return new Response("not found", { status: 404, headers: CORS })

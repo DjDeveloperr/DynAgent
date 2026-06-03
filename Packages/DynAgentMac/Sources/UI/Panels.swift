@@ -16,6 +16,10 @@ final class PanelRegistry {
     func register(browser: BrowserPanel, id: String) { browsers[id] = browser }
     func unregisterTerminal(_ id: String) { terminals.removeValue(forKey: id) }
     func unregisterBrowser(_ id: String) { browsers.removeValue(forKey: id) }
+    func removeAll() {
+        terminals.removeAll()
+        browsers.removeAll()
+    }
 
     func terminal(_ id: String? = nil) -> TerminalPanel? {
         if let id { return terminals[id] }
@@ -38,7 +42,7 @@ final class TilePanel: NSView {
     var splitHandler: ((TilePanel, Bool, PanelKind) -> Void)?
     var closeHandler: ((TilePanel) -> Void)?
 
-    init(title: String, content: NSView, closable: Bool) {
+    init(title: String, content: NSView, closable: Bool, showsHeader: Bool = true) {
         self.content = content
         super.init(frame: .zero)
 
@@ -52,22 +56,31 @@ final class TilePanel: NSView {
         header.orientation = .horizontal
         header.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 6)
         header.wantsLayer = true
-        header.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.6).cgColor
+        header.layer?.backgroundColor = NSColor.clear.cgColor
         header.translatesAutoresizingMaskIntoConstraints = false
 
         content.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(header)
         addSubview(content)
-        NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: topAnchor),
-            header.leadingAnchor.constraint(equalTo: leadingAnchor),
-            header.trailingAnchor.constraint(equalTo: trailingAnchor),
-            header.heightAnchor.constraint(equalToConstant: 26),
-            content.topAnchor.constraint(equalTo: header.bottomAnchor),
-            content.leadingAnchor.constraint(equalTo: leadingAnchor),
-            content.trailingAnchor.constraint(equalTo: trailingAnchor),
-            content.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
+        if showsHeader {
+            addSubview(header)
+            NSLayoutConstraint.activate([
+                header.topAnchor.constraint(equalTo: topAnchor),
+                header.leadingAnchor.constraint(equalTo: leadingAnchor),
+                header.trailingAnchor.constraint(equalTo: trailingAnchor),
+                header.heightAnchor.constraint(equalToConstant: 26),
+                content.topAnchor.constraint(equalTo: header.bottomAnchor),
+                content.leadingAnchor.constraint(equalTo: leadingAnchor),
+                content.trailingAnchor.constraint(equalTo: trailingAnchor),
+                content.bottomAnchor.constraint(equalTo: bottomAnchor),
+            ])
+        } else {
+            NSLayoutConstraint.activate([
+                content.topAnchor.constraint(equalTo: topAnchor),
+                content.leadingAnchor.constraint(equalTo: leadingAnchor),
+                content.trailingAnchor.constraint(equalTo: trailingAnchor),
+                content.bottomAnchor.constraint(equalTo: bottomAnchor),
+            ])
+        }
     }
     required init?(coder: NSCoder) { fatalError() }
 
@@ -106,6 +119,8 @@ final class TilePanel: NSView {
 final class WorkspaceAreaViewController: NSViewController {
     var cwdProvider: () -> String = { FileManager.default.currentDirectoryPath }
     private let root = NSSplitView()
+    private var primaryContent: NSView?
+    private var primaryTitle = "Chat"
 
     override func loadView() {
         root.isVertical = true
@@ -123,12 +138,33 @@ final class WorkspaceAreaViewController: NSViewController {
     }
 
     func setPrimary(_ content: NSView, title: String) {
-        root.addArrangedSubview(makePanel(title: title, content: content, closable: false))
+        primaryContent = content; primaryTitle = title
+        root.addArrangedSubview(makePanel(title: title, content: content, closable: false, showsHeader: false))
     }
 
-    private func makePanel(title: String, content: NSView, closable: Bool) -> TilePanel {
-        let p = TilePanel(title: title, content: content, closable: closable)
-        p.translatesAutoresizingMaskIntoConstraints = false
+    /// Tear down all browser/terminal panels, leaving only the primary chat. Used to isolate panels per chat.
+    func resetPanels() {
+        root.arrangedSubviews.forEach { teardown($0) }
+        root.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        if let c = primaryContent {
+            c.removeFromSuperview()
+            root.addArrangedSubview(makePanel(title: primaryTitle, content: c, closable: false, showsHeader: false))
+        }
+    }
+
+    private func teardown(_ v: NSView) {
+        if let p = v as? TilePanel {
+            if let t = p.content as? TerminalPanel { PanelRegistry.shared.unregisterTerminal(t.panelId) }
+            if let b = p.content as? BrowserPanel { PanelRegistry.shared.unregisterBrowser(b.panelId) }
+        } else if let s = v as? NSSplitView {
+            s.arrangedSubviews.forEach { teardown($0) }
+        }
+    }
+
+    private func makePanel(title: String, content: NSView, closable: Bool, showsHeader: Bool = true) -> TilePanel {
+        let p = TilePanel(title: title, content: content, closable: closable, showsHeader: showsHeader)
+        // NOTE: arranged subviews of an NSSplitView must stay frame-managed (autoresizing),
+        // otherwise the divider snaps back to the intrinsic/min width on every layout pass.
         p.splitHandler = { [weak self] panel, side, kind in self?.split(panel, sideBySide: side, kind: kind) }
         p.closeHandler = { [weak self] panel in self?.close(panel) }
         return p
@@ -149,7 +185,6 @@ final class WorkspaceAreaViewController: NSViewController {
         let split = NSSplitView()
         split.isVertical = sideBySide
         split.dividerStyle = .thin
-        split.translatesAutoresizingMaskIntoConstraints = false
         parent.insertArrangedSubview(split, at: idx)
         panel.removeFromSuperview()
         split.addArrangedSubview(panel)
@@ -200,6 +235,9 @@ final class TerminalPanel: NSView, LocalProcessTerminalViewDelegate {
 
         termView.translatesAutoresizingMaskIntoConstraints = false
         termView.processDelegate = self
+        // Match the system text colors so the terminal looks native (light/dark aware).
+        termView.nativeBackgroundColor = .textBackgroundColor
+        termView.nativeForegroundColor = .textColor
         termView.onData = { [weak self] slice in
             let str = String(bytes: slice, encoding: .utf8) ?? ""
             DispatchQueue.main.async {
@@ -282,7 +320,6 @@ final class BrowserPanel: NSView, WKNavigationDelegate {
             web.trailingAnchor.constraint(equalTo: trailingAnchor),
             web.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
-        load("https://kiro.dev")
         PanelRegistry.shared.register(browser: self, id: panelId)
     }
     required init?(coder: NSCoder) { fatalError() }

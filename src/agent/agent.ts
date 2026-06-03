@@ -4,10 +4,16 @@ import type { ToolRegistry } from "./tools"
 
 export type AgentEvent =
   | { type: "text"; text: string }
-  | { type: "tool"; name: string; input: unknown }
-  | { type: "tool-result"; name: string }
+  | { type: "tool"; name: string; detail?: string }
+  | { type: "tool-result"; name: string; detail?: string }
   | { type: "done"; status?: "complete" | "impossible"; summary?: string }
   | { type: "error"; error: string }
+
+/** Compact a value to a short string for tool detail display. */
+const preview = (v: unknown): string => {
+  const s = typeof v === "string" ? v : JSON.stringify(v)
+  return s && s.length > 4000 ? s.slice(0, 4000) + "…" : (s ?? "")
+}
 
 export const SYSTEM =
   "You are a self-extending coding agent. You have bash, read_file, write_file, and create_tool. " +
@@ -60,9 +66,9 @@ export class Agent {
           if (part.type === "text-delta") onEvent({ type: "text", text: part.text })
           else if (part.type === "tool-call") {
             if (part.toolName === "finish") done = part.input as typeof done
-            else onEvent({ type: "tool", name: part.toolName, input: part.input })
+            else onEvent({ type: "tool", name: part.toolName, detail: preview(part.input) })
           } else if (part.type === "tool-result") {
-            if (part.toolName !== "finish") onEvent({ type: "tool-result", name: part.toolName })
+            if (part.toolName !== "finish") onEvent({ type: "tool-result", name: part.toolName, detail: preview((part as any).output ?? (part as any).result) })
           } else if (part.type === "error") onEvent({ type: "error", error: String(part.error) })
         }
         convo.push(...(await result.response).messages)
