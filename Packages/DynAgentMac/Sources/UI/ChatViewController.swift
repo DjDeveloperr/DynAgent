@@ -44,9 +44,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var turnStart = Date()
     private var shimmerView: ShimmerLabel?
     private var liveWorkDividerByConversationId: [String: WorkDivider] = [:]
-    /// The current assistant message being streamed into (for proper interleaving).
-    private var currentAssistant: ChatMessage?
-    private var assistantByConversationId: [String: ChatMessage] = [:]
+    private let assistantStreamCache = ChatAssistantStreamCache()
     private let maxRenderedMessages = 240
     private var composerSelection = ComposerSelectionState()
     private let attachmentCoordinator = ComposerAttachmentCoordinator()
@@ -456,7 +454,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             return
         }
         shimmerView = nil
-        currentAssistant = assistantByConversationId[c.id]
+        assistantStreamCache.adoptVisibleAssistant(for: c)
         transcriptRegistry.reset()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
         TranscriptStackChrome.removeAllRows(from: transcript)
@@ -481,7 +479,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         conversation = c
         adoptComposerSelection(for: c)
         shimmerView = nil
-        currentAssistant = assistantByConversationId[c.id]
+        assistantStreamCache.adoptVisibleAssistant(for: c)
         transcriptRegistry.reset()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
         TranscriptStackChrome.removeAllRows(from: transcript)
@@ -724,8 +722,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
         if start.shouldGenerateTitle { generateTitle(for: c, prompt: text) }
 
-        assistantByConversationId[c.id] = nil
-        if conversation === c { currentAssistant = nil }
+        assistantStreamCache.clearAssistant(for: c, visible: conversation === c)
         let handler: (AgentClient.Event) -> Void = { [weak self, weak c] ev in
             guard let self, let c else { return }
             let isVisible = self.conversation === c
@@ -734,13 +731,16 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                 c.codexThreadId = id
             case .text(let t):
                 self.markOpenToolsCompleted(in: c)
-                let result = ChatStreamMutationModel.appendAssistantText(t, to: c, existing: self.assistantByConversationId[c.id])
+                let result = ChatStreamMutationModel.appendAssistantText(
+                    t,
+                    to: c,
+                    existing: self.assistantStreamCache.cachedAssistant(for: c)
+                )
                 if result.created {
-                    self.assistantByConversationId[c.id] = result.message
+                    self.assistantStreamCache.setAssistant(result.message, for: c, visible: isVisible)
                     if isVisible {
                         _ = self.ensureLiveWorkDivider(for: c)
                         self.addRow(for: result.message)
-                        self.currentAssistant = result.message
                     }
                 }
                 if isVisible { self.renderLiveAssistant(result.message) }
@@ -753,8 +753,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                 c.updatedAt = Date().timeIntervalSince1970
                 self.emitActivity(c)
                 if isVisible { self.finalizeAssistant(for: c) }
-                self.assistantByConversationId[c.id] = nil
-                if isVisible { self.currentAssistant = nil }
+                self.assistantStreamCache.clearAssistant(for: c, visible: isVisible)
                 let tool = ChatStreamMutationModel.appendTool(name: n, detail: d, to: c, startedAt: self.activeTurnStartedAt(for: c))
                 if isVisible {
                     let divider = self.ensureLiveWorkDivider(for: c)
@@ -779,13 +778,17 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             case .error(let e):
                 if isVisible { self.hideThinking() }
                 if self.streamRegistry.consumeStopping(c.id) { return }   // user-initiated stop, not a real error
-                let result = ChatStreamMutationModel.appendErrorText(e, to: c, existing: self.assistantByConversationId[c.id], startedAt: self.activeTurnStartedAt(for: c))
+                let result = ChatStreamMutationModel.appendErrorText(
+                    e,
+                    to: c,
+                    existing: self.assistantStreamCache.cachedAssistant(for: c),
+                    startedAt: self.activeTurnStartedAt(for: c)
+                )
                 if result.created {
-                    self.assistantByConversationId[c.id] = result.message
+                    self.assistantStreamCache.setAssistant(result.message, for: c, visible: isVisible)
                     if isVisible {
                         _ = self.ensureLiveWorkDivider(for: c)
                         self.addRow(for: result.message)
-                        self.currentAssistant = result.message
                     }
                 }
                 if isVisible { self.renderLiveAssistant(result.message) }
@@ -827,8 +830,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         ConversationTurnMutationModel.finishLatestPromptTurn(in: c.messages)
         setStreaming(false, for: c)
         streamRegistry.finish(c.id, preservingStopFlag: preservingStopFlag)
-        assistantByConversationId[c.id] = nil
-        if conversation === c { currentAssistant = nil }
+        assistantStreamCache.clearAssistant(for: c, visible: conversation === c)
         emitActivity(c, force: true)
         // Deliver any messages queued while streaming (steering) as the next turn.
         if let joined = ChatSendModel.queuedSteerTurnText(c.steerQueue) {
@@ -888,7 +890,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     /// Re-render the active assistant message as markdown once its text is final.
     private func finalizeAssistant(for c: Conversation) {
-        guard let a = assistantByConversationId[c.id] ?? (conversation === c ? currentAssistant : nil),
+        guard let a = assistantStreamCache.finalizableAssistant(for: c, visible: conversation === c),
               let label = transcriptRegistry.label(for: a) else { return }
         label.setRich(Self.markdown(a.text))
     }

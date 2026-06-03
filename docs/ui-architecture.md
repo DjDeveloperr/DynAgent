@@ -34,6 +34,7 @@
 - `ConversationTurnMutationModel.swift`: tested pure mutation model for completing the latest prompt turn, closing open tool rows, and reconciling pending/completed steer notices.
 - `ChatStreamMutationModel.swift`: tested streaming prompt, assistant, error, tool, and final-response mutations used by chat event handling.
 - `ChatStreamStartModel.swift`: tested turn-start mutation model for harness/model locking, prompt insertion, thinking status, timestamps, and title-generation decisions.
+- `ChatAssistantStreamCache.swift`: tested live assistant-message cache for per-conversation streaming, visible-chat adoption, and stale fallback clearing.
 - `ChatStreamRegistry.swift`: tested stream lifecycle registry for active conversation ids, cancellable tasks, and per-thread stop-error suppression.
 - `ChatActivityThrottleModel.swift`: tested per-conversation activity emit reducer that limits noisy streaming refreshes while allowing forced updates.
 - `ChatToolRefreshModel.swift`: tested completed-tool and stream-done refresh policy for debounced grouped tool re-renders.
