@@ -247,6 +247,15 @@ enum TranscriptStackChrome {
         appendFullWidthRow(container, to: transcript, customSpacingAfter: customSpacingAfter)
         return container
     }
+
+    static func removeAllRows(from transcript: NSStackView) {
+        transcript.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    }
+
+    static func moveRowToBottom(_ row: NSView, in transcript: NSStackView) {
+        transcript.removeArrangedSubview(row)
+        transcript.addArrangedSubview(row)
+    }
 }
 
 enum TranscriptLoadingShellChrome {

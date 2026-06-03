@@ -183,6 +183,35 @@ final class TranscriptRowChromeTests: XCTestCase {
         })
     }
 
+    func testTranscriptStackRemoveAllRowsClearsArrangedSubviewsAndSuperview() {
+        let transcript = NSStackView()
+        let first = NSView()
+        let second = NSView()
+        transcript.addArrangedSubview(first)
+        transcript.addArrangedSubview(second)
+
+        TranscriptStackChrome.removeAllRows(from: transcript)
+
+        XCTAssertTrue(transcript.arrangedSubviews.isEmpty)
+        XCTAssertNil(first.superview)
+        XCTAssertNil(second.superview)
+    }
+
+    func testTranscriptStackMoveRowToBottomReordersExistingRow() {
+        let transcript = NSStackView()
+        let first = NSView()
+        let second = NSView()
+        let third = NSView()
+        transcript.addArrangedSubview(first)
+        transcript.addArrangedSubview(second)
+        transcript.addArrangedSubview(third)
+
+        TranscriptStackChrome.moveRowToBottom(first, in: transcript)
+
+        XCTAssertEqual(transcript.arrangedSubviews, [second, third, first])
+        XCTAssertTrue(first.superview === transcript)
+    }
+
     private func findSubviews<T: NSView>(of type: T.Type, in root: NSView) -> [T] {
         var result: [T] = []
         if let match = root as? T {

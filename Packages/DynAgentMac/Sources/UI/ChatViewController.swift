@@ -508,7 +508,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         currentAssistant = assistantByConversationId[c.id]
         transcriptRegistry.reset()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
-        transcript.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        TranscriptStackChrome.removeAllRows(from: transcript)
         // Render each turn: prompt + work divider + final answer.
         let plan = TranscriptTurnModel.plan(
             messages: c.messages,
@@ -538,7 +538,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         currentAssistant = assistantByConversationId[c.id]
         transcriptRegistry.reset()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
-        transcript.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        TranscriptStackChrome.removeAllRows(from: transcript)
         let container = TranscriptLoadingShellChrome.makeRow(text: ChatPresentationModel.loadingText(needsLoad: c.needsLoad))
         TranscriptStackChrome.appendFullWidthRow(container, to: transcript)
         emptyStack.isHidden = true
@@ -1080,8 +1080,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func pinShimmerToBottom() {
         guard let s = shimmerView, let sc = s.superview else { return }
-        transcript.removeArrangedSubview(sc)
-        transcript.addArrangedSubview(sc)
+        TranscriptStackChrome.moveRowToBottom(sc, in: transcript)
     }
 
     /// Show a popover with the full tool name + detail when a tool pill is clicked.
