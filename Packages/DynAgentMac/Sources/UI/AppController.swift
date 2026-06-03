@@ -24,6 +24,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private let navBackButton = NSButton(image: NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")!, target: nil, action: nil)
     private let navForwardButton = NSButton(image: NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")!, target: nil, action: nil)
     private lazy var usageCoordinator = AppUsageCoordinator(client: client)
+    private lazy var modelCatalog = AppModelCatalogCoordinator(client: client)
 
     private var conversations: [Conversation] = []
     private var draft: Conversation?
@@ -32,8 +33,6 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private var archivedCodexIds = Set(UserDefaults.standard.stringArray(forKey: "archivedCodexIds") ?? [])
     /// Worktree cwds belonging to each top-level workspace path (threads grouped under the parent).
     private var worktreesByPath: [String: [String]] = [:]
-    /// Cached model id lists per harness for instant switching.
-    private var modelCache: [Harness: [String]] = [:]
     private var codexRefreshInFlight = Set<String>()
     private var pendingRenderConversationId: String?
     private var workspaceRefs: [WorkspaceRef] = []
@@ -60,7 +59,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         DetachedChatWindowController(
             client: client,
             conversation: conversation,
-            models: modelCache[conversation.harness] ?? [],
+            models: modelCatalog.cachedModels(for: conversation.harness) ?? [],
             onActivity: { [weak self] conversation in
                 self?.refreshActivity(conversation)
             },
@@ -227,12 +226,9 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             }
             await syncCodexWorkspaceIndex()
             await syncCodexSidebarState()
-            let codexModels = (try? await client.codexModels())?.map(\.id) ?? ["gpt-5.5"]
-            modelCache[.codex] = codexModels
-            chat.applyDefaults(harness: .codex, model: codexModels.first ?? "gpt-5.5")
-            chat.setModels(codexModels)
-            let dynModels = (try? await client.models())?.map(\.id) ?? ["auto"]
-            modelCache[.dynagent] = dynModels
+            let bootstrap = await modelCatalog.bootstrapDefaultCatalog()
+            chat.applyDefaults(harness: bootstrap.defaultHarness, model: bootstrap.defaultModel)
+            chat.setModels(bootstrap.codexModels)
             rebuildGroups(select: chat.conversation)
             if chat.conversation == nil {
                 if let initial = restoredConversation() { selectConversation(initial) } else { newChat() }
@@ -530,7 +526,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     @objc private func newChat() {
         recordNavigationAwayFromCurrent(to: nil)
-        chat.setHarness(.codex, preferredModel: modelCache[.codex]?.first ?? "gpt-5.5")
+        chat.setHarness(.codex, preferredModel: modelCatalog.preferredModel(for: .codex))
         let c: Conversation
         if let existing = draft, existing.workspace == active.path, existing.messages.isEmpty {
             c = existing
@@ -777,7 +773,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         codexStubs = restored.codexStubs
         workspaceRefs = restored.workspaceRefs
         worktreesByPath = restored.worktreesByPath
-        modelCache = restored.modelCache
+        modelCatalog.restore(restored.modelCache)
         primaryPath = restored.primaryPath
         active = restored.active
         archivedCodexIds = restored.archivedCodexIds
@@ -795,7 +791,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             codexStubs: codexStubs,
             workspaceRefs: workspaceRefs,
             worktreesByPath: worktreesByPath,
-            modelCache: modelCache,
+            modelCache: modelCatalog.cache,
             primaryPath: primaryPath,
             active: active,
             archivedCodexIds: archivedCodexIds,
@@ -1055,15 +1051,11 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func loadModelsForHarness(_ harness: Harness) {
-        if let cached = modelCache[harness] { chat.setModels(cached) }  // instant swap
+        if let cached = modelCatalog.cachedModels(for: harness) {
+            chat.setModels(cached)
+        }
         Task { @MainActor in
-            let ids: [String]
-            switch harness {
-            case .dynagent: ids = (try? await client.models())?.map(\.id) ?? ["auto"]
-            case .codex: ids = (try? await client.codexModels())?.map(\.id) ?? ["gpt-5.5"]
-            case .pi: ids = (try? await client.piModels())?.map(\.id) ?? ["kiro::kiro/claude-opus-4.8"]
-            }
-            modelCache[harness] = ids
+            let ids = await modelCatalog.refresh(harness: harness)
             chat.setModels(ids)
             saveHotState()
         }
@@ -1085,7 +1077,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
                     existingStubs: codexStubs[ref.path] ?? [],
                     localConversations: conversations,
                     archivedIds: archivedCodexIds,
-                    defaultModel: modelCache[.codex]?.first ?? "gpt-5.5"
+                    defaultModel: modelCatalog.preferredModel(for: .codex)
                 )
             }
             Store.saveCodexStubs(codexStubs)
@@ -1102,7 +1094,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             threads: threads,
             existingStubs: codexStubs[projectlessCodexKey] ?? [],
             archivedIds: archivedCodexIds,
-            defaultModel: modelCache[.codex]?.first ?? "gpt-5.5",
+            defaultModel: modelCatalog.preferredModel(for: .codex),
             fallbackWorkspace: primaryPath
         )
     }
