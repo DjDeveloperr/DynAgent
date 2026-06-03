@@ -100,11 +100,29 @@ private final class HotReloadLoader {
         }
 
         current = LoadedUI(handle: handle, controller: controller, detach: detach, copiedDylib: dylib)
-        if window.frame != preservedFrame {
-            window.setFrame(preservedFrame, display: true)
-        }
+        restoreUsableFrame(from: preservedFrame)
         window.subtitle = ""
         NSLog("DynAgent hot reload attached: \(dylib.path)")
+    }
+
+    private func restoreUsableFrame(from preservedFrame: NSRect) {
+        window.styleMask.insert(.resizable)
+        window.minSize = NSSize(width: 820, height: 480)
+        window.maxSize = NSSize(width: 20_000, height: 20_000)
+        window.contentMinSize = NSSize(width: 820, height: 480)
+        window.contentMaxSize = NSSize(width: 20_000, height: 20_000)
+
+        var frame = preservedFrame
+        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1512, height: 900)
+        let targetWidth = min(visible.width - 16, max(1240, visible.width * 0.96))
+        if frame.width < targetWidth {
+            frame.size.width = targetWidth
+            frame.origin.x = visible.midX - targetWidth / 2
+        }
+        if frame.height < 720 { frame.size.height = 720 }
+        if window.frame != frame {
+            window.setFrame(frame, display: true)
+        }
     }
 
     private func handleFailure(_ error: Error, title: String) {
@@ -269,7 +287,6 @@ private final class HostDelegate: NSObject, NSApplicationDelegate {
     private var loader: HotReloadLoader?
     private var eventMonitor: Any?
     private var signalSource: DispatchSourceSignal?
-    private var hasRestoredWindowFrame = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         ProcessInfo.processInfo.disableAutomaticTermination("DynAgent keeps its hot-reload host alive")
@@ -281,9 +298,7 @@ private final class HostDelegate: NSObject, NSApplicationDelegate {
         installReloadMonitor()
         installReloadSignal()
 
-        if !hasRestoredWindowFrame {
-            window.center()
-        }
+        setWideInitialFrame()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         loader.reload(reason: "Loaded")
@@ -351,14 +366,29 @@ private final class HostDelegate: NSObject, NSApplicationDelegate {
 
     private func configureWindow() {
         window.title = "DynAgent"
+        window.styleMask.insert(.resizable)
         window.titlebarAppearsTransparent = true
         window.toolbarStyle = .unified
         window.minSize = NSSize(width: 820, height: 480)
+        window.maxSize = NSSize(width: 20_000, height: 20_000)
+        window.contentMinSize = NSSize(width: 820, height: 480)
+        window.contentMaxSize = NSSize(width: 20_000, height: 20_000)
         window.isReleasedWhenClosed = false
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.setFrameAutosaveName("main")
-        hasRestoredWindowFrame = UserDefaults.standard.string(forKey: "NSWindow Frame main") != nil
+    }
+
+    private func setWideInitialFrame() {
+        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1512, height: 900)
+        let targetWidth = min(visible.width - 16, max(1240, visible.width * 0.96))
+        let targetHeight = min(visible.height - 24, max(720, visible.height * 0.84))
+        let frame = NSRect(
+            x: visible.midX - targetWidth / 2,
+            y: visible.midY - targetHeight / 2,
+            width: targetWidth,
+            height: targetHeight
+        )
+        window.setFrame(frame, display: true)
     }
 
     private func installReloadMonitor() {
