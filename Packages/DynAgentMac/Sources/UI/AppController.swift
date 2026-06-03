@@ -507,22 +507,19 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         active = workspaceRefs.first { $0.path == path } ?? active
         chat.setHarness(c.harness, preferredModel: c.model)
         workspaceArea.resetPanels()   // isolate panels per chat
-        chat.showShell(c)
-        stabilizeMainLayout(reason: "thread-loading-shell")
         updateWindowTitle(c)
         gitPanel.show(workspace: path)
         sidebar.selectConversation(c)
         updateNavigationControls()
-        if c.needsLoad {
-            refreshCodexHistoryIfNeeded(c, force: c.status == .thinking || c.status == .running)
-        } else {
+        switch AppConversationDisplayModel.mode(needsLoad: c.needsLoad, status: c.status) {
+        case .loadingShellAndRefresh(let force):
+            chat.showShell(c)
+            stabilizeMainLayout(reason: "thread-loading-shell")
+            refreshCodexHistoryIfNeeded(c, force: force)
+        case .renderCached:
             pendingRenderConversationId = c.id
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 30_000_000)
-                guard self.pendingRenderConversationId == c.id, self.chat.conversation === c else { return }
-                self.chat.show(c)
-                self.stabilizeMainLayout(reason: "thread-render")
-            }
+            chat.show(c)
+            stabilizeMainLayout(reason: "thread-render")
         }
     }
 
