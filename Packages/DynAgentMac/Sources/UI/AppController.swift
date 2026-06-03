@@ -887,28 +887,16 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     @MainActor private func syncCodexWorkspaceIndex() async {
         guard let indexed = try? await client.codexWorkspaces(), !indexed.isEmpty else { return }
-        let existing = workspaceRefs
-        var merged: [WorkspaceRef] = []
-        var seen = Set<String>()
-
-        func append(_ ref: WorkspaceRef) {
-            guard !ref.path.isEmpty, !ref.path.contains("/.codex/worktrees/") else { return }
-            guard seen.insert(ref.path).inserted else { return }
-            merged.append(ref)
-        }
-
-        for workspace in indexed {
-            append(WorkspaceRef(name: workspace.name, path: workspace.path))
-        }
-        for ref in existing {
-            append(ref)
-        }
-        guard merged != workspaceRefs else { return }
-        workspaceRefs = merged
-        if !workspaceRefs.contains(where: { $0.path == active.path }), let first = workspaceRefs.first {
-            active = first
-            primaryPath = first.path
-        }
+        let result = AppWorkspaceIndexModel.sync(
+            indexed: indexed,
+            existing: workspaceRefs,
+            active: active,
+            primaryPath: primaryPath
+        )
+        guard result.didChange else { return }
+        workspaceRefs = result.workspaceRefs
+        active = result.active
+        primaryPath = result.primaryPath
         Store.saveWorkspaces(workspaceRefs)
         rebuildGroups(select: chat.conversation)
     }

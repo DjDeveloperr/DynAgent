@@ -30,6 +30,7 @@
 - `TranscriptToolChrome.swift`: reusable AppKit shell/edit/inline tool rows, grouped tool collapse controls, and inline edit diff popover blocks.
 - `TranscriptToolFormatter.swift`: tested attributed title, preview, grouping, and icon-name formatting for transcript tool rows.
 - `TranscriptPopoverChrome.swift`: reusable AppKit popover content and presenter for tool details, shell output, and edit diffs.
+- `TranscriptToolPopoverPresenter.swift`: tested transcript tool popover planner for edit-vs-detail content selection and stable click anchors.
 - `SidebarModel.swift`: tested pure grouping model for pinned chats, projectless chats, project workspaces, archived filtering, and recency ordering.
 - `SidebarRowModel.swift`: tested pure row-presentation model for short relative timestamps, workspace/chat tooltip content, worktree indicators, and working/pinned/unread state.
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
@@ -40,6 +41,7 @@
 - `MobilePresentationModel.swift`: tested shared iOS presentation bridge for mobile composer labels/send state and mobile tool rows.
 - `NavigationHistoryModel.swift`: tested identity-based back/forward stack behavior for chat navigation.
 - `AppConversationIndexModel.swift`: tested visible-conversation de-duping, restored-selection lookup, dock recent payloads, and unread finished-thread counts.
+- `AppWorkspaceIndexModel.swift`: tested Codex workspace index merge/filter model for preserving local workspaces and stable active workspace selection.
 - `AppHotStateModel.swift`: tested hot-reload state serializer/restorer for conversations, active Codex thread status, workspace refs, model cache, and selection.
 - `ChatLayoutModel.swift`: shared chat-column constants and inspector-aware split sizing.
 - `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, root content bounds, wide fallback sizing, split divider planning, metrics payloads, and post-load width invariants.
@@ -67,7 +69,7 @@ The iOS app should share behavior and visual language, but not copy the desktop 
 - Settings/search/commit overlays -> native SwiftUI sheets or presentation detents, using the same labels and action order as macOS.
 - Composer -> same model/reasoning/context/send ordering, with attachments previewed above the text field and keyboard-safe bottom padding.
 
-Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `GitActionModel`, `GitPanelModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `TranscriptLiveUpdateModel`, `ConversationTurnMutationModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `SearchOverlayModel`, `ComposerModel`, `ComposerDraftStore`, `MobilePresentationModel`, `NavigationHistoryModel`, `AppConversationIndexModel`, `AppHotStateModel`, `ChatLayoutModel`, `ChatPresentationModel`, `WindowLayoutModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
+Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `GitActionModel`, `GitPanelModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `TranscriptLiveUpdateModel`, `ConversationTurnMutationModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `SearchOverlayModel`, `ComposerModel`, `ComposerDraftStore`, `MobilePresentationModel`, `NavigationHistoryModel`, `AppConversationIndexModel`, `AppWorkspaceIndexModel`, `AppHotStateModel`, `ChatLayoutModel`, `ChatPresentationModel`, `WindowLayoutModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
 
 ## Verification Gates
 

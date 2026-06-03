@@ -744,7 +744,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private func addEditGroupRow(_ changes: [EditToolChange]) -> NSView {
         let group = EditGroupView(changes: changes)
         group.onOpenChange = { [weak self] change, anchor in
-            self?.showEditPopover(changes: [change], anchor: anchor)
+            guard let self else { return }
+            TranscriptToolPopoverPresenter.presentEditChanges([change], in: self.toolPopover, from: anchor)
         }
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
@@ -1251,28 +1252,11 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     /// Show a popover with the full tool name + detail when a tool pill is clicked.
     @objc private func toolClicked(_ g: NSClickGestureRecognizer) {
         guard let view = g.view, let m = toolByView[ObjectIdentifier(view)] else { return }
-        if m.toolName == "edit" {
-            showEditPopover(changes: TranscriptToolFormatter.editSummary(m).changes, anchor: view)
-            return
-        }
-        let content = TranscriptPopoverChrome.toolDetail(name: m.toolName, done: m.toolDone, detail: m.toolDetail)
-        // Anchor a small rect at the click point so the popover appears next to the tool label.
-        let p = g.location(in: view)
-        TranscriptPopoverChrome.show(
-            content,
+        TranscriptToolPopoverPresenter.present(
+            message: m,
             in: toolPopover,
-            relativeTo: NSRect(x: p.x - 4, y: view.bounds.minY, width: 8, height: view.bounds.height),
-            of: view
-        )
-    }
-
-    private func showEditPopover(changes: [EditToolChange], anchor: NSView) {
-        let content = TranscriptPopoverChrome.editDiff(changes: changes)
-        TranscriptPopoverChrome.show(
-            content,
-            in: toolPopover,
-            relativeTo: anchor.bounds.isEmpty ? NSRect(x: 0, y: 0, width: 1, height: 1) : anchor.bounds,
-            of: anchor
+            from: view,
+            clickPoint: g.location(in: view)
         )
     }
 
