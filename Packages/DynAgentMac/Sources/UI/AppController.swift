@@ -1,6 +1,6 @@
 import AppKit
 
-final class AppController: NSObject, NSToolbarDelegate {
+final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private struct HotState: Codable {
         var conversations: [Conversation]
         var draft: Conversation?
@@ -56,6 +56,7 @@ final class AppController: NSObject, NSToolbarDelegate {
     private var controlTimer: Timer?
     private var attached = false
     private let selectedConversationKey = "selectedConversationId"
+    private let mainWindowFrameKey = "DynAgentMainWindowFrame"
     private var searchOverlay: SearchOverlayController?
     private var dockObserver: NSObjectProtocol?
     private var splitResizeObserver: NSObjectProtocol?
@@ -83,7 +84,7 @@ final class AppController: NSObject, NSToolbarDelegate {
         attached = true
         UserDefaults.standard.removeObject(forKey: "NSSplitView Subview Frames dynagent.split")
         UserDefaults.standard.removeObject(forKey: "NSWindow Frame main")
-        let desiredFrame = wideWindowFrame()
+        let desiredFrame = restoredMainWindowFrame() ?? wideWindowFrame()
         NSApp.mainMenu = buildMenu()
         chat.client = client
         chat.onActivity = { [weak self] c in self?.refreshActivity(c) }
@@ -165,6 +166,7 @@ final class AppController: NSObject, NSToolbarDelegate {
         window.titlebarAppearsTransparent = true
         window.toolbarStyle = .unified
         unlockWindowSizing()
+        window.delegate = self
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
         setMainWindowFrame(desiredFrame)
@@ -184,11 +186,13 @@ final class AppController: NSObject, NSToolbarDelegate {
         for delay in [0.0, 0.75, 1.6, 3.0, 4.5] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self else { return }
-                let frame = self.wideWindowFrame()
-                self.setMainWindowFrame(frame)
+                if self.window.frame.width < self.lastAppliedMainFrame.width - 1 ||
+                    self.window.frame.height < self.lastAppliedMainFrame.height - 1 {
+                    self.setMainWindowFrame(self.lastAppliedMainFrame)
+                }
                 self.forceRootSplitToContentSize()
                 self.workspaceArea.forceLayoutToBounds()
-                self.applyInitialSplitWidths()
+                self.rebalanceMainSplitIfNeeded()
                 self.writeLayoutMetrics()
             }
         }
@@ -561,11 +565,30 @@ final class AppController: NSObject, NSToolbarDelegate {
     private func stabilizeMainLayout(reason: String) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            self.unlockWindowSizing()
             self.forceRootSplitToContentSize()
             self.workspaceArea.forceLayoutToBounds()
-            self.splitView?.adjustSubviews()
+            self.rebalanceMainSplitIfNeeded()
             self.writeLayoutMetrics(reason: reason)
         }
+    }
+
+    private func rebalanceMainSplitIfNeeded() {
+        guard let splitView, splitView.subviews.count >= 2 else { return }
+        let sidebarWidth: CGFloat = sidebarItem.isCollapsed ? 0 : {
+            let current = splitView.subviews.first?.frame.width ?? 300
+            return min(max(current, sidebarItem.minimumThickness), sidebarItem.maximumThickness)
+        }()
+        if !sidebarItem.isCollapsed {
+            splitView.setPosition(sidebarWidth, ofDividerAt: 0)
+        }
+        if splitView.subviews.count >= 3, !gitItem.isCollapsed {
+            let currentGitWidth = splitView.subviews[2].frame.width
+            let gitWidth = min(max(currentGitWidth > 0 ? currentGitWidth : 360, gitItem.minimumThickness), gitItem.maximumThickness)
+            splitView.setPosition(max(sidebarWidth + 360, splitView.bounds.width - gitWidth), ofDividerAt: 1)
+        }
+        splitView.adjustSubviews()
+        workspaceArea.forceLayoutToBounds()
     }
 
     private func forceRootSplitToContentSize() {
@@ -630,6 +653,7 @@ final class AppController: NSObject, NSToolbarDelegate {
             "chatViewHeight": Double(chat.view.frame.height),
             "workspaceWidth": Double(workspaceArea.view.frame.width),
             "workspaceHeight": Double(workspaceArea.view.frame.height),
+            "expectedWorkspaceWidth": Double(expectedWorkspaceWidth()),
         ]
         payload["chat"] = chat.layoutMetrics
         payload["workspace"] = workspaceArea.layoutMetrics
@@ -1187,6 +1211,39 @@ final class AppController: NSObject, NSToolbarDelegate {
         lastRequestedMainFrame = frame
         window.setFrame(frame, display: true)
         lastAppliedMainFrame = window.frame
+        saveMainWindowFrame(window.frame)
+    }
+
+    private func restoredMainWindowFrame() -> NSRect? {
+        guard let value = UserDefaults.standard.string(forKey: mainWindowFrameKey) else { return nil }
+        let rect = NSRectFromString(value)
+        guard rect.width >= window.minSize.width, rect.height >= window.minSize.height else { return nil }
+        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+        guard visible.isEmpty || visible.intersects(rect) else { return nil }
+        return rect
+    }
+
+    private func saveMainWindowFrame(_ frame: NSRect) {
+        guard frame.width >= window.minSize.width, frame.height >= window.minSize.height else { return }
+        UserDefaults.standard.set(NSStringFromRect(frame), forKey: mainWindowFrameKey)
+    }
+
+    private func expectedWorkspaceWidth() -> CGFloat {
+        guard let splitView else { return -1 }
+        let dividerCount = max(0, splitView.subviews.count - 1)
+        let dividerWidth = CGFloat(dividerCount) * splitView.dividerThickness
+        let sidebarWidth = sidebarItem.isCollapsed ? 0 : (splitView.subviews.first?.frame.width ?? 0)
+        let gitWidth = gitItem.isCollapsed || splitView.subviews.count < 3 ? 0 : splitView.subviews[2].frame.width
+        return max(0, splitView.bounds.width - sidebarWidth - gitWidth - dividerWidth)
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        unlockWindowSizing()
+        lastAppliedMainFrame = window.frame
+        saveMainWindowFrame(window.frame)
+        forceRootSplitToContentSize()
+        rebalanceMainSplitIfNeeded()
+        writeLayoutMetrics(reason: "window-resize")
     }
 
     @objc private func toggleGit() {

@@ -421,18 +421,19 @@ final class SidebarViewController: NSViewController {
     }
 
     private func addWorkspaceHeader(_ w: Workspace) {
+        let model = SidebarRowModel.workspace(w)
         var hoverViews: [NSView] = []
         var rowRef: SidebarRow?
         let row = SidebarRow(height: 34, onClick: { [weak self] in self?.toggleWorkspace(w) }, onHoverChanged: { [weak self] hovering in
             hoverViews.forEach { $0.isHidden = !hovering }
             guard let self, let row = rowRef else { return }
-            if hovering { self.scheduleHoverTip(title: w.name, detail: w.path, row: row) }
+            if hovering { self.scheduleHoverTip(title: model.tooltip.title, detail: model.tooltip.detail, row: row) }
             else { self.hideHoverTip() }
         }) { container in
             let icon = NSImageView(image: NSImage(systemSymbolName: "folder", accessibilityDescription: nil)?
                 .withSymbolConfiguration(.init(pointSize: 15, weight: .regular)) ?? NSImage())
             icon.contentTintColor = .secondaryLabelColor
-            let tf = singleLineLabel(w.name, size: 14.5, weight: .regular, color: .secondaryLabelColor)
+            let tf = singleLineLabel(model.name, size: 14.5, weight: .regular, color: .secondaryLabelColor)
             let newChat = SidebarActionButton(symbol: "square.and.pencil", tooltip: "New chat")
             newChat.isHidden = true
             newChat.handler = { [weak self] _ in self?.onNewChat?(w) }
@@ -486,8 +487,7 @@ final class SidebarViewController: NSViewController {
     }
 
     private func addConversationRow(_ c: Conversation, indent: CGFloat = 32) {
-        let working = (c.status == .thinking || c.status == .running)
-        let isWorktree = c.workspace.contains("/worktrees/") || c.workspace.contains("/.worktrees/") || c.workspace.contains("/.codex/worktrees/")
+        let model = SidebarRowModel.conversation(c)
         weak var pinButton: SidebarActionButton?
         weak var archiveButton: SidebarActionButton?
         weak var timeLabel: NSTextField?
@@ -501,22 +501,22 @@ final class SidebarViewController: NSViewController {
             let confirming = self.pendingArchiveId == c.id
             pinButton?.isHidden = !hovering || confirming
             archiveButton?.isHidden = !hovering && !confirming
-            timeLabel?.isHidden = working || hovering || confirming
-            worktreeIcon?.isHidden = !isWorktree || working || hovering || confirming
-            spinnerView?.isHidden = !working || hovering || confirming
+            timeLabel?.isHidden = model.isWorking || hovering || confirming
+            worktreeIcon?.isHidden = !model.isWorktree || model.isWorking || hovering || confirming
+            spinnerView?.isHidden = !model.isWorking || hovering || confirming
             titleToTime?.isActive = !hovering && !confirming
             titleToActions?.isActive = hovering || confirming
             if !hovering, confirming { self.scheduleArchiveCancel(for: c.id) }
             if hovering, confirming { self.archiveCancelWorkItem?.cancel() }
             if let row = rowRef {
-                if hovering { self.scheduleHoverTip(title: c.title, detail: c.workspace.nilIfEmpty ?? "No workspace", row: row) }
+                if hovering { self.scheduleHoverTip(title: model.tooltip.title, detail: model.tooltip.detail, row: row) }
                 else { self.hideHoverTip() }
             }
         }) { container in
-            let tf = singleLineLabel(c.title, size: 14.5)
-            let time = NSTextField(labelWithString: working ? (c.status == .thinking ? "thinking" : "running") : Self.relativeTime(c.updatedAt))
+            let tf = singleLineLabel(model.title, size: 14.5)
+            let time = NSTextField(labelWithString: model.timeLabel)
             time.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-            time.textColor = working ? .secondaryLabelColor : .tertiaryLabelColor
+            time.textColor = model.isWorking ? .secondaryLabelColor : .tertiaryLabelColor
             time.lineBreakMode = .byTruncatingTail
             time.maximumNumberOfLines = 1
             time.cell?.usesSingleLineMode = true
@@ -527,9 +527,9 @@ final class SidebarViewController: NSViewController {
             let branchIcon = NSImageView(image: NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Worktree")?
                 .withSymbolConfiguration(.init(pointSize: 10.5, weight: .regular)) ?? NSImage())
             branchIcon.contentTintColor = .tertiaryLabelColor
-            branchIcon.isHidden = !isWorktree || working
+            branchIcon.isHidden = !model.isWorktree || model.isWorking
             branchIcon.translatesAutoresizingMaskIntoConstraints = false
-            let pin = SidebarActionButton(symbol: c.pinned ? "pin.slash" : "pin", tooltip: c.pinned ? "Unpin" : "Pin")
+            let pin = SidebarActionButton(symbol: model.isPinned ? "pin.slash" : "pin", tooltip: model.isPinned ? "Unpin" : "Pin")
             pin.isHidden = true
             pin.handler = { [weak self, weak c] _ in
                 guard let self, let c else { return }
@@ -552,7 +552,7 @@ final class SidebarViewController: NSViewController {
             container.addSubview(time)
             container.addSubview(pin)
             container.addSubview(archive)
-            titleToTime = tf.trailingAnchor.constraint(lessThanOrEqualTo: isWorktree ? branchIcon.leadingAnchor : time.leadingAnchor, constant: -8)
+            titleToTime = tf.trailingAnchor.constraint(lessThanOrEqualTo: model.isWorktree ? branchIcon.leadingAnchor : time.leadingAnchor, constant: -8)
             titleToActions = tf.trailingAnchor.constraint(lessThanOrEqualTo: pin.leadingAnchor, constant: -8)
             titleToActions?.isActive = false
             // Title left-padded to align with workspace labels.
@@ -576,7 +576,7 @@ final class SidebarViewController: NSViewController {
                 titleToTime!,
             ])
             // Blue unread dot in the left icon slot (only when unread).
-            if c.unread {
+            if model.isUnread {
                 let dot = NSView()
                 dot.wantsLayer = true; dot.layer?.cornerRadius = 3.5
                 dot.layer?.backgroundColor = NSColor.systemBlue.cgColor
@@ -589,7 +589,7 @@ final class SidebarViewController: NSViewController {
                 ])
             }
             // Smooth spinner on the right while the agent is working.
-            if working {
+            if model.isWorking {
                 let spinner = Spinner()
                 spinnerView = spinner
                 container.addSubview(spinner)
@@ -673,30 +673,6 @@ final class SidebarViewController: NSViewController {
         c.unread = false
         selectConversation(c)
         onSelect?(c)
-    }
-
-    private static func statusColor(_ s: Conversation.Status) -> NSColor {
-        switch s {
-        case .idle: return .quaternaryLabelColor
-        case .thinking: return .systemYellow
-        case .running: return .systemBlue
-        case .error: return .systemRed
-        }
-    }
-
-    private static func relativeTime(_ epoch: Double) -> String {
-        guard epoch > 0 else { return "" }
-        let delta = max(0, Date().timeIntervalSince1970 - epoch)
-        if delta < 45 { return "now" }
-        if delta < 90 { return "1m" }
-        if delta < 3600 { return "\(Int(delta / 60))m" }
-        if delta < 5400 { return "1h" }
-        if delta < 86_400 { return "\(Int(delta / 3600))h" }
-        if delta < 172_800 { return "1d" }
-        if delta < 604_800 { return "\(Int(delta / 86_400))d" }
-        let f = DateFormatter()
-        f.dateFormat = "MMM d"
-        return f.string(from: Date(timeIntervalSince1970: epoch))
     }
 
     // MARK: Context menu
