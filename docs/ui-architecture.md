@@ -79,6 +79,7 @@
 - `AppWorkspaceIndexModel.swift`: tested Codex workspace index merge/filter model for preserving local workspaces and stable active workspace selection.
 - `AppSidebarSyncModel.swift`: tested Codex sidebar-state bridge for width clamping/correction payloads and collapsed section/workspace payloads.
 - `AppHotStateModel.swift`: tested hot-reload state serializer/restorer for conversations, active Codex thread status, workspace refs, model cache, and selection.
+- `AppHotStateCoordinator.swift`: tested hot-reload dictionary bridge for restore, immediate saves, debounced saves, and pending-save cancellation.
 - `MainWindowFrameModel.swift`: tested main-window frame state model for initial saved-frame restoration, requested/applied frame tracking, live-resize state, and unexpected-shrink recovery.
 - `ChatLayoutModel.swift`: shared chat-column constants, readable-width cap, and inspector-aware split sizing.
 - `ChatViewportLayoutModel.swift`: tested chat viewport layout policy for scroll frame pinning, document-width correction, and composer bottom inset updates.

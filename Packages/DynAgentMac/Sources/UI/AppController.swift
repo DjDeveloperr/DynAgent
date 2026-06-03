@@ -3,8 +3,7 @@ import AppKit
 final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private let client = AgentClient()
     private let window: NSWindow
-    private let hotState: NSMutableDictionary?
-    private let hotStateKey = AppHotStateModel.stateKey
+    private let hotStateCoordinator: AppHotStateCoordinator
 
     private let sidebar = SidebarViewController()
     private let chat = ChatViewController()
@@ -50,7 +49,6 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private var lastActiveHistoryRefresh: Double = 0
     private var lastActivitySidebarRefresh: [String: Double] = [:]
     private var lastActivityGitReload: [String: Double] = [:]
-    private var pendingHotStateSave: DispatchWorkItem?
     private var detachedChatWindows: [DetachedChatWindowController] = []
     private let projectlessCodexKey = "__codex_projectless__"
     private var navigationHistory = NavigationHistoryModel<Conversation>()
@@ -59,7 +57,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     init(window: NSWindow, hotState: NSMutableDictionary? = nil) {
         self.window = window
-        self.hotState = hotState
+        hotStateCoordinator = AppHotStateCoordinator(hotState: hotState)
         super.init()
     }
 
@@ -803,9 +801,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func restoreHotState() -> Bool {
-        guard let data = hotState?[hotStateKey] as? Data,
-              let state = AppHotStateModel.decode(data) else { return false }
-        let restored = AppHotStateModel.restored(from: state)
+        guard let restored = hotStateCoordinator.restore() else { return false }
         conversations = restored.conversations
         draft = restored.draft
         codexStubs = restored.codexStubs
@@ -822,11 +818,8 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func saveHotState() {
-        guard let hotState else { return }
-        pendingHotStateSave?.cancel()
-        pendingHotStateSave = nil
         let selected = chat.conversation?.id ?? UserDefaults.standard.string(forKey: selectedConversationKey)
-        let state = AppHotStateModel.snapshot(
+        hotStateCoordinator.save(
             conversations: conversations,
             draft: draft,
             codexStubs: codexStubs,
@@ -838,17 +831,10 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             archivedCodexIds: archivedCodexIds,
             selectedConversationId: selected
         )
-        if let data = AppHotStateModel.encode(state) {
-            hotState[hotStateKey] = data
-        }
     }
 
     private func scheduleHotStateSave() {
-        guard hotState != nil else { return }
-        pendingHotStateSave?.cancel()
-        let item = DispatchWorkItem { [weak self] in self?.saveHotState() }
-        pendingHotStateSave = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: item)
+        hotStateCoordinator.scheduleSave { [weak self] in self?.saveHotState() }
     }
 
     private func allVisibleConversations() -> [Conversation] {
