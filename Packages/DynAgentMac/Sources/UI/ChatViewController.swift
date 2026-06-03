@@ -824,12 +824,6 @@ final class ShellGroupView: NSView {
 
 /// Detail pane: a centered transcript (user / assistant / tool rows) and a composer card.
 final class ChatViewController: NSViewController, NSTextViewDelegate {
-    private struct PendingRenderTurn {
-        let messages: [ChatMessage]
-        let allowCollapse: Bool
-        let forceActive: Bool
-    }
-
     var client: AgentClient!
     var onActivity: ((Conversation) -> Void)?
     var onTitleGenerated: ((Conversation, String) -> Void)?
@@ -1632,36 +1626,18 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         transcript.arrangedSubviews.forEach { $0.removeFromSuperview() }
         bulkLoading = true
         // Render each turn: prompt + work divider + final answer.
-        let allMessages = c.messages
-        let trimmedCount = max(0, allMessages.count - maxRenderedMessages)
-        let msgs = trimmedCount > 0 ? Array(allMessages.suffix(maxRenderedMessages)) : allMessages
-        if trimmedCount > 0 { addLargeThreadNotice(hiddenCount: trimmedCount) }
-        var turns: [PendingRenderTurn] = []
-        var i = 0
-        while i < msgs.count {
-            var j = i + 1
-            while j < msgs.count && !(msgs[j].role == .user && msgs[j].isSteer != true) { j += 1 }
-            let turn = Array(msgs[i..<j])
-            let isLastTurn = j >= msgs.count
-            let turnComplete = turn.contains { $0.isFinal == true }
-                || turn.contains { $0.role == .assistant && $0.turnStatus == nil && ($0.timestamp != nil || $0.turnDuration != nil) }
-                || (!isLastTurn && turn.allSatisfy { $0.turnStatus == nil })
-            if let final = turn.last(where: { $0.isFinal == true }), final.timestamp == nil {
-                final.timestamp = c.updatedAt > 0 ? c.updatedAt : Date().timeIntervalSince1970
-            }
-            let streamingLastTurn = isLastTurn && isActiveConversation(c)
-            turns.append(PendingRenderTurn(
-                messages: turn,
-                allowCollapse: turnComplete && !streamingLastTurn,
-                forceActive: streamingLastTurn
-            ))
-            i = j
-        }
+        let plan = TranscriptTurnModel.plan(
+            messages: c.messages,
+            maxRenderedMessages: maxRenderedMessages,
+            isActive: isActiveConversation(c),
+            updatedAt: c.updatedAt
+        )
+        if plan.hiddenCount > 0 { addLargeThreadNotice(hiddenCount: plan.hiddenCount) }
         restoreComposerDraft(for: c)
         updateEmptyState()
         updateSendButton()
         view.window?.makeFirstResponder(composer)
-        renderTurnsAsync(turns, conversation: c, generation: generation)
+        renderTurnsAsync(plan.turns, conversation: c, generation: generation)
     }
 
     private func transcriptFingerprint(for c: Conversation) -> Int {
@@ -1732,7 +1708,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         view.window?.makeFirstResponder(composer)
     }
 
-    private func renderTurnsAsync(_ turns: [PendingRenderTurn], conversation c: Conversation, generation: Int, startIndex: Int = 0) {
+    private func renderTurnsAsync(_ turns: [TranscriptRenderTurn], conversation c: Conversation, generation: Int, startIndex: Int = 0) {
         guard generation == transcriptRenderGeneration, self.conversation === c else { return }
         let batchSize = 6
         let end = min(startIndex + batchSize, turns.count)

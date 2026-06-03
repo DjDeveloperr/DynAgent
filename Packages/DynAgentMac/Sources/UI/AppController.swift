@@ -883,19 +883,19 @@ final class AppController: NSObject, NSToolbarDelegate {
     }
 
     private func rebuildGroups(select: Conversation? = nil) {
-        for c in conversations where !c.workspace.isEmpty && !c.workspace.contains("/worktrees/") && !workspaceRefs.contains(where: { $0.path == c.workspace }) {
-            workspaceRefs.append(WorkspaceRef(name: (c.workspace as NSString).lastPathComponent, path: c.workspace))
-        }
+        let content = SidebarModel.build(
+            conversations: conversations,
+            codexStubs: codexStubs,
+            workspaceRefs: workspaceRefs,
+            primaryPath: primaryPath,
+            projectlessKey: projectlessCodexKey,
+            archivedCodexIds: archivedCodexIds
+        )
+        workspaceRefs = content.workspaceRefs
         Store.saveWorkspaces(workspaceRefs)
-        sidebar.projectlessConversations = (codexStubs[projectlessCodexKey] ?? [])
-            .filter { !archivedCodexIds.contains($0.codexThreadId ?? "") }
-        sidebar.workspaces = workspaceRefs.map { ref in
-            let local = conversations.filter { ($0.workspace.isEmpty ? primaryPath : $0.workspace) == ref.path }
-            let localThreadIds = Set(local.compactMap { $0.codexThreadId })
-            let stubs = (codexStubs[ref.path] ?? []).filter { !localThreadIds.contains($0.codexThreadId ?? "") }
-            let combined = (local + stubs).sorted { $0.updatedAt > $1.updatedAt }  // most recent first
-            return Workspace(name: ref.name, path: ref.path, conversations: combined)
-        }
+        sidebar.pinnedConversations = content.pinnedConversations
+        sidebar.projectlessConversations = content.projectlessConversations
+        sidebar.workspaces = content.workspaces
         if let select, !(select === draft) {
             sidebar.reload(selecting: select)
         } else {

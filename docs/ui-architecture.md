@@ -8,6 +8,8 @@
 - `GitDiffModel.swift`: tested pure parser for git diff sections, line numbers, metadata filtering, and hunk separator rows.
 - `ShellToolModel.swift`: tested command summarizer and command-title model for shell tool rows.
 - `EditToolModel.swift`: tested edit-tool parser and title model for grouped editing rows and popout diff data.
+- `TranscriptTurnModel.swift`: tested turn-planning model for prompt/steer boundaries, active-turn expansion, final-response collapse, timestamps, and large-thread trimming.
+- `SidebarModel.swift`: tested pure grouping model for pinned chats, projectless chats, project workspaces, archived filtering, and recency ordering.
 - `WindowHosting.swift`: full-window host and split-view pinning used by the hot-reloadable macOS UI.
 
 Feature controllers should keep behavior and orchestration, not reusable visual/parser logic. When a controller grows a reusable widget, parser, or display model, extract it into a small file and add a focused test before expanding behavior.
@@ -30,7 +32,7 @@ The iOS app should share behavior and visual language, but not copy the desktop 
 - Settings/search/commit overlays -> native SwiftUI sheets or presentation detents, using the same labels and action order as macOS.
 - Composer -> same model/reasoning/context/send ordering, with attachments previewed above the text field and keyboard-safe bottom padding.
 
-Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `ShellToolModel`, `EditToolModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
+Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `SidebarModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
 
 ## Verification Gates
 
@@ -41,7 +43,7 @@ Pure models should move toward platform-neutral Swift where possible (`MarkdownR
 
 ## Next Extraction Targets
 
-- Transcript virtualization or reusable transcript data source for large threads.
+- Transcript virtualization or reusable transcript row data source for large threads.
 - Diff drawing component split from `GitPanelViewController`.
 - Composer view model for attachment/model/reasoning/context/send state.
-- Sidebar section/row view models for pinned, chats, projects, and workspaces.
+- Sidebar row view models and reusable row chrome for pinned, chats, projects, and workspaces.

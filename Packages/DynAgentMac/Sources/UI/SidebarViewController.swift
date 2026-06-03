@@ -148,6 +148,7 @@ final class SidebarHoverTipWindow: NSPanel {
 /// Left pane: a custom view-based list of workspaces and their conversations.
 final class SidebarViewController: NSViewController {
     var workspaces: [Workspace] = []
+    var pinnedConversations: [Conversation] = []
     var projectlessConversations: [Conversation] = []
     var onSelect: ((Conversation) -> Void)?
     var onSelectWorkspace: ((Workspace) -> Void)?
@@ -217,12 +218,7 @@ final class SidebarViewController: NSViewController {
         sectionAddActions.removeAll()
         addTopActions()
 
-        var seenPinned = Set<String>()
-        let pinned = (workspaces.flatMap(\.conversations) + projectlessConversations)
-            .filter(\.pinned)
-            .filter { seenPinned.insert($0.codexThreadId ?? $0.id).inserted }
-            .sorted { $0.updatedAt > $1.updatedAt }
-        if !pinned.isEmpty {
+        if !pinnedConversations.isEmpty {
             addSectionHeader("Pinned", expanded: pinnedExpanded) { [weak self] in
                 guard let self else { return }
                 self.pinnedExpanded.toggle()
@@ -230,14 +226,11 @@ final class SidebarViewController: NSViewController {
                 self.reload()
             }
             if pinnedExpanded {
-                for c in pinned { addConversationRow(c, indent: 8) }
+                for c in pinnedConversations { addConversationRow(c, indent: 8) }
             }
         }
 
-        let looseChats = projectlessConversations
-            .filter { !$0.pinned }
-            .sorted { $0.updatedAt > $1.updatedAt }
-        if !looseChats.isEmpty {
+        if !projectlessConversations.isEmpty {
             addSectionHeader("Chats", expanded: chatsExpanded) { [weak self] in
                 guard let self else { return }
                 self.chatsExpanded.toggle()
@@ -245,7 +238,7 @@ final class SidebarViewController: NSViewController {
                 self.reload()
             }
             if chatsExpanded {
-                for c in looseChats { addConversationRow(c, indent: 8) }
+                for c in projectlessConversations { addConversationRow(c, indent: 8) }
             }
         }
 
@@ -261,7 +254,7 @@ final class SidebarViewController: NSViewController {
             for w in workspaces {
                 addWorkspaceHeader(w)
                 if collapsedWorkspacePaths.contains(w.path) { continue }
-                let convs = w.conversations.filter { !$0.pinned }
+                let convs = w.conversations
                 let shown = (expanded.contains(w.path) || convs.count <= pageSize) ? convs : Array(convs.prefix(pageSize))
                 if convs.isEmpty {
                     addEmptyWorkspaceRow()
