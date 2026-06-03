@@ -43,7 +43,14 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private var attached = false
     private let selectedConversationKey = "selectedConversationId"
     private let mainWindowFrameKey = "DynAgentMainWindowFrame"
-    private var searchOverlay: SearchOverlayController?
+    private lazy var searchOverlayCoordinator = AppSearchOverlayCoordinator { [unowned self] in
+        SearchOverlayController(allConversations: { [weak self] in
+            self?.allVisibleConversations() ?? []
+        }, onSelect: { [weak self] c in
+            self?.selectConversation(c)
+            self?.rebuildGroups(select: c)
+        })
+    }
     private var dockObserver: NSObjectProtocol?
     private var splitResizeObserver: NSObjectProtocol?
     private var lastSyncedSidebarWidth: CGFloat = 0
@@ -866,14 +873,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func showSearchOverlay() {
-        let overlay = SearchOverlayController(allConversations: { [weak self] in
-            self?.allVisibleConversations() ?? []
-        }, onSelect: { [weak self] c in
-            self?.selectConversation(c)
-            self?.rebuildGroups(select: c)
-        })
-        searchOverlay = overlay
-        overlay.show(over: window)
+        searchOverlayCoordinator.show(over: window)
     }
 
     @objc private func showSearchFromMenu() {
