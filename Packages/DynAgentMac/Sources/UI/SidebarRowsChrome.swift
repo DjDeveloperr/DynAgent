@@ -12,27 +12,22 @@ enum SidebarRowsChrome {
         weight: NSFont.Weight = .regular,
         color: NSColor = .labelColor
     ) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: size, weight: weight)
-        label.textColor = color
-        label.lineBreakMode = .byTruncatingTail
-        label.maximumNumberOfLines = 1
-        label.cell?.usesSingleLineMode = true
-        label.cell?.truncatesLastVisibleLine = true
-        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
+        DesignSystem.label(
+            text,
+            style: .init(font: .systemFont(ofSize: size, weight: weight), color: color)
+        )
     }
 
     static func actionRow(symbol: String, title: String, action: @escaping () -> Void) -> SidebarRow {
         SidebarRow(height: 36, onClick: action) { container in
-            let icon = NSImageView(image: NSImage(systemSymbolName: symbol, accessibilityDescription: title)?
-                .withSymbolConfiguration(.init(pointSize: 15, weight: .regular)) ?? NSImage())
-            icon.contentTintColor = .labelColor
-            let label = singleLineLabel(title, size: 15, weight: .regular)
+            let icon = DesignSystem.symbolImageView(
+                symbol,
+                accessibilityDescription: title,
+                pointSize: DesignSystem.Symbol.sidebarActionPointSize,
+                tint: .labelColor
+            )
+            let label = DesignSystem.label(title, style: DesignSystem.Text.sidebarAction)
             for view in [icon, label] {
-                view.translatesAutoresizingMaskIntoConstraints = false
                 container.addSubview(view)
             }
             NSLayoutConstraint.activate([
@@ -60,23 +55,28 @@ enum SidebarRowsChrome {
         let row = SidebarRow(height: 30, onClick: toggle, showsHoverBackground: false, onHoverChanged: { hovering in
             hoverViews.forEach { $0.isHidden = !hovering }
         }) { container in
-            let label = singleLineLabel(title, size: 12.5, weight: .semibold, color: .tertiaryLabelColor)
-            let chevron = NSImageView(image: NSImage(systemSymbolName: expanded ? "chevron.down" : "chevron.right", accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: 10, weight: .semibold)) ?? NSImage())
-            chevron.contentTintColor = .tertiaryLabelColor
+            let label = DesignSystem.label(title, style: DesignSystem.Text.sidebarSection)
+            let chevron = DesignSystem.symbolImageView(
+                expanded ? "chevron.down" : "chevron.right",
+                pointSize: DesignSystem.Symbol.sidebarSectionChevronPointSize,
+                weight: .semibold,
+                tint: .tertiaryLabelColor
+            )
             chevron.isHidden = true
             hoverViews.append(chevron)
             for view in [label, chevron] {
-                view.translatesAutoresizingMaskIntoConstraints = false
                 container.addSubview(view)
             }
             if let addSymbol, let addAction {
-                let button = NSButton(image: NSImage(systemSymbolName: addSymbol, accessibilityDescription: addToolTip) ?? NSImage(), target: addTarget, action: addAction)
-                button.isBordered = false
-                button.contentTintColor = .tertiaryLabelColor
+                let button = DesignSystem.iconButton(
+                    symbol: addSymbol,
+                    accessibilityDescription: addToolTip,
+                    tint: .tertiaryLabelColor,
+                    target: addTarget,
+                    action: addAction
+                )
                 button.toolTip = addToolTip
                 button.isHidden = true
-                button.translatesAutoresizingMaskIntoConstraints = false
                 hoverViews.append(button)
                 addButton = button
                 container.addSubview(button)
@@ -109,16 +109,17 @@ enum SidebarRowsChrome {
             guard let row = rowRef else { return }
             onHoverChanged(hovering, row)
         }) { container in
-            let icon = NSImageView(image: NSImage(systemSymbolName: "folder", accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: 15, weight: .regular)) ?? NSImage())
-            icon.contentTintColor = .secondaryLabelColor
-            let label = singleLineLabel(model.name, size: 14.5, weight: .regular, color: .secondaryLabelColor)
+            let icon = DesignSystem.symbolImageView(
+                "folder",
+                pointSize: DesignSystem.Symbol.sidebarWorkspacePointSize,
+                tint: .secondaryLabelColor
+            )
+            let label = DesignSystem.label(model.name, style: DesignSystem.Text.sidebarWorkspace)
             let newChat = SidebarActionButton(symbol: "square.and.pencil", tooltip: "New chat")
             newChat.isHidden = true
             newChat.handler = { _ in onNewChat() }
             hoverViews.append(newChat)
             for view in [icon, label, newChat] {
-                view.translatesAutoresizingMaskIntoConstraints = false
                 container.addSubview(view)
             }
             NSLayoutConstraint.activate([
@@ -140,7 +141,7 @@ enum SidebarRowsChrome {
 
     static func emptyWorkspaceRow() -> SidebarRow {
         SidebarRow(height: 26, onClick: {}, showsHoverBackground: false) { container in
-            let label = singleLineLabel("No chats", size: 13, weight: .regular, color: .tertiaryLabelColor)
+            let label = DesignSystem.label("No chats", style: DesignSystem.Text.sidebarEmpty)
             container.addSubview(label)
             NSLayoutConstraint.activate([
                 label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 34),
@@ -152,7 +153,7 @@ enum SidebarRowsChrome {
 
     static func moreToggleRow(title: String, action: @escaping () -> Void) -> SidebarRow {
         SidebarRow(height: 26, onClick: action) { container in
-            let label = singleLineLabel(title, size: 12, weight: .medium, color: .tertiaryLabelColor)
+            let label = DesignSystem.label(title, style: DesignSystem.Text.sidebarMore)
             container.addSubview(label)
             NSLayoutConstraint.activate([
                 label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 32),

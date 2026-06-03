@@ -1,7 +1,7 @@
 import AppKit
 
 enum ChatHeaderChrome {
-    static let titleFont = NSFont.systemFont(ofSize: 14, weight: .semibold)
+    static let titleFont = DesignSystem.Font.chatHeaderTitle
     static let menuButtonSize = NSSize(width: 24, height: 22)
     static let titleLeadingInset: CGFloat = 14
     static let titleTopInset: CGFloat = 15
@@ -9,16 +9,16 @@ enum ChatHeaderChrome {
     static let titleTrailingSpacing: CGFloat = 4
 
     static func configureTitle(_ title: NSTextField) {
-        title.font = titleFont
-        title.textColor = .labelColor
-        title.lineBreakMode = .byTruncatingTail
-        title.maximumNumberOfLines = 1
+        DesignSystem.configureLabel(title, style: DesignSystem.Text.chatHeaderTitle)
         title.isHidden = true
-        title.translatesAutoresizingMaskIntoConstraints = false
     }
 
     static func configureMenuButton(_ button: NSButton, target: AnyObject, action: Selector) {
-        button.image = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "Chat actions")
+        button.image = DesignSystem.symbolImage(
+            "ellipsis",
+            accessibilityDescription: "Chat actions",
+            pointSize: DesignSystem.Symbol.toolbarPointSize
+        )
         button.imagePosition = .imageOnly
         button.isBordered = false
         button.contentTintColor = .secondaryLabelColor

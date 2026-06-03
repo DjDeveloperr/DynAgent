@@ -14,9 +14,7 @@ final class TilePanel: FlexibleContainerView {
         self.content = content
         super.init(frame: .zero)
 
-        let titleLabel = NSTextField(labelWithString: title)
-        titleLabel.font = .systemFont(ofSize: 11, weight: .semibold)
-        titleLabel.textColor = .secondaryLabelColor
+        let titleLabel = DesignSystem.label(title, style: DesignSystem.Text.workspacePanelTitle)
         let add = iconButton("plus", #selector(showAddMenu(_:)))
         let close = iconButton("xmark", #selector(doClose))
         close.isHidden = !closable
@@ -58,14 +56,11 @@ final class TilePanel: FlexibleContainerView {
     required init?(coder: NSCoder) { fatalError() }
 
     private func iconButton(_ symbol: String, _ action: Selector) -> NSButton {
-        let button = NSButton(
-            image: NSImage(systemSymbolName: symbol, accessibilityDescription: nil) ?? NSImage(),
+        DesignSystem.iconButton(
+            symbol: symbol,
             target: self,
             action: action
         )
-        button.isBordered = false
-        button.imageScaling = .scaleProportionallyDown
-        return button
     }
 
     @objc private func showAddMenu(_ sender: NSButton) {

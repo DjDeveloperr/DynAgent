@@ -12,13 +12,9 @@ enum GitPanelChrome {
     static let diffTopInset: CGFloat = 54
 
     static func makeHeader(branchLabel: NSTextField) -> GitPanelHeaderChrome {
-        let title = NSTextField(labelWithString: "Changes")
-        title.font = .systemFont(ofSize: 14, weight: .semibold)
-        title.translatesAutoresizingMaskIntoConstraints = false
+        let title = DesignSystem.label("Changes", style: DesignSystem.Text.gitPanelTitle)
 
-        branchLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        branchLabel.textColor = .secondaryLabelColor
-        branchLabel.translatesAutoresizingMaskIntoConstraints = false
+        DesignSystem.configureLabel(branchLabel, style: DesignSystem.Text.gitPanelBranch)
 
         let header = NSVisualEffectView()
         header.material = .contentBackground
@@ -62,15 +58,13 @@ enum GitPanelChrome {
     }
 
     static func configureStatusLabel(_ label: NSTextField) {
-        label.font = .systemFont(ofSize: 11)
-        label.textColor = .tertiaryLabelColor
+        DesignSystem.configureLabel(label, style: DesignSystem.Text.panelStatus)
     }
 
     static func configurePRBox(_ box: NSBox, label: NSTextField) {
         box.titlePosition = .noTitle
         box.contentView = label
-        label.font = .systemFont(ofSize: 12)
-        label.textColor = .secondaryLabelColor
+        DesignSystem.configureLabel(label, style: DesignSystem.Text.panelBodySecondary)
         box.isHidden = true
     }
 
