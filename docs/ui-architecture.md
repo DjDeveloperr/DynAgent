@@ -38,6 +38,7 @@
 - `ChatStreamRegistry.swift`: tested stream lifecycle registry for active conversation ids, cancellable tasks, and per-thread stop-error suppression.
 - `ChatActivityThrottleModel.swift`: tested per-conversation activity emit reducer that limits noisy streaming refreshes while allowing forced updates.
 - `ChatToolRefreshModel.swift`: tested completed-tool and stream-done refresh policy for debounced grouped tool re-renders.
+- `ChatActivityCoordinator.swift`: tested streaming-path coordinator for throttled activity emits and cancellable delayed grouped-tool refreshes.
 - `WorkDividerModel.swift`: tested label/duration model for active and completed Codex-style work dividers.
 - `TranscriptChrome.swift`: reusable AppKit transcript text, full-width row lifecycle/stack helpers, loading shell rows, shimmer/thinking rows, work-divider, edit-stat, and transcript row views.
 - `TranscriptViewportChrome.swift`: tested AppKit transcript scroll/document/stack setup and width-tracking constraints for the loaded-thread layout invariant.

@@ -48,8 +48,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private let maxRenderedMessages = 240
     private var composerSelection = ComposerSelectionState()
     private let attachmentCoordinator = ComposerAttachmentCoordinator()
-    private var activityThrottle = ChatActivityThrottleState()
-    private var pendingToolRefreshByConversationId: [String: DispatchWorkItem] = [:]
+    private let activityCoordinator = ChatActivityCoordinator()
     private var renderSession = TranscriptRenderSessionState()
     private let transcriptScrollCoordinator = TranscriptScrollCoordinator()
 
@@ -862,30 +861,27 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func emitActivity(_ c: Conversation, force: Bool = false) {
-        let result = ChatActivityThrottleModel.planEmit(
-            conversationId: c.id,
+        activityCoordinator.emitActivity(
+            for: c,
             force: force,
-            now: Date().timeIntervalSince1970,
-            state: activityThrottle
+            onActivity: onActivity
         )
-        activityThrottle = result.state
-        guard result.shouldEmit else { return }
-        onActivity?(c)
     }
 
     private func scheduleToolRefresh(for c: Conversation, trigger: ChatToolRefreshTrigger) {
-        guard ChatToolRefreshModel.shouldScheduleRefresh(
+        activityCoordinator.scheduleToolRefresh(
+            for: c,
             trigger: trigger,
             isVisible: conversation === c,
-            isActive: isActiveConversation(c)
-        ) else { return }
-        pendingToolRefreshByConversationId[c.id]?.cancel()
-        let item = DispatchWorkItem { [weak self, weak c] in
-            guard let self, let c, self.conversation === c else { return }
-            self.show(c)
-        }
-        pendingToolRefreshByConversationId[c.id] = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + ChatToolRefreshModel.delay, execute: item)
+            isActive: isActiveConversation(c),
+            shouldRefresh: { [weak self, weak c] in
+                guard let self, let c else { return false }
+                return self.conversation === c
+            },
+            refresh: { [weak self] conversation in
+                self?.show(conversation)
+            }
+        )
     }
 
     /// Re-render the active assistant message as markdown once its text is final.
