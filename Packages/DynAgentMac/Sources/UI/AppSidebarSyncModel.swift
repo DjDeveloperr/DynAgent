@@ -5,6 +5,11 @@ struct SidebarWidthSyncPlan: Equatable {
     var correctionPayload: [String: Double]?
 }
 
+struct SidebarResizeSyncPlan: Equatable {
+    var syncedWidth: Double?
+    var payload: [String: Double]?
+}
+
 enum AppSidebarSyncModel {
     static func widthPlan(
         receivedWidth: Double?,
@@ -21,6 +26,28 @@ enum AppSidebarSyncModel {
             abs(receivedWidth - capped) > correctionTolerance ? ["sidebarWidth": capped] : nil
 
         return SidebarWidthSyncPlan(appliedWidth: capped, correctionPayload: correction)
+    }
+
+    static func resizeSyncPlan(
+        observedWidth: Double?,
+        lastSyncedWidth: Double,
+        minimumWidth: Double,
+        maximumWidth: Double,
+        syncTolerance: Double = 1
+    ) -> SidebarResizeSyncPlan {
+        guard let observedWidth, observedWidth > 0 else {
+            return SidebarResizeSyncPlan(syncedWidth: nil, payload: nil)
+        }
+
+        let capped = min(max(observedWidth, minimumWidth), maximumWidth)
+        guard abs(capped - lastSyncedWidth) > syncTolerance else {
+            return SidebarResizeSyncPlan(syncedWidth: nil, payload: nil)
+        }
+
+        return SidebarResizeSyncPlan(
+            syncedWidth: capped,
+            payload: ["sidebarWidth": capped]
+        )
     }
 
     static func sectionPayload(section: String, collapsed: Bool) -> [String: Any] {

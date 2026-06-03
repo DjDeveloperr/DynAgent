@@ -56,7 +56,7 @@
 - `TranscriptToolPopoverCoordinator.swift`: tested AppKit coordinator that owns the tool popover and bridges transcript tool/edit clicks to popover plans.
 - `SidebarModel.swift`: tested pure grouping model for pinned chats, projectless chats, project workspaces, archived filtering, and recency ordering.
 - `SidebarRowModel.swift`: tested pure row-presentation model for short relative timestamps, workspace/chat tooltip content, worktree indicators, and working/pinned/unread state.
-- `SidebarLayoutModel.swift`: tested sidebar width band and Codex sidebar-width sync plan used by the macOS split view.
+- `SidebarLayoutModel.swift`: tested sidebar width band used by the macOS split view.
 - `SidebarArchiveConfirmationModel.swift`: tested archive confirmation reducer for first-click confirmation, second-click archive, hover-out cancellation, and reload decisions.
 - `SidebarArchiveConfirmationCoordinator.swift`: tested AppKit-timer bridge for sidebar archive confirmation, hover-out debounce cancellation, and reload triggering.
 - `SidebarHoverTipCoordinator.swift`: tested AppKit-timer bridge for delayed sidebar hover tooltips, cancellation, and stale-row suppression.
@@ -89,7 +89,7 @@
 - `AppCodexThreadStubModel.swift`: tested Codex thread stub builder for workspace/projectless threads, archive filtering, pinned state, reuse, limits, and latest-history reload markers.
 - `AppWorkspaceIndexModel.swift`: tested Codex workspace index merge/filter model for preserving local workspaces and stable active workspace selection.
 - `AppWorktreeCoordinator.swift`: tested worktree bridge for workspace path detection, branch-name normalization, create-result parsing, and create failure handling.
-- `AppSidebarSyncModel.swift`: tested Codex sidebar-state bridge for width clamping/correction payloads and collapsed section/workspace payloads.
+- `AppSidebarSyncModel.swift`: tested Codex sidebar-state bridge for width clamping/correction payloads, resize tolerance, and collapsed section/workspace payloads.
 - `AppHotStateModel.swift`: tested hot-reload state serializer/restorer for conversations, active Codex thread status, workspace refs, model cache, and selection.
 - `AppHotStateCoordinator.swift`: tested hot-reload dictionary bridge for restore, immediate saves, debounced saves, and pending-save cancellation.
 - `MainWindowFrameModel.swift`: tested main-window frame state model for initial saved-frame restoration, requested/applied frame tracking, live-resize state, and unexpected-shrink recovery.

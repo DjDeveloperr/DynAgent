@@ -46,6 +46,51 @@ final class AppSidebarSyncModelTests: XCTestCase {
         XCTAssertNil(plan.correctionPayload)
     }
 
+    func testResizeSyncPlanClampsAndEmitsPayloadWhenWidthChanges() {
+        let plan = AppSidebarSyncModel.resizeSyncPlan(
+            observedWidth: 500,
+            lastSyncedWidth: 280,
+            minimumWidth: 220,
+            maximumWidth: 360
+        )
+
+        XCTAssertEqual(plan.syncedWidth, 360)
+        XCTAssertEqual(plan.payload?["sidebarWidth"], 360)
+    }
+
+    func testResizeSyncPlanSuppressesMissingZeroAndTinyChanges() {
+        XCTAssertNil(AppSidebarSyncModel.resizeSyncPlan(
+            observedWidth: nil,
+            lastSyncedWidth: 280,
+            minimumWidth: 220,
+            maximumWidth: 360
+        ).payload)
+        XCTAssertNil(AppSidebarSyncModel.resizeSyncPlan(
+            observedWidth: 0,
+            lastSyncedWidth: 280,
+            minimumWidth: 220,
+            maximumWidth: 360
+        ).payload)
+        XCTAssertNil(AppSidebarSyncModel.resizeSyncPlan(
+            observedWidth: 280.5,
+            lastSyncedWidth: 280,
+            minimumWidth: 220,
+            maximumWidth: 360
+        ).payload)
+    }
+
+    func testResizeSyncPlanEmitsInRangeWidthBeyondTolerance() {
+        let plan = AppSidebarSyncModel.resizeSyncPlan(
+            observedWidth: 304,
+            lastSyncedWidth: 280,
+            minimumWidth: 220,
+            maximumWidth: 360
+        )
+
+        XCTAssertEqual(plan.syncedWidth, 304)
+        XCTAssertEqual(plan.payload?["sidebarWidth"], 304)
+    }
+
     func testCollapsePayloadsMatchCodexSidebarContract() {
         let section = AppSidebarSyncModel.sectionPayload(section: "threads", collapsed: true)
         XCTAssertEqual(section["section"] as? String, "threads")

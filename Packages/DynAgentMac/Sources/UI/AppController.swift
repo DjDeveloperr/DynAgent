@@ -424,12 +424,16 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func splitViewDidResizeSubviews(_ notification: Notification) {
-        guard let width = splitView?.subviews.first?.frame.width, width > 0 else { return }
-        let capped = SidebarLayoutModel.clampedWidth(width)
-        guard abs(capped - lastSyncedSidebarWidth) > 1 else { return }
-        lastSyncedSidebarWidth = capped
+        let plan = AppSidebarSyncModel.resizeSyncPlan(
+            observedWidth: splitView?.subviews.first.map { Double($0.frame.width) },
+            lastSyncedWidth: Double(lastSyncedSidebarWidth),
+            minimumWidth: Double(SidebarLayoutModel.minimumWidth),
+            maximumWidth: Double(SidebarLayoutModel.maximumWidth)
+        )
+        guard let syncedWidth = plan.syncedWidth, let payload = plan.payload else { return }
+        lastSyncedSidebarWidth = CGFloat(syncedWidth)
         Task { [client] in
-            await client.codexSetSidebarState(["sidebarWidth": Double(capped)])
+            await client.codexSetSidebarState(payload)
         }
     }
 
