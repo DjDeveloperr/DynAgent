@@ -900,6 +900,12 @@ final class ShellGroupView: NSView {
 
 /// Detail pane: a centered transcript (user / assistant / tool rows) and a composer card.
 final class ChatViewController: NSViewController, NSTextViewDelegate {
+    private struct PendingRenderTurn {
+        let messages: [ChatMessage]
+        let allowCollapse: Bool
+        let forceActive: Bool
+    }
+
     var client: AgentClient!
     var onActivity: ((Conversation) -> Void)?
     var onTitleGenerated: ((Conversation, String) -> Void)?
@@ -959,6 +965,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var lastLiveMarkdownRender: [ObjectIdentifier: TimeInterval] = [:]
     private var lastActivityEmit: [String: TimeInterval] = [:]
     private var pendingToolRefreshByConversationId: [String: DispatchWorkItem] = [:]
+    private var transcriptRenderGeneration = 0
+    private var renderedTranscriptConversationId: String?
+    private var renderedTranscriptFingerprint: Int?
     private var lastScrollToBottomAt: TimeInterval = 0
     private var pendingScrollToBottom = false
     private var restoringComposerDraft = false
@@ -1648,6 +1657,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     func show(_ c: Conversation) {
         saveComposerDraft()
+        transcriptRenderGeneration += 1
+        let generation = transcriptRenderGeneration
+        let wasShowingSameConversation = conversation === c
         conversation = c
         desiredModel = c.model
         if c.harness == .codex {
@@ -1657,6 +1669,19 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             modelPopup.selectItem(withTitle: c.model)
         }
         syncComposerMenus()
+        let fingerprint = transcriptFingerprint(for: c)
+        if wasShowingSameConversation,
+           !isActiveConversation(c),
+           renderedTranscriptConversationId == c.id,
+           renderedTranscriptFingerprint == fingerprint {
+            restoreComposerDraft(for: c)
+            updateEmptyState()
+            updateSendButton()
+            view.window?.makeFirstResponder(composer)
+            return
+        }
+        renderedTranscriptConversationId = c.id
+        renderedTranscriptFingerprint = fingerprint
         shimmerView = nil
         currentAssistant = assistantByConversationId[c.id]
         labels.removeAll()
@@ -1670,6 +1695,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         let trimmedCount = max(0, allMessages.count - maxRenderedMessages)
         let msgs = trimmedCount > 0 ? Array(allMessages.suffix(maxRenderedMessages)) : allMessages
         if trimmedCount > 0 { addLargeThreadNotice(hiddenCount: trimmedCount) }
+        var turns: [PendingRenderTurn] = []
         var i = 0
         while i < msgs.count {
             var j = i + 1
@@ -1683,20 +1709,48 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                 final.timestamp = c.updatedAt > 0 ? c.updatedAt : Date().timeIntervalSince1970
             }
             let streamingLastTurn = isLastTurn && isActiveConversation(c)
-            renderTurn(turn, conversation: c, allowCollapse: turnComplete && !streamingLastTurn, forceActive: streamingLastTurn)
+            turns.append(PendingRenderTurn(
+                messages: turn,
+                allowCollapse: turnComplete && !streamingLastTurn,
+                forceActive: streamingLastTurn
+            ))
             i = j
         }
-        bulkLoading = false
-        if isActiveConversation(c) { showThinking() }
         restoreComposerDraft(for: c)
         updateEmptyState()
         updateSendButton()
         view.window?.makeFirstResponder(composer)
-        scrollToBottom()
+        renderTurnsAsync(turns, conversation: c, generation: generation)
+    }
+
+    private func transcriptFingerprint(for c: Conversation) -> Int {
+        let allMessages = c.messages
+        let trimmedCount = max(0, allMessages.count - maxRenderedMessages)
+        let visibleMessages = trimmedCount > 0 ? allMessages.suffix(maxRenderedMessages) : allMessages[...]
+        var hasher = Hasher()
+        hasher.combine(c.id)
+        hasher.combine(c.status.rawValue)
+        hasher.combine(c.updatedAt)
+        hasher.combine(trimmedCount)
+        hasher.combine(visibleMessages.count)
+        for message in visibleMessages {
+            hasher.combine(ObjectIdentifier(message))
+            hasher.combine(message.role.rawValue)
+            hasher.combine(message.text)
+            hasher.combine(message.toolName)
+            hasher.combine(message.toolDone)
+            hasher.combine(message.turnStatus)
+            hasher.combine(message.isFinal)
+            hasher.combine(message.isSteer)
+            hasher.combine(message.timestamp)
+            hasher.combine(message.turnDuration)
+        }
+        return hasher.finalize()
     }
 
     func showShell(_ c: Conversation) {
         saveComposerDraft()
+        transcriptRenderGeneration += 1
         conversation = c
         desiredModel = c.model
         if c.harness == .codex {
@@ -1711,6 +1765,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         toolByView.removeAll()
         editStatsByMessage.removeAll()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
+        renderedTranscriptConversationId = nil
+        renderedTranscriptFingerprint = nil
         transcript.arrangedSubviews.forEach { $0.removeFromSuperview() }
         let loading = NSTextField(labelWithString: c.needsLoad ? "Loading latest thread..." : "Loading conversation...")
         loading.font = .systemFont(ofSize: 12.5, weight: .medium)
@@ -1733,6 +1789,31 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         restoreComposerDraft(for: c)
         updateSendButton()
         view.window?.makeFirstResponder(composer)
+    }
+
+    private func renderTurnsAsync(_ turns: [PendingRenderTurn], conversation c: Conversation, generation: Int, startIndex: Int = 0) {
+        guard generation == transcriptRenderGeneration, self.conversation === c else { return }
+        let batchSize = 6
+        let end = min(startIndex + batchSize, turns.count)
+        if startIndex < end {
+            for index in startIndex..<end {
+                let turn = turns[index]
+                renderTurn(turn.messages, conversation: c, allowCollapse: turn.allowCollapse, forceActive: turn.forceActive)
+            }
+        }
+
+        if end < turns.count {
+            DispatchQueue.main.async { [weak self, weak c] in
+                guard let self, let c else { return }
+                self.renderTurnsAsync(turns, conversation: c, generation: generation, startIndex: end)
+            }
+            return
+        }
+
+        bulkLoading = false
+        if isActiveConversation(c) { showThinking() }
+        updateEmptyState()
+        scrollToBottom()
     }
 
     /// Render one turn with its work divider above the final assistant response.
