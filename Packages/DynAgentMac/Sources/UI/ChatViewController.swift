@@ -891,7 +891,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var pendingScrollToBottom = false
     private var restoringComposerDraft = false
     private var draftSaveWorkItem: DispatchWorkItem?
-    private let composerDraftPrefix = "DynAgentComposerDraft."
+    private let composerDraftPrefix = ComposerModel.defaultDraftPrefix
 
     private var streaming: Bool {
         guard let conversation else { return false }
@@ -977,13 +977,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func installModelFallback(for harness: Harness, preferred: String?) {
-        let fallback = preferred?.nilIfEmpty ?? {
-            switch harness {
-            case .dynagent: return "auto"
-            case .codex: return "gpt-5.5"
-            case .pi: return "kiro::kiro/claude-opus-4.8"
-            }
-        }()
+        let fallback = ComposerModel.fallbackModel(for: harness, preferred: preferred)
         if harness == .codex { selectedCodexModel = fallback }
         modelPopup.removeAllItems()
         modelPopup.addItem(withTitle: fallback)
@@ -993,10 +987,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func resolvedCodexModel(_ preferred: String?) -> String {
-        if let preferred = preferred?.nilIfEmpty {
-            if codexModelIds.isEmpty || codexModelIds.contains(preferred) { return preferred }
-        }
-        return codexModelIds.first ?? "gpt-5.5"
+        ComposerModel.resolvedCodexModel(preferred, available: codexModelIds)
     }
 
     private func ensureSelectedCodexModelIsSupported() {
@@ -1015,7 +1006,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         }
         let modelMenu = NSMenu()
         for id in ids {
-            let item = NSMenuItem(title: shortCodexModelName(id), action: #selector(codexModelPicked(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: ComposerModel.shortCodexModelName(id), action: #selector(codexModelPicked(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = id
             item.state = id == selectedCodexModel ? .on : .off
@@ -1041,16 +1032,10 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         syncComposerMenus()
     }
 
-    private func shortCodexModelName(_ id: String) -> String {
-        id.replacingOccurrences(of: "gpt-", with: "")
-            .replacingOccurrences(of: "-codex-spark", with: " Codex Spark")
-            .replacingOccurrences(of: "-codex", with: " Codex")
-            .replacingOccurrences(of: "-mini", with: " Mini")
-    }
     func setContext(_ percent: Double?) {
-        let f = (percent ?? 0) / 100
-        contextRing.fraction = f
-        contextRing.toolTip = percent.map { "context \(Int($0))%" } ?? "context 0%"
+        let state = ComposerModel.contextState(percent: percent)
+        contextRing.fraction = state.fraction
+        contextRing.toolTip = state.tooltip
         contextRing.isHidden = false
     }
 
@@ -1354,34 +1339,27 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         harnessMenu?.refresh()
         modelMenu?.refresh()
         reasoningMenu?.refresh()
-        let agent = conversation?.harness.rawValue ?? selectedHarness.rawValue
-        placeholder.stringValue = "Ask \(agent)"
-        let editableAgent = conversation?.messages.isEmpty ?? true
-        let lockedToCodex = conversation?.codexThreadId != nil
-        harnessMenu?.isHidden = !editableAgent || lockedToCodex
-        reasoningMenu?.isHidden = selectedHarness == .codex || reasoningPopup.isHidden
+        let state = ComposerModel.menuState(
+            conversation: conversation,
+            selectedHarness: selectedHarness,
+            reasoningControlHidden: reasoningPopup.isHidden
+        )
+        placeholder.stringValue = state.placeholder
+        harnessMenu?.isHidden = !state.showsHarnessMenu
+        reasoningMenu?.isHidden = !state.showsReasoningMenu
     }
 
     private func modelMenuTitle() -> NSAttributedString? {
         guard selectedHarness == .codex else { return nil }
-        let title = NSMutableAttributedString(string: shortCodexModelName(selectedCodexModel), attributes: [
+        let title = NSMutableAttributedString(string: ComposerModel.shortCodexModelName(selectedCodexModel), attributes: [
             .font: NSFont.systemFont(ofSize: 15, weight: .medium),
             .foregroundColor: NSColor.labelColor,
         ])
-        title.append(NSAttributedString(string: " \(effortDisplayName(selectedCodexEffort))", attributes: [
+        title.append(NSAttributedString(string: " \(ComposerModel.effortDisplayName(selectedCodexEffort))", attributes: [
             .font: NSFont.systemFont(ofSize: 15, weight: .medium),
             .foregroundColor: NSColor.secondaryLabelColor,
         ]))
         return title
-    }
-
-    private func effortDisplayName(_ effort: String) -> String {
-        switch effort {
-        case "low": return "Low"
-        case "medium": return "Medium"
-        case "xhigh": return "Extra High"
-        default: return "High"
-        }
     }
 
     private func sizedControl(_ control: NSView, minWidth: CGFloat) -> NSView {
@@ -1581,13 +1559,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func composerDraftKey(for c: Conversation) -> String {
-        if let threadId = c.codexThreadId, !threadId.isEmpty {
-            return composerDraftPrefix + "codex:" + threadId
-        }
-        if c.messages.isEmpty {
-            return composerDraftPrefix + "new:" + (c.workspace.nilIfEmpty ?? "projectless")
-        }
-        return composerDraftPrefix + "local:" + c.id
+        ComposerModel.draftKey(for: c, prefix: composerDraftPrefix)
     }
 
     func show(_ c: Conversation) {
@@ -2014,10 +1986,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func messageTextWithAttachments(_ text: String) -> String {
-        guard !attachments.isEmpty else { return text }
-        let attachmentLines = attachments.map { "- \($0.url.path)" }.joined(separator: "\n")
-        let block = "Attached files:\n\(attachmentLines)"
-        return text.isEmpty ? block : "\(text)\n\n\(block)"
+        ComposerModel.messageText(typedText: text, attachmentPaths: attachments.map(\.url.path))
     }
 
     private func stop() {
@@ -2313,10 +2282,13 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     /// The action button is "Stop" while streaming with an empty composer, else "Send".
     private func updateSendButton() {
-        let hasText = !composer.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let isStop = streaming && !hasText && attachments.isEmpty
-        sendButton.image = NSImage(systemSymbolName: isStop ? "stop.fill" : "arrow.up",
-                                   accessibilityDescription: isStop ? "Stop" : "Send")?
+        let state = ComposerModel.sendState(
+            streaming: streaming,
+            trimmedText: composer.string.trimmingCharacters(in: .whitespacesAndNewlines),
+            hasAttachments: !attachments.isEmpty
+        )
+        sendButton.image = NSImage(systemSymbolName: state.symbol,
+                                   accessibilityDescription: state.accessibilityDescription)?
             .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold))
         sendButton.contentTintColor = .black
     }
