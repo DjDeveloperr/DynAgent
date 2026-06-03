@@ -88,19 +88,8 @@ final class GitDiffTextView: NSTextView {
 }
 
 final class GitDiffDocumentView: NSView {
-    private struct Line {
-        var old: Int?
-        var new: Int?
-        var text: String
-        var kind: Character
-        var section: Int
-    }
-    private struct Section {
-        var path: String
-        var added: Int
-        var deleted: Int
-        var startRow: Int
-    }
+    private typealias Line = GitDiffLine
+    private typealias Section = GitDiffSection
 
     private let rowHeight: CGFloat = 22
     private let headerHeight: CGFloat = 34
@@ -154,7 +143,7 @@ final class GitDiffDocumentView: NSView {
     }
 
     func setDiff(_ diff: String) {
-        parse(diff)
+        applyModel(GitDiffModel.parse(diff))
         rebuildDisplayRows()
         needsDisplay = true
     }
@@ -379,108 +368,15 @@ final class GitDiffDocumentView: NSView {
         return out
     }
 
-    private func parse(_ diff: String) {
-        rawLines.removeAll()
-        lines.removeAll()
-        rowTops.removeAll()
-        sections.removeAll()
+    private func applyModel(_ model: GitDiffModel) {
+        rawLines = model.lines
+        lines.removeAll(keepingCapacity: true)
+        rowTops.removeAll(keepingCapacity: true)
+        sections = model.sections
         preferredDocWidth = 1200
-        guard !diff.isEmpty else { return }
-        var path = "Changes"
-        var oldLine = 0
-        var newLine = 0
-        var sectionIndex = 0
-        var added = 0
-        var deleted = 0
-        var currentStart = 0
-
-        func finishSection() {
-            guard sections.indices.contains(sectionIndex) else { return }
-            sections[sectionIndex].added = added
-            sections[sectionIndex].deleted = deleted
+        for line in rawLines {
+            preferredDocWidth = max(preferredDocWidth, gutterWidth + (line.text as NSString).size(withAttributes: [.font: codeFont]).width + 80)
         }
-        func startSection(_ newPath: String) {
-            if !sections.isEmpty { finishSection() }
-            path = newPath
-            added = 0
-            deleted = 0
-            currentStart = lines.count
-            sections.append(Section(path: path, added: 0, deleted: 0, startRow: currentStart))
-            sectionIndex = sections.count - 1
-        }
-        startSection(path)
-        for raw in diff.components(separatedBy: .newlines) {
-            if raw.hasPrefix("diff --git") {
-                let p = raw.split(separator: " ").last.map { String($0).replacingOccurrences(of: "b/", with: "") } ?? "Changes"
-                startSection(p)
-                rawLines.append(Line(old: nil, new: nil, text: (p as NSString).lastPathComponent, kind: "F", section: sectionIndex))
-                continue
-            }
-            if raw.hasPrefix("+++") || raw.hasPrefix("---") || raw.hasPrefix("index ") { continue }
-            if raw.hasPrefix("deleted file mode")
-                || raw.hasPrefix("new file mode")
-                || raw.hasPrefix("old mode")
-                || raw.hasPrefix("new mode")
-                || raw.hasPrefix("similarity index")
-                || raw.hasPrefix("rename from")
-                || raw.hasPrefix("rename to") {
-                continue
-            }
-            if raw.hasPrefix("@@") {
-                let previousOld = oldLine
-                let previousNew = newLine
-                var nextOld = oldLine
-                var nextNew = newLine
-                if let match = raw.range(of: #"@@ -(\d+)(?:,\d+)? \+(\d+)"#, options: .regularExpression) {
-                    let nums = String(raw[match]).split { !$0.isNumber }.compactMap { Int($0) }
-                    if nums.count >= 2 {
-                        nextOld = nums[0]
-                        nextNew = nums[1]
-                    }
-                }
-                if previousOld > 0 || previousNew > 0 {
-                    let skippedOld = max(0, nextOld - previousOld)
-                    let skippedNew = max(0, nextNew - previousNew)
-                    let skipped = max(skippedOld, skippedNew)
-                    if skipped > 0 {
-                        let label = skipped == 1 ? "1 unmodified line" : "\(skipped) unmodified lines"
-                        rawLines.append(Line(old: nil, new: nil, text: label, kind: "S", section: sectionIndex))
-                    }
-                }
-                oldLine = nextOld
-                newLine = nextNew
-                continue
-            }
-            let kind: Character
-            let text: String
-            let old: Int?
-            let new: Int?
-            if raw.hasPrefix("+") {
-                kind = "+"
-                text = String(raw.dropFirst())
-                old = nil
-                new = newLine
-                newLine += 1
-                added += 1
-            } else if raw.hasPrefix("-") {
-                kind = "-"
-                text = String(raw.dropFirst())
-                old = oldLine
-                new = nil
-                oldLine += 1
-                deleted += 1
-            } else {
-                kind = " "
-                text = raw.hasPrefix(" ") ? String(raw.dropFirst()) : raw
-                old = oldLine > 0 ? oldLine : nil
-                new = newLine > 0 ? newLine : nil
-                if oldLine > 0 { oldLine += 1 }
-                if newLine > 0 { newLine += 1 }
-            }
-            preferredDocWidth = max(preferredDocWidth, gutterWidth + (text as NSString).size(withAttributes: [.font: codeFont]).width + 80)
-            rawLines.append(Line(old: old, new: new, text: text, kind: kind, section: sectionIndex))
-        }
-        finishSection()
     }
 
     private func rebuildDisplayRows() {
