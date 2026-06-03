@@ -65,6 +65,51 @@ final class MainLayoutStabilizerTests: XCTestCase {
         XCTAssertEqual(fixture.workspace.view.frame.width, mainFrame.width, accuracy: 0.5)
     }
 
+    func testStabilizeExpandsGitPanelFromLoadedWideChatWithoutStealingEmptySpace() throws {
+        let fixture = makeFixture(windowWidth: 1_472, windowHeight: 780)
+
+        fixture.root.splitView.setPosition(260, ofDividerAt: 0)
+        fixture.gitItem.isCollapsed = true
+        _ = try XCTUnwrap(MainLayoutStabilizer.stabilize(
+            window: fixture.window,
+            rootContentController: fixture.root,
+            splitView: fixture.root.splitView,
+            rootSplitController: fixture.root,
+            workspaceArea: fixture.workspace,
+            sidebarItem: fixture.sidebarItem,
+            gitItem: fixture.gitItem,
+            preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
+        ))
+
+        let loadedMainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
+        XCTAssertGreaterThan(loadedMainFrame.width, 1_100)
+        XCTAssertEqual(fixture.workspace.view.frame.width, loadedMainFrame.width, accuracy: 0.5)
+        XCTAssertEqual(fixture.chat.frame.width, loadedMainFrame.width, accuracy: 0.5)
+
+        fixture.gitItem.isCollapsed = false
+        let expandedPlan = try XCTUnwrap(MainLayoutStabilizer.stabilize(
+            window: fixture.window,
+            rootContentController: fixture.root,
+            splitView: fixture.root.splitView,
+            rootSplitController: fixture.root,
+            workspaceArea: fixture.workspace,
+            sidebarItem: fixture.sidebarItem,
+            gitItem: fixture.gitItem,
+            preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
+        ))
+
+        let mainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
+        let gitFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 2]?.frame)
+        XCTAssertEqual(try XCTUnwrap(expandedPlan.firstDividerPosition), 260, accuracy: 0.5)
+        XCTAssertEqual(try XCTUnwrap(expandedPlan.secondDividerPosition), 1_172, accuracy: 0.5)
+        XCTAssertEqual(mainFrame.width, 911, accuracy: 2)
+        XCTAssertEqual(gitFrame.width, 299, accuracy: 2)
+        XCTAssertEqual(fixture.workspace.view.frame.width, mainFrame.width, accuracy: 0.5)
+        XCTAssertEqual(fixture.chat.frame.width, mainFrame.width, accuracy: 0.5)
+        XCTAssertEqual(mainFrame.maxX, gitFrame.minX - 1, accuracy: 2)
+        XCTAssertEqual(gitFrame.maxX, fixture.root.splitView.bounds.maxX, accuracy: 2)
+    }
+
     private func makeFixture(windowWidth: CGFloat, windowHeight: CGFloat) -> Fixture {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
