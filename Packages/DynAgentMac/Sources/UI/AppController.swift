@@ -54,7 +54,6 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private var detachedChatWindows: [DetachedChatWindowController] = []
     private let projectlessCodexKey = "__codex_projectless__"
     private var navigationHistory = NavigationHistoryModel<Conversation>()
-    private let maximumWindowSize = NSSize(width: 20_000, height: 20_000)
     private var lastRequestedMainFrame: NSRect = .zero
     private var lastAppliedMainFrame: NSRect = .zero
     private var isUserLiveResizing = false
@@ -134,7 +133,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         workspaceArea.setPrimary(chat.view, title: "")
         let mainItem = NSSplitViewItem(viewController: workspaceArea)
         mainItem.minimumThickness = 360
-        mainItem.maximumThickness = maximumWindowSize.width
+        mainItem.maximumThickness = WindowLayoutChrome.defaultMaximumWindowSize.width
         mainItem.holdingPriority = NSLayoutConstraint.Priority(1)
         split.addSplitViewItem(mainItem)
         gitItem = NSSplitViewItem(viewController: gitPanel)
@@ -456,50 +455,22 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func rebalanceMainSplitIfNeeded() {
-        guard let splitView, splitView.subviews.count >= 2 else { return }
-        let plan = WindowLayoutModel.splitPlan(WindowSplitConfiguration(
-            totalWidth: splitView.bounds.width,
-            sidebarCurrentWidth: splitView.subviews.first?.frame.width ?? 0,
-            sidebarMinimumWidth: sidebarItem.minimumThickness,
-            sidebarMaximumWidth: sidebarItem.maximumThickness,
-            sidebarCollapsed: sidebarItem.isCollapsed,
-            gitCurrentWidth: splitView.subviews.count >= 3 ? splitView.subviews[2].frame.width : 0,
-            gitMinimumWidth: gitItem.minimumThickness,
-            gitMaximumWidth: gitItem.maximumThickness,
-            gitCollapsed: gitItem.isCollapsed,
-            fallbackSidebarWidth: sidebarItem.minimumThickness,
+        WindowLayoutChrome.applySplitPlan(
+            splitView: splitView,
+            rootSplitController: rootSplitController as? RootSplitViewController,
+            sidebarItem: sidebarItem,
+            gitItem: gitItem,
             preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
-        ))
-        if let first = plan.firstDividerPosition {
-            splitView.setPosition(first, ofDividerAt: 0)
-        }
-        if splitView.subviews.count >= 3, let second = plan.secondDividerPosition {
-            splitView.setPosition(second, ofDividerAt: 1)
-        }
-        splitView.adjustSubviews()
-        (rootSplitController as? RootSplitViewController)?.pinSplitViewToRoot()
-        if let first = plan.firstDividerPosition {
-            splitView.setPosition(first, ofDividerAt: 0)
-        }
-        if splitView.subviews.count >= 3, let second = plan.secondDividerPosition {
-            splitView.setPosition(second, ofDividerAt: 1)
-        }
-        splitView.adjustSubviews()
+        )
         workspaceArea.forceLayoutToBounds()
     }
 
     private func forceRootSplitToContentSize() {
-        let bounds = WindowLayoutModel.rootBounds(
-            contentBounds: window.contentView?.bounds ?? .zero,
-            windowFrame: window.frame,
-            contentLayoutRect: window.contentLayoutRect
+        WindowLayoutChrome.pinRootToContentBounds(
+            window: window,
+            rootContentController: rootContentController,
+            splitView: splitView
         )
-        if rootContentController?.view.frame != bounds {
-            rootContentController?.view.frame = bounds
-        }
-        if splitView?.frame != bounds {
-            splitView?.frame = bounds
-        }
     }
 
     private func writeLayoutMetrics(reason: String = "startup") {
@@ -521,7 +492,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             splitViewHeight: Double(splitView?.frame.height ?? -1),
             splitViewX: Double(splitView?.frame.minX ?? -1),
             splitViewClass: String(describing: type(of: splitView ?? NSSplitView())),
-            rootSubviews: layoutFrameMetrics(for: window.contentView?.subviews ?? []),
+            rootSubviews: WindowLayoutChrome.frameMetrics(for: window.contentView?.subviews ?? []),
             requestedFrameWidth: Double(lastRequestedMainFrame.width),
             requestedFrameHeight: Double(lastRequestedMainFrame.height),
             appliedFrameWidth: Double(lastAppliedMainFrame.width),
@@ -530,7 +501,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             screenVisibleHeight: Double(visible.height),
             sidebarCollapsed: sidebarItem.isCollapsed,
             gitCollapsed: gitItem.isCollapsed,
-            splitFrames: layoutFrameMetrics(for: splitView?.subviews ?? []),
+            splitFrames: WindowLayoutChrome.frameMetrics(for: splitView?.subviews ?? []),
             chatViewWidth: Double(chat.view.frame.width),
             chatViewHeight: Double(chat.view.frame.height),
             workspaceWidth: Double(workspaceArea.view.frame.width),
@@ -544,18 +515,6 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) {
             try? data.write(to: dir.appendingPathComponent("ui-layout-metrics.json"))
-        }
-    }
-
-    private func layoutFrameMetrics(for views: [NSView]) -> [WindowLayoutViewFrame] {
-        views.enumerated().map { index, view in
-            WindowLayoutViewFrame(
-                index: index,
-                className: String(describing: type(of: view)),
-                x: Double(view.frame.minX),
-                width: Double(view.frame.width),
-                height: Double(view.frame.height)
-            )
         }
     }
 
@@ -1038,11 +997,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func unlockWindowSizing() {
-        window.styleMask.insert(.resizable)
-        window.minSize = NSSize(width: 820, height: 480)
-        window.maxSize = maximumWindowSize
-        window.contentMinSize = NSSize(width: 820, height: 480)
-        window.contentMaxSize = maximumWindowSize
+        WindowLayoutChrome.applyUsableSizing(to: window)
     }
 
     private func wideWindowFrame() -> NSRect {

@@ -341,25 +341,22 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         cardContent.addSubview(footer)
         card.contentView = cardContent
 
-        emptyTitle.font = .systemFont(ofSize: 22, weight: .semibold)
-        emptyTitle.alignment = .center
-        emptySub.font = .systemFont(ofSize: 13)
-        emptySub.textColor = .secondaryLabelColor
-        emptySub.alignment = .center
-        emptySub.lineBreakMode = .byWordWrapping
-        emptySub.maximumNumberOfLines = 3
-        emptySub.preferredMaxLayoutWidth = 420
-        emptyStack.orientation = .vertical
-        emptyStack.spacing = 10
-        emptyStack.addArrangedSubview(emptyTitle)
-        emptyStack.addArrangedSubview(emptySub)
-        emptyActions.orientation = .horizontal
-        emptyActions.alignment = .centerY
-        emptyActions.spacing = 10
-        emptyActions.addArrangedSubview(emptyAction("New Worktree", symbol: "arrow.triangle.branch", action: #selector(newWorktreeClicked)))
-        emptyActions.addArrangedSubview(emptyAction("Add Workspace", symbol: "folder.badge.plus", action: #selector(addWorkspaceClicked)))
-        emptyStack.addArrangedSubview(emptyActions)
-        emptyStack.translatesAutoresizingMaskIntoConstraints = false
+        ChatEmptyStateChrome.configureTitle(emptyTitle)
+        ChatEmptyStateChrome.configureSubtitle(emptySub)
+        ChatEmptyStateChrome.configureActions(emptyActions)
+        emptyActions.addArrangedSubview(ChatEmptyStateChrome.makeAction(
+            title: "New Worktree",
+            symbol: "arrow.triangle.branch",
+            target: self,
+            action: #selector(newWorktreeClicked)
+        ))
+        emptyActions.addArrangedSubview(ChatEmptyStateChrome.makeAction(
+            title: "Add Workspace",
+            symbol: "folder.badge.plus",
+            target: self,
+            action: #selector(addWorkspaceClicked)
+        ))
+        ChatEmptyStateChrome.configureStack(emptyStack, title: emptyTitle, subtitle: emptySub, actions: emptyActions)
 
         let root = FlexibleContainerView()
         root.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -482,51 +479,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             .foregroundColor: NSColor.secondaryLabelColor,
         ]))
         return title
-    }
-
-    private func sizedControl(_ control: NSView, minWidth: CGFloat) -> NSView {
-        let shell = NSView()
-        shell.translatesAutoresizingMaskIntoConstraints = false
-        shell.addSubview(control)
-        NSLayoutConstraint.activate([
-            shell.heightAnchor.constraint(equalToConstant: 30),
-            shell.widthAnchor.constraint(greaterThanOrEqualToConstant: minWidth),
-            control.leadingAnchor.constraint(equalTo: shell.leadingAnchor),
-            control.trailingAnchor.constraint(equalTo: shell.trailingAnchor),
-            control.centerYAnchor.constraint(equalTo: shell.centerYAnchor),
-        ])
-        return shell
-    }
-
-    private func glassControl(_ control: NSView, minWidth: CGFloat) -> NSView {
-        let shell = NSVisualEffectView()
-        shell.material = .menu
-        shell.blendingMode = .withinWindow
-        shell.state = .active
-        shell.wantsLayer = true
-        shell.layer?.cornerRadius = 13
-        shell.layer?.masksToBounds = true
-        shell.translatesAutoresizingMaskIntoConstraints = false
-        shell.addSubview(control)
-        NSLayoutConstraint.activate([
-            shell.heightAnchor.constraint(equalToConstant: 30),
-            shell.widthAnchor.constraint(greaterThanOrEqualToConstant: minWidth),
-            control.leadingAnchor.constraint(equalTo: shell.leadingAnchor, constant: 10),
-            control.trailingAnchor.constraint(equalTo: shell.trailingAnchor, constant: -8),
-            control.centerYAnchor.constraint(equalTo: shell.centerYAnchor),
-        ])
-        return shell
-    }
-
-    private func emptyAction(_ title: String, symbol: String, action: Selector) -> NSView {
-        let button = NSButton(title: title, target: self, action: action)
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
-        button.imagePosition = .imageLeading
-        button.isBordered = false
-        button.controlSize = .large
-        button.font = .systemFont(ofSize: 13, weight: .medium)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        return glassControl(button, minWidth: title == "New Worktree" ? 142 : 150)
     }
 
     @objc private func addWorkspaceClicked() {
