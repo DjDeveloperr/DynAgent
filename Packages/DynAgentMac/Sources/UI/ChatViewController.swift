@@ -39,7 +39,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var cardCenterYConstraint: NSLayoutConstraint?
     private var attachmentHeightConstraint: NSLayoutConstraint?
     private let transcriptRegistry = TranscriptRowRegistry()
-    private let toolPopover = NSPopover()
+    private let toolPopoverCoordinator = TranscriptToolPopoverCoordinator()
     private var streamingConversationIds = Set<String>()
     private var streamTasks: [String: URLSessionDataTask] = [:]
     private var stopping = false
@@ -51,16 +51,14 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var assistantByConversationId: [String: ChatMessage] = [:]
     private let maxRenderedMessages = 240
     private var composerSelection = ComposerSelectionState()
-    private var attachments: [ComposerAttachment] = []
+    private let composerDrafts = ComposerDraftCoordinator()
     private var attachmentRemoveIds: [ObjectIdentifier: UUID] = [:]
     private var lastActivityEmit: [String: TimeInterval] = [:]
     private var pendingToolRefreshByConversationId: [String: DispatchWorkItem] = [:]
     private var renderSession = TranscriptRenderSessionState()
     private var lastScrollToBottomAt: TimeInterval = 0
     private var pendingScrollToBottom = false
-    private var restoringComposerDraft = false
-    private var draftSaveWorkItem: DispatchWorkItem?
-    private let composerDraftStore = ComposerDraftStore()
+    private var attachments: [ComposerAttachment] { composerDrafts.attachments }
 
     private var streaming: Bool {
         guard let conversation else { return false }
@@ -417,9 +415,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func addAttachments(_ urls: [URL]) {
-        let result = ComposerSessionModel.addingAttachments(urls, to: attachments)
+        let result = composerDrafts.addAttachments(urls)
         guard result.didChange else { return }
-        attachments = result.attachments
         renderAttachments()
         updateSendButton()
         saveComposerDraft()
@@ -438,42 +435,30 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     @objc private func removeAttachment(_ sender: NSButton) {
         guard let id = attachmentRemoveIds[ObjectIdentifier(sender)] else { return }
-        let result = ComposerSessionModel.removingAttachment(id: id, from: attachments)
+        let result = composerDrafts.removeAttachment(id: id)
         guard result.didChange else { return }
-        attachments = result.attachments
         renderAttachments()
         updateSendButton()
         saveComposerDraft()
     }
 
     func saveComposerDraft() {
-        guard !restoringComposerDraft, let c = conversation else { return }
-        draftSaveWorkItem?.cancel()
-        draftSaveWorkItem = nil
-        composerDraftStore.save(text: composer.string, attachments: attachments, for: c)
+        guard let c = conversation else { return }
+        composerDrafts.save(text: composer.string, for: c)
     }
 
     private func scheduleComposerDraftSave() {
-        guard !restoringComposerDraft else { return }
-        draftSaveWorkItem?.cancel()
-        let item = DispatchWorkItem { [weak self] in self?.saveComposerDraft() }
-        draftSaveWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: item)
+        composerDrafts.scheduleSave(
+            textProvider: { [weak self] in self?.composer.string ?? "" },
+            conversationProvider: { [weak self] in self?.conversation }
+        )
     }
 
     private func restoreComposerDraft(for c: Conversation) {
-        let snapshot = composerDraftStore.snapshot(for: c)
-        let state = ComposerSessionModel.restoredState(from: snapshot) { FileManager.default.fileExists(atPath: $0) }
-        restoringComposerDraft = true
+        let state = composerDrafts.restore(for: c) { FileManager.default.fileExists(atPath: $0) }
         composer.string = state.text
-        attachments = state.attachments
         renderAttachments()
-        restoringComposerDraft = false
         placeholder.isHidden = state.placeholderHidden
-    }
-
-    private func clearComposerDraft(for c: Conversation) {
-        composerDraftStore.clear(for: c)
     }
 
     func show(_ c: Conversation) {
@@ -668,7 +653,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         let group = EditGroupView(changes: changes)
         group.onOpenChange = { [weak self] change, anchor in
             guard let self else { return }
-            TranscriptToolPopoverPresenter.presentEditChanges([change], in: self.toolPopover, from: anchor)
+            self.toolPopoverCoordinator.presentEditChanges([change], from: anchor)
         }
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
@@ -747,7 +732,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         guard let c = conversation else { return }
         let action = ChatSendModel.action(
             typedText: composer.string,
-            attachmentPaths: ComposerModel.normalizedAttachmentPaths(attachments),
+            attachmentPaths: composerDrafts.attachmentPaths,
             streaming: streaming,
             harness: c.harness,
             codexThreadId: c.codexThreadId
@@ -758,11 +743,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             return
         }
 
-        let cleared = ComposerSessionModel.clearedAfterSend()
+        let cleared = composerDrafts.clear(for: c)
         composer.string = cleared.text
-        attachments = cleared.attachments
         renderAttachments()
-        clearComposerDraft(for: c)
         textDidChange(Notification(name: NSText.didChangeNotification))
 
         switch action {
@@ -1029,7 +1012,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         let state = ComposerModel.sendState(
             streaming: streaming,
             trimmedText: composer.string.trimmingCharacters(in: .whitespacesAndNewlines),
-            hasAttachments: !attachments.isEmpty
+            hasAttachments: composerDrafts.hasAttachments
         )
         sendButton.image = NSImage(systemSymbolName: state.symbol,
                                    accessibilityDescription: state.accessibilityDescription)?
@@ -1138,9 +1121,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     /// Show a popover with the full tool name + detail when a tool pill is clicked.
     @objc private func toolClicked(_ g: NSClickGestureRecognizer) {
         guard let view = g.view, let m = transcriptRegistry.toolMessage(for: view) else { return }
-        TranscriptToolPopoverPresenter.present(
+        toolPopoverCoordinator.present(
             message: m,
-            in: toolPopover,
             from: view,
             clickPoint: g.location(in: view)
         )

@@ -32,22 +32,12 @@ enum TranscriptToolPopoverPresenter {
         )
     }
 
-    static func present(message: ChatMessage, in popover: NSPopover, from anchor: NSView, clickPoint: NSPoint?) {
-        let plan = plan(for: message, clickPoint: clickPoint, anchorBounds: anchor.bounds)
-        TranscriptPopoverChrome.show(plan.content, in: popover, relativeTo: plan.anchorRect, of: anchor)
-    }
-
     static func editPlan(changes: [EditToolChange], anchorBounds: NSRect) -> TranscriptToolPopoverPlan {
         TranscriptToolPopoverPlan(
             kind: .editDiff,
             content: TranscriptPopoverChrome.editDiff(changes: changes),
             anchorRect: normalizedAnchor(anchorBounds)
         )
-    }
-
-    static func presentEditChanges(_ changes: [EditToolChange], in popover: NSPopover, from anchor: NSView) {
-        let plan = editPlan(changes: changes, anchorBounds: anchor.bounds)
-        TranscriptPopoverChrome.show(plan.content, in: popover, relativeTo: plan.anchorRect, of: anchor)
     }
 
     private static func normalizedAnchor(_ bounds: NSRect) -> NSRect {

@@ -37,6 +37,7 @@
 - `TranscriptToolFormatter.swift`: tested attributed title, preview, grouping, and icon-name formatting for transcript tool rows.
 - `TranscriptPopoverChrome.swift`: reusable AppKit popover content and presenter for tool details, shell output, and edit diffs.
 - `TranscriptToolPopoverPresenter.swift`: tested transcript tool popover planner for edit-vs-detail content selection and stable click anchors.
+- `TranscriptToolPopoverCoordinator.swift`: tested AppKit coordinator that owns the tool popover and bridges transcript tool/edit clicks to popover plans.
 - `SidebarModel.swift`: tested pure grouping model for pinned chats, projectless chats, project workspaces, archived filtering, and recency ordering.
 - `SidebarRowModel.swift`: tested pure row-presentation model for short relative timestamps, workspace/chat tooltip content, worktree indicators, and working/pinned/unread state.
 - `SidebarArchiveConfirmationModel.swift`: tested archive confirmation reducer for first-click confirmation, second-click archive, hover-out cancellation, and reload decisions.
@@ -45,6 +46,7 @@
 - `ComposerModel.swift`: tested composer behavior model for model/reasoning menu data, picker selection, draft keys, attachment message text, draft snapshots, attachment normalization, context state, and send/stop state.
 - `ComposerSelectionModel.swift`: tested composer model/reasoning selection state for Codex availability, desired-model adoption, fallback selection, and picker updates.
 - `ComposerSessionModel.swift`: tested composer session state transitions for attachment add/remove, draft restoration, placeholder visibility, and send clearing.
+- `ComposerDraftCoordinator.swift`: tested AppKit-free coordinator for composer attachment state, draft save/restore/clear, and debounced draft persistence.
 - `ChatSendModel.swift`: tested prompt/stop/steer send-action routing, attachment-only sends, native Codex steering, and queued steer prompt joining.
 - `ComposerDraftStore.swift`: tested draft persistence store for preserving composer text and attachments across chat switches and hot reloads.
 - `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips/strip rendering, Codex nested model/reasoning menus, menu label styling, send/attachment buttons, and stable footer sizing.
@@ -85,7 +87,7 @@ The iOS app should share behavior and visual language, but not copy the desktop 
 - Settings/search/commit overlays -> native SwiftUI sheets or presentation detents, using the same labels and action order as macOS.
 - Composer -> same model/reasoning/context/send ordering, with attachments previewed above the text field and keyboard-safe bottom padding.
 
-Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `GitActionModel`, `GitPanelModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `TranscriptRenderSessionModel`, `TranscriptLiveUpdateModel`, `ConversationTurnMutationModel`, `ChatStreamMutationModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `SidebarArchiveConfirmationModel`, `SearchOverlayModel`, `ComposerModel`, `ComposerSelectionModel`, `ComposerSessionModel`, `ChatSendModel`, `ComposerDraftStore`, `MobilePresentationModel`, `NavigationHistoryModel`, `AppConversationIndexModel`, `AppActivityRefreshModel`, `AppCodexHistoryModel`, `AppCodexThreadStubModel`, `AppWorkspaceIndexModel`, `AppSidebarSyncModel`, `AppHotStateModel`, `MainWindowFrameModel`, `ChatLayoutModel`, `ChatTitleModel`, `ChatPresentationModel`, `WindowLayoutModel`). AppKit-only controls such as `TranscriptRowRegistry` remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
+Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `GitActionModel`, `GitPanelModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `TranscriptRenderSessionModel`, `TranscriptLiveUpdateModel`, `ConversationTurnMutationModel`, `ChatStreamMutationModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `SidebarArchiveConfirmationModel`, `SearchOverlayModel`, `ComposerModel`, `ComposerSelectionModel`, `ComposerSessionModel`, `ComposerDraftCoordinator`, `ChatSendModel`, `ComposerDraftStore`, `MobilePresentationModel`, `NavigationHistoryModel`, `AppConversationIndexModel`, `AppActivityRefreshModel`, `AppCodexHistoryModel`, `AppCodexThreadStubModel`, `AppWorkspaceIndexModel`, `AppSidebarSyncModel`, `AppHotStateModel`, `MainWindowFrameModel`, `ChatLayoutModel`, `ChatTitleModel`, `ChatPresentationModel`, `WindowLayoutModel`). AppKit-only controls such as `TranscriptRowRegistry` remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
 
 ## Verification Gates
 
