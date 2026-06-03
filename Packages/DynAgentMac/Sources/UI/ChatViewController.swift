@@ -276,36 +276,20 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         ))
         ChatEmptyStateChrome.configureStack(emptyStack, title: emptyTitle, subtitle: emptySub, actions: emptyActions)
 
-        let root = FlexibleContainerView()
-        root.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        root.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        root.addSubview(scroll)
-        root.addSubview(headerTitle)
-        root.addSubview(headerMenuButton)
-        root.addSubview(card)
-        root.addSubview(emptyStack)
-
-        // Hairline at the very top of the transcript area.
-        let topBorder = NSBox()
-        topBorder.boxType = .separator
-        topBorder.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(topBorder)
-
-        cardBottomConstraint = card.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16)
-        cardCenterYConstraint = card.centerYAnchor.constraint(equalTo: root.centerYAnchor, constant: 88)
-        cardCenterYConstraint?.isActive = false
-        let cardFillWidth = card.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -(ChatLayoutModel.horizontalInset * 2))
-        cardFillWidth.priority = .defaultHigh
+        let topBorder = ChatViewChrome.makeTopBorder()
+        let root = ChatViewChrome.makeRoot(
+            scroll: scroll,
+            headerTitle: headerTitle,
+            headerMenuButton: headerMenuButton,
+            composerCard: card,
+            emptyStack: emptyStack,
+            topBorder: topBorder
+        )
+        let composerLayout = ChatViewChrome.composerConstraints(root: root, card: card)
+        cardBottomConstraint = composerLayout.bottom
+        cardCenterYConstraint = composerLayout.centerY
 
         NSLayoutConstraint.activate([
-            // Composer tracks the readable chat column while the root canvas remains full width.
-            card.leadingAnchor.constraint(greaterThanOrEqualTo: root.leadingAnchor, constant: ChatLayoutModel.horizontalInset),
-            card.trailingAnchor.constraint(lessThanOrEqualTo: root.trailingAnchor, constant: -ChatLayoutModel.horizontalInset),
-            card.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-            card.widthAnchor.constraint(lessThanOrEqualToConstant: ChatLayoutModel.maxReadableWidth),
-            cardFillWidth,
-            cardBottomConstraint!,
-
             attachmentScroll.topAnchor.constraint(equalTo: cardContent.topAnchor, constant: 10),
             attachmentScroll.leadingAnchor.constraint(equalTo: cardContent.leadingAnchor, constant: 12),
             attachmentScroll.trailingAnchor.constraint(equalTo: cardContent.trailingAnchor, constant: -12),
@@ -333,22 +317,15 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             sendContainer: sendStack,
             sendButton: sendButton,
             spinner: spinner
-        ) + [
-
-            emptyStack.centerXAnchor.constraint(equalTo: scroll.centerXAnchor),
-            emptyStack.bottomAnchor.constraint(equalTo: card.topAnchor, constant: -24),
-            emptyStack.widthAnchor.constraint(lessThanOrEqualToConstant: 440),
-
-        ] + ChatHeaderChrome.constraints(
+        ) + composerLayout.all + ChatViewChrome.emptyStateConstraints(
+            emptyStack: emptyStack,
+            scroll: scroll,
+            card: card
+        ) + ChatHeaderChrome.constraints(
             title: headerTitle,
             menuButton: headerMenuButton,
             root: root
-        ) + [
-
-            topBorder.topAnchor.constraint(equalTo: root.topAnchor),
-            topBorder.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            topBorder.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-        ])
+        ) + ChatViewChrome.topBorderConstraints(topBorder: topBorder, root: root))
         view = root
     }
 
