@@ -51,6 +51,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private let activityCoordinator = ChatActivityCoordinator()
     private var renderSession = TranscriptRenderSessionState()
     private let transcriptScrollCoordinator = TranscriptScrollCoordinator()
+    private lazy var titleGenerationCoordinator = ChatTitleGenerationCoordinator(client: client)
 
     private var streaming: Bool {
         guard let conversation else { return false }
@@ -936,12 +937,12 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func generateTitle(for c: Conversation, prompt: String) {
         Task { @MainActor in
-            if let title = ChatTitleModel.acceptedGeneratedTitle(
-                await client.generateTitle(prompt: prompt, model: selectedModel)
-            ) {
-                c.title = title
-                onTitleGenerated?(c, title)
-            }
+            await titleGenerationCoordinator.generate(
+                for: c,
+                prompt: prompt,
+                model: selectedModel,
+                onTitleGenerated: onTitleGenerated
+            )
         }
     }
 
