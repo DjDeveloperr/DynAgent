@@ -11,6 +11,9 @@
 - `ShellToolModel.swift`: tested command summarizer and command-title model for shell tool rows.
 - `EditToolModel.swift`: tested edit-tool parser and title model for grouped editing rows and popout diff data.
 - `TranscriptTurnModel.swift`: tested turn-planning model for prompt/steer boundaries, active-turn expansion, final-response collapse, timestamps, and large-thread trimming.
+- `TranscriptRenderModel.swift`: tested row data-source model for turn batching, shell tool grouping, and completed edit grouping.
+- `WorkDividerModel.swift`: tested label/duration model for active and completed Codex-style work dividers.
+- `TranscriptChrome.swift`: reusable AppKit transcript text, shimmer, work-divider, and edit-stat views.
 - `SidebarModel.swift`: tested pure grouping model for pinned chats, projectless chats, project workspaces, archived filtering, and recency ordering.
 - `SidebarRowModel.swift`: tested pure row-presentation model for short relative timestamps, workspace/chat tooltip content, worktree indicators, and working/pinned/unread state.
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
@@ -39,7 +42,7 @@ The iOS app should share behavior and visual language, but not copy the desktop 
 - Settings/search/commit overlays -> native SwiftUI sheets or presentation detents, using the same labels and action order as macOS.
 - Composer -> same model/reasoning/context/send ordering, with attachments previewed above the text field and keyboard-safe bottom padding.
 
-Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `SidebarModel`, `SidebarRowModel`, `ComposerModel`, `WindowLayoutModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
+Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `ComposerModel`, `WindowLayoutModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
 
 ## Verification Gates
 
@@ -50,4 +53,4 @@ Pure models should move toward platform-neutral Swift where possible (`MarkdownR
 
 ## Next Extraction Targets
 
-- Transcript virtualization or reusable transcript row data source for large threads.
+- Native iOS adaptation using the shared pure models and platform-specific SwiftUI chrome.
