@@ -430,18 +430,17 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     @objc private func showChatTitleMenu(_ sender: NSButton) {
         guard let c = chat.conversation else { return }
-        let menu = NSMenu()
-        let pin = NSMenuItem(title: c.pinned ? "Unpin Chat" : "Pin Chat", action: #selector(pinCurrentChat), keyEquivalent: "")
-        let rename = NSMenuItem(title: "Rename Chat", action: #selector(renameCurrentChat), keyEquivalent: "")
-        let archive = NSMenuItem(title: "Archive Chat", action: #selector(archiveCurrentChat), keyEquivalent: "")
-        let open = NSMenuItem(title: "Open in a New Window", action: #selector(openCurrentChatInNewWindow), keyEquivalent: "")
-        for item in [pin, rename, archive, open] { item.target = self }
-        menu.addItem(pin)
-        menu.addItem(rename)
-        menu.addItem(archive)
-        menu.addItem(.separator())
-        menu.addItem(open)
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 4), in: sender)
+        let menu = ChatActionMenuChrome.makeMenu(
+            isPinned: c.pinned,
+            target: self,
+            selectors: ChatActionMenuSelectors(
+                pin: #selector(pinCurrentChat),
+                rename: #selector(renameCurrentChat),
+                archive: #selector(archiveCurrentChat),
+                openInNewWindow: #selector(openCurrentChatInNewWindow)
+            )
+        )
+        ChatActionMenuChrome.popUp(menu, from: sender)
     }
 
     @objc private func pinCurrentChat() {
