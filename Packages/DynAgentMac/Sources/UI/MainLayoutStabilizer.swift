@@ -40,21 +40,8 @@ enum MainLayoutStabilizer {
         gitItem: NSSplitViewItem
     ) {
         guard gitItem.isCollapsed,
-              let splitView,
               let wrapper = workspaceArea.view.superview else { return }
-        let target = NSRect(
-            x: wrapper.frame.minX,
-            y: 0,
-            width: max(0, splitView.bounds.width - wrapper.frame.minX),
-            height: splitView.bounds.height
-        )
-        if wrapper.frame != target {
-            wrapper.frame = target
-        }
-        let bounds = NSRect(origin: .zero, size: target.size)
-        if wrapper.bounds != bounds {
-            wrapper.bounds = bounds
-        }
+        workspaceArea.view.autoresizingMask = [.width, .height]
         if workspaceArea.view.frame != wrapper.bounds {
             workspaceArea.view.frame = wrapper.bounds
         }

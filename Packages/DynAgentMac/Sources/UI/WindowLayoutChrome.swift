@@ -116,19 +116,7 @@ enum WindowLayoutChrome {
         guard gitItem.isCollapsed,
               let mainView = mainViewForCollapsedGit ?? rootSplitController?.splitViewItems.dropFirst().first?.viewController.view,
               let wrapper = mainView.superview else { return }
-        let target = NSRect(
-            x: wrapper.frame.minX,
-            y: 0,
-            width: max(0, splitView.bounds.width - wrapper.frame.minX),
-            height: splitView.bounds.height
-        )
-        if wrapper.frame != target {
-            wrapper.frame = target
-        }
-        let bounds = NSRect(origin: .zero, size: target.size)
-        if wrapper.bounds != bounds {
-            wrapper.bounds = bounds
-        }
+        mainView.autoresizingMask = [.width, .height]
         if mainView.frame != wrapper.bounds {
             mainView.frame = wrapper.bounds
         }
