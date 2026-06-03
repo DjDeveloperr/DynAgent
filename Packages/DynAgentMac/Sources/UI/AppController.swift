@@ -186,8 +186,10 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         for delay in [0.0, 0.75, 1.6, 3.0, 4.5] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self else { return }
-                if self.window.frame.width < self.lastAppliedMainFrame.width - 1 ||
-                    self.window.frame.height < self.lastAppliedMainFrame.height - 1 {
+                if WindowLayoutModel.shouldRestoreAppliedFrame(
+                    current: self.window.frame,
+                    applied: self.lastAppliedMainFrame
+                ) {
                     self.setMainWindowFrame(self.lastAppliedMainFrame)
                 }
                 self.forceRootSplitToContentSize()
@@ -551,17 +553,6 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         }
     }
 
-    private func applyInitialSplitWidths() {
-        guard let splitView, splitView.subviews.count >= 2 else { return }
-        let restoredWidth = lastSyncedSidebarWidth > sidebarItem.minimumThickness + 4 ? lastSyncedSidebarWidth : 300
-        let sidebarWidth = min(max(restoredWidth, sidebarItem.minimumThickness), sidebarItem.maximumThickness)
-        splitView.setPosition(sidebarWidth, ofDividerAt: 0)
-        if splitView.subviews.count >= 3, !gitItem.isCollapsed {
-            let gitWidth = min(max(gitPanel.view.frame.width, gitItem.minimumThickness), gitItem.maximumThickness)
-            splitView.setPosition(splitView.bounds.width - gitWidth, ofDividerAt: 1)
-        }
-    }
-
     private func stabilizeMainLayout(reason: String) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -575,17 +566,22 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     private func rebalanceMainSplitIfNeeded() {
         guard let splitView, splitView.subviews.count >= 2 else { return }
-        let sidebarWidth: CGFloat = sidebarItem.isCollapsed ? 0 : {
-            let current = splitView.subviews.first?.frame.width ?? 300
-            return min(max(current, sidebarItem.minimumThickness), sidebarItem.maximumThickness)
-        }()
-        if !sidebarItem.isCollapsed {
-            splitView.setPosition(sidebarWidth, ofDividerAt: 0)
+        let plan = WindowLayoutModel.splitPlan(WindowSplitConfiguration(
+            totalWidth: splitView.bounds.width,
+            sidebarCurrentWidth: splitView.subviews.first?.frame.width ?? 0,
+            sidebarMinimumWidth: sidebarItem.minimumThickness,
+            sidebarMaximumWidth: sidebarItem.maximumThickness,
+            sidebarCollapsed: sidebarItem.isCollapsed,
+            gitCurrentWidth: splitView.subviews.count >= 3 ? splitView.subviews[2].frame.width : 0,
+            gitMinimumWidth: gitItem.minimumThickness,
+            gitMaximumWidth: gitItem.maximumThickness,
+            gitCollapsed: gitItem.isCollapsed
+        ))
+        if let first = plan.firstDividerPosition {
+            splitView.setPosition(first, ofDividerAt: 0)
         }
-        if splitView.subviews.count >= 3, !gitItem.isCollapsed {
-            let currentGitWidth = splitView.subviews[2].frame.width
-            let gitWidth = min(max(currentGitWidth > 0 ? currentGitWidth : 360, gitItem.minimumThickness), gitItem.maximumThickness)
-            splitView.setPosition(max(sidebarWidth + 360, splitView.bounds.width - gitWidth), ofDividerAt: 1)
+        if splitView.subviews.count >= 3, let second = plan.secondDividerPosition {
+            splitView.setPosition(second, ofDividerAt: 1)
         }
         splitView.adjustSubviews()
         workspaceArea.forceLayoutToBounds()
@@ -1198,14 +1194,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     private func wideWindowFrame() -> NSRect {
         let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1512, height: 900)
-        let width = min(visible.width - 16, max(1240, visible.width * 0.96))
-        let height = min(visible.height - 24, max(720, visible.height * 0.84))
-        return NSRect(
-            x: visible.midX - width / 2,
-            y: visible.midY - height / 2,
-            width: width,
-            height: height
-        )
+        return WindowLayoutModel.wideFrame(visibleFrame: visible)
     }
 
     private func setMainWindowFrame(_ frame: NSRect) {
@@ -1218,14 +1207,12 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private func restoredMainWindowFrame() -> NSRect? {
         guard let value = UserDefaults.standard.string(forKey: mainWindowFrameKey) else { return nil }
         let rect = NSRectFromString(value)
-        guard rect.width >= window.minSize.width, rect.height >= window.minSize.height else { return nil }
         let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
-        guard visible.isEmpty || visible.intersects(rect) else { return nil }
-        return rect
+        return WindowLayoutModel.restoredFrame(rect, minSize: window.minSize, visibleFrame: visible)
     }
 
     private func saveMainWindowFrame(_ frame: NSRect) {
-        guard frame.width >= window.minSize.width, frame.height >= window.minSize.height else { return }
+        guard WindowLayoutModel.shouldPersistFrame(frame, minSize: window.minSize) else { return }
         UserDefaults.standard.set(NSStringFromRect(frame), forKey: mainWindowFrameKey)
     }
 
