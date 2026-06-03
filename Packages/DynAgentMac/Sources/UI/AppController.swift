@@ -52,7 +52,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private var lastActivityGitReload: [String: Double] = [:]
     private var detachedChatWindows: [DetachedChatWindowController] = []
     private let projectlessCodexKey = "__codex_projectless__"
-    private var navigationHistory = NavigationHistoryModel<Conversation>()
+    private let navigationCoordinator = AppNavigationCoordinator()
     private var mainWindowFrameState = MainWindowFrameState()
     private var pendingWindowFrameRestore = false
 
@@ -367,33 +367,48 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func currentNavigableConversation() -> Conversation? {
-        guard let c = chat.conversation else { return nil }
-        if conversations.contains(where: { $0 === c }) { return c }
-        if codexStubs.values.flatMap({ $0 }).contains(where: { $0 === c }) { return c }
-        return nil
+        navigationCoordinator.currentConversation(
+            displayed: chat.conversation,
+            localConversations: conversations,
+            codexStubs: codexStubs
+        )
     }
 
     private func recordNavigationAwayFromCurrent(to next: Conversation?) {
-        navigationHistory.recordLeaving(current: currentNavigableConversation(), to: next)
+        navigationCoordinator.recordLeaving(
+            displayed: chat.conversation,
+            localConversations: conversations,
+            codexStubs: codexStubs,
+            to: next
+        )
         updateNavigationControls()
     }
 
     private func updateNavigationControls() {
-        navBackButton.isEnabled = navigationHistory.canGoBack
-        navForwardButton.isEnabled = navigationHistory.canGoForward
+        let state = navigationCoordinator.state
+        navBackButton.isEnabled = state.canGoBack
+        navForwardButton.isEnabled = state.canGoForward
         navBackButton.contentTintColor = navBackButton.isEnabled ? .secondaryLabelColor : .tertiaryLabelColor
         navForwardButton.contentTintColor = navForwardButton.isEnabled ? .secondaryLabelColor : .tertiaryLabelColor
     }
 
     @objc private func goBack() {
-        guard let target = navigationHistory.goBack(from: currentNavigableConversation()) else { return }
+        guard let target = navigationCoordinator.goBack(
+            displayed: chat.conversation,
+            localConversations: conversations,
+            codexStubs: codexStubs
+        ) else { return }
         selectConversation(target, recordHistory: false)
         rebuildGroups(select: target)
         updateNavigationControls()
     }
 
     @objc private func goForward() {
-        guard let target = navigationHistory.goForward(from: currentNavigableConversation()) else { return }
+        guard let target = navigationCoordinator.goForward(
+            displayed: chat.conversation,
+            localConversations: conversations,
+            codexStubs: codexStubs
+        ) else { return }
         selectConversation(target, recordHistory: false)
         rebuildGroups(select: target)
         updateNavigationControls()
