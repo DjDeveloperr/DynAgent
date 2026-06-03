@@ -436,9 +436,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func addAttachments(_ urls: [URL]) {
-        let additions = ComposerModel.attachmentAdditions(existing: attachments, incoming: urls)
-        guard !additions.isEmpty else { return }
-        attachments.append(contentsOf: additions)
+        let result = ComposerSessionModel.addingAttachments(urls, to: attachments)
+        guard result.didChange else { return }
+        attachments = result.attachments
         renderAttachments()
         updateSendButton()
         saveComposerDraft()
@@ -457,7 +457,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     @objc private func removeAttachment(_ sender: NSButton) {
         guard let id = attachmentRemoveIds[ObjectIdentifier(sender)] else { return }
-        attachments.removeAll { $0.id == id }
+        let result = ComposerSessionModel.removingAttachment(id: id, from: attachments)
+        guard result.didChange else { return }
+        attachments = result.attachments
         renderAttachments()
         updateSendButton()
         saveComposerDraft()
@@ -480,12 +482,13 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func restoreComposerDraft(for c: Conversation) {
         let snapshot = composerDraftStore.snapshot(for: c)
+        let state = ComposerSessionModel.restoredState(from: snapshot) { FileManager.default.fileExists(atPath: $0) }
         restoringComposerDraft = true
-        composer.string = snapshot?.text ?? ""
-        attachments = composerDraftStore.restoredAttachments(for: c) { FileManager.default.fileExists(atPath: $0) }
+        composer.string = state.text
+        attachments = state.attachments
         renderAttachments()
         restoringComposerDraft = false
-        placeholder.isHidden = !composer.string.isEmpty
+        placeholder.isHidden = state.placeholderHidden
     }
 
     private func clearComposerDraft(for c: Conversation) {
@@ -782,8 +785,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             return
         }
 
-        composer.string = ""
-        attachments.removeAll()
+        let cleared = ComposerSessionModel.clearedAfterSend()
+        composer.string = cleared.text
+        attachments = cleared.attachments
         renderAttachments()
         clearComposerDraft(for: c)
         textDidChange(Notification(name: NSText.didChangeNotification))
