@@ -57,6 +57,7 @@
 - `SidebarLayoutModel.swift`: tested sidebar width band and Codex sidebar-width sync plan used by the macOS split view.
 - `SidebarArchiveConfirmationModel.swift`: tested archive confirmation reducer for first-click confirmation, second-click archive, hover-out cancellation, and reload decisions.
 - `SidebarArchiveConfirmationCoordinator.swift`: tested AppKit-timer bridge for sidebar archive confirmation, hover-out debounce cancellation, and reload triggering.
+- `SidebarHoverTipCoordinator.swift`: tested AppKit-timer bridge for delayed sidebar hover tooltips, cancellation, and stale-row suppression.
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
 - `SearchOverlayModel.swift`: tested pure search overlay model for bounded chat/message matching, recency sorting, result limiting, and row detail labels.
 - `SearchOverlayChrome.swift`: tested AppKit search overlay panel, backdrop, padded search field, scroll/stack layout, and result-row chrome.

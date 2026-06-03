@@ -36,7 +36,7 @@ final class SidebarViewController: NSViewController {
     private var sectionAddActions: [ObjectIdentifier: () -> Void] = [:]
     private let archiveConfirmation = SidebarArchiveConfirmationCoordinator()
     private let hoverTip = SidebarHoverTipWindow()
-    private var hoverTipWorkItem: DispatchWorkItem?
+    private let hoverTipCoordinator = SidebarHoverTipCoordinator()
 
     override func loadView() {
         let scroll = SidebarScrollView()
@@ -153,19 +153,15 @@ final class SidebarViewController: NSViewController {
     }
 
     private func scheduleHoverTip(title: String, detail: String, row: SidebarRow) {
-        hoverTipWorkItem?.cancel()
-        let item = DispatchWorkItem { [weak self, weak row] in
-            guard let self, let row, row.window != nil else { return }
-            self.hoverTip.show(title: title, detail: detail, near: row)
+        hoverTipCoordinator.schedule(title: title, detail: detail, row: row) { [weak self] title, detail, row in
+            self?.hoverTip.show(title: title, detail: detail, near: row)
         }
-        hoverTipWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: item)
     }
 
     private func hideHoverTip() {
-        hoverTipWorkItem?.cancel()
-        hoverTipWorkItem = nil
-        hoverTip.orderOut(nil)
+        hoverTipCoordinator.hide { [weak self] in
+            self?.hoverTip.orderOut(nil)
+        }
     }
 
     private func clearHoverState() {
