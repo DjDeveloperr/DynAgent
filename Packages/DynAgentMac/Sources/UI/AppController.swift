@@ -50,7 +50,22 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private var lastActiveHistoryRefresh: Double = 0
     private var lastActivitySidebarRefresh: [String: Double] = [:]
     private var lastActivityGitReload: [String: Double] = [:]
-    private var detachedChatWindows: [DetachedChatWindowController] = []
+    private lazy var detachedChatCoordinator = AppDetachedChatWindowCoordinator { [unowned self] conversation, onClose in
+        DetachedChatWindowController(
+            client: client,
+            conversation: conversation,
+            models: modelCache[conversation.harness] ?? [],
+            onActivity: { [weak self] conversation in
+                self?.refreshActivity(conversation)
+            },
+            onTitleGenerated: { [weak self] conversation, _ in
+                self?.renameConversation(conversation)
+            },
+            onClose: { controller in
+                onClose(controller)
+            }
+        )
+    }
     private let projectlessCodexKey = "__codex_projectless__"
     private let navigationCoordinator = AppNavigationCoordinator()
     private var mainWindowFrameState = MainWindowFrameState()
@@ -703,7 +718,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             Task { try? await client.codexArchive(threadId: tid) }
         }
         if chat.conversation === c { newChat() }
-        detachedChatWindows.removeAll { $0.conversation === c }
+        detachedChatCoordinator.removeWindows(for: c)
         rebuildGroups()
         persist()
     }
@@ -757,30 +772,11 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func openDetachedChat(_ c: Conversation) {
-        let detached = DetachedChatWindowController(
-            client: client,
-            conversation: c,
-            models: modelCache[c.harness] ?? [],
-            onActivity: { [weak self] conversation in
-                self?.refreshActivity(conversation)
-            },
-            onTitleGenerated: { [weak self] conversation, _ in
-                self?.renameConversation(conversation)
-            },
-            onClose: { [weak self] controller in
-                self?.detachedChatWindows.removeAll { $0 === controller }
-            }
-        )
-        detachedChatWindows.append(detached)
-        detached.show()
+        detachedChatCoordinator.open(c)
     }
 
     private func refreshDetachedWindows(for c: Conversation, rerender: Bool) {
-        detachedChatWindows.forEach { controller in
-            guard controller.conversation === c else { return }
-            if rerender { controller.refresh() }
-            else { controller.refreshTitle() }
-        }
+        detachedChatCoordinator.refreshWindows(for: c, rerender: rerender)
     }
 
     private func rebuildGroups(select: Conversation? = nil) {
