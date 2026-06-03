@@ -51,4 +51,3 @@ Pure models should move toward platform-neutral Swift where possible (`MarkdownR
 
 - Transcript virtualization or reusable transcript row data source for large threads.
 - Composer visual component split from `ChatViewController`.
-- Reusable sidebar row chrome for pinned, chats, projects, and workspaces.
