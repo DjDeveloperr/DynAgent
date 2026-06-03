@@ -44,7 +44,8 @@ enum WindowLayoutChrome {
         rootSplitController: RootSplitViewController?,
         sidebarItem: NSSplitViewItem,
         gitItem: NSSplitViewItem,
-        preferredMainWidth: CGFloat
+        preferredMainWidth: CGFloat,
+        mainViewForCollapsedGit: NSView? = nil
     ) -> WindowSplitPlan? {
         guard let splitView, splitView.subviews.count >= 2 else { return nil }
         let plan = WindowLayoutModel.splitPlan(WindowSplitConfiguration(
@@ -62,11 +63,21 @@ enum WindowLayoutChrome {
         ))
         apply(plan, to: splitView)
         splitView.adjustSubviews()
-        expandMainItemForCollapsedGit(splitView: splitView, rootSplitController: rootSplitController, gitItem: gitItem)
+        expandMainItemForCollapsedGit(
+            splitView: splitView,
+            rootSplitController: rootSplitController,
+            gitItem: gitItem,
+            mainViewForCollapsedGit: mainViewForCollapsedGit
+        )
         rootSplitController?.pinSplitViewToRoot()
         apply(plan, to: splitView)
         splitView.adjustSubviews()
-        expandMainItemForCollapsedGit(splitView: splitView, rootSplitController: rootSplitController, gitItem: gitItem)
+        expandMainItemForCollapsedGit(
+            splitView: splitView,
+            rootSplitController: rootSplitController,
+            gitItem: gitItem,
+            mainViewForCollapsedGit: mainViewForCollapsedGit
+        )
         rootSplitController?.pinSplitViewToRoot()
         return plan
     }
@@ -99,10 +110,11 @@ enum WindowLayoutChrome {
     private static func expandMainItemForCollapsedGit(
         splitView: NSSplitView,
         rootSplitController: RootSplitViewController?,
-        gitItem: NSSplitViewItem
+        gitItem: NSSplitViewItem,
+        mainViewForCollapsedGit: NSView?
     ) {
         guard gitItem.isCollapsed,
-              let mainView = rootSplitController?.splitViewItems.dropFirst().first?.viewController.view,
+              let mainView = mainViewForCollapsedGit ?? rootSplitController?.splitViewItems.dropFirst().first?.viewController.view,
               let wrapper = mainView.superview else { return }
         let target = NSRect(
             x: wrapper.frame.minX,

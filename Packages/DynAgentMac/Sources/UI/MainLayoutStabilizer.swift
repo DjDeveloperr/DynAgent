@@ -26,7 +26,8 @@ enum MainLayoutStabilizer {
             rootSplitController: rootSplitController,
             sidebarItem: sidebarItem,
             gitItem: gitItem,
-            preferredMainWidth: preferredMainWidth
+            preferredMainWidth: preferredMainWidth,
+            mainViewForCollapsedGit: workspaceArea.view
         )
         workspaceArea.forceLayoutToBounds()
         return plan
