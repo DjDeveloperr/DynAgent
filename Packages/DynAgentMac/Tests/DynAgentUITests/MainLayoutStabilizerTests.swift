@@ -146,6 +146,60 @@ final class MainLayoutStabilizerTests: XCTestCase {
         XCTAssertEqual(fixture.chat.frame.width, mainFrame.width, accuracy: 0.5)
     }
 
+    func testLatestThreadLoadDoesNotShrinkWorkspaceAfterShellTransition() throws {
+        let fixture = makeChatFixture(windowWidth: 1_472, windowHeight: 780)
+        fixture.root.splitView.setPosition(260, ofDividerAt: 0)
+        let conversation = Conversation(model: "gpt-5.5", workspace: "/repo", harness: .codex)
+        conversation.title = "Latest thread width"
+        conversation.needsLoad = true
+
+        fixture.chatController.showShell(conversation)
+        _ = try XCTUnwrap(MainLayoutStabilizer.stabilize(
+            window: fixture.window,
+            rootContentController: fixture.root,
+            splitView: fixture.root.splitView,
+            rootSplitController: fixture.root,
+            workspaceArea: fixture.workspace,
+            sidebarItem: fixture.sidebarItem,
+            gitItem: fixture.gitItem,
+            preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
+        ))
+
+        let shellMainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
+        XCTAssertGreaterThan(shellMainFrame.width, 1_100)
+        XCTAssertEqual(fixture.chatController.view.frame.width, shellMainFrame.width, accuracy: 0.5)
+
+        conversation.needsLoad = false
+        conversation.messages = [
+            ChatMessage(role: .user, text: "Load the latest thread contents."),
+            ChatMessage(role: .assistant, text: "The chat panel should keep the full split item width."),
+        ]
+        conversation.messages[1].isFinal = true
+        fixture.chatController.show(conversation)
+        fixture.window.contentView?.layoutSubtreeIfNeeded()
+        fixture.root.view.layoutSubtreeIfNeeded()
+
+        _ = try XCTUnwrap(MainLayoutStabilizer.stabilize(
+            window: fixture.window,
+            rootContentController: fixture.root,
+            splitView: fixture.root.splitView,
+            rootSplitController: fixture.root,
+            workspaceArea: fixture.workspace,
+            sidebarItem: fixture.sidebarItem,
+            gitItem: fixture.gitItem,
+            preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
+        ))
+
+        let loadedMainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
+        let chatMetrics = fixture.chatController.layoutMetrics
+        XCTAssertGreaterThan(loadedMainFrame.width, 1_100)
+        XCTAssertEqual(fixture.workspace.view.frame.width, loadedMainFrame.width, accuracy: 0.5)
+        XCTAssertEqual(fixture.chatController.view.frame.width, loadedMainFrame.width, accuracy: 0.5)
+        XCTAssertEqual(try XCTUnwrap(chatMetrics["chatViewWidth"] as? Double), Double(loadedMainFrame.width), accuracy: 0.5)
+        XCTAssertEqual(try XCTUnwrap(chatMetrics["scrollWidth"] as? Double), Double(loadedMainFrame.width), accuracy: 0.5)
+        XCTAssertEqual(try XCTUnwrap(chatMetrics["documentWidth"] as? Double), Double(loadedMainFrame.width), accuracy: 0.5)
+    }
+
     private func makeFixture(windowWidth: CGFloat, windowHeight: CGFloat) -> Fixture {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
@@ -196,11 +250,71 @@ final class MainLayoutStabilizerTests: XCTestCase {
         )
     }
 
+    private func makeChatFixture(windowWidth: CGFloat, windowHeight: CGFloat) -> ChatFixture {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
+            styleMask: [.titled, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+
+        let root = RootSplitViewController()
+        let sidebar = NSViewController()
+        sidebar.view = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: windowHeight))
+        let workspace = WorkspaceAreaViewController()
+        workspace.loadView()
+        let chatController = ChatViewController()
+        chatController.loadView()
+        workspace.setPrimary(chatController.view, title: "")
+        let git = NSViewController()
+        git.view = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: windowHeight))
+
+        let sidebarItem = NSSplitViewItem(viewController: sidebar)
+        sidebarItem.minimumThickness = SidebarLayoutModel.minimumWidth
+        sidebarItem.maximumThickness = SidebarLayoutModel.maximumWidth
+        sidebarItem.canCollapse = true
+        let mainItem = NSSplitViewItem(viewController: workspace)
+        mainItem.minimumThickness = 360
+        mainItem.maximumThickness = WindowLayoutChrome.defaultMaximumWindowSize.width
+        let gitItem = NSSplitViewItem(viewController: git)
+        gitItem.minimumThickness = 300
+        gitItem.maximumThickness = 520
+        gitItem.canCollapse = true
+        gitItem.isCollapsed = true
+
+        root.addSplitViewItem(sidebarItem)
+        root.addSplitViewItem(mainItem)
+        root.addSplitViewItem(gitItem)
+        root.deactivateInternalSplitSizingConstraints()
+        window.contentViewController = root
+        window.setContentSize(NSSize(width: windowWidth, height: windowHeight))
+        root.view.frame = window.contentView?.bounds ?? NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight)
+        root.splitView.frame = root.view.bounds
+
+        return ChatFixture(
+            window: window,
+            root: root,
+            workspace: workspace,
+            chatController: chatController,
+            sidebarItem: sidebarItem,
+            gitItem: gitItem
+        )
+    }
+
     private struct Fixture {
         let window: NSWindow
         let root: RootSplitViewController
         let workspace: WorkspaceAreaViewController
         let chat: NSView
+        let sidebarItem: NSSplitViewItem
+        let gitItem: NSSplitViewItem
+    }
+
+    private struct ChatFixture {
+        let window: NSWindow
+        let root: RootSplitViewController
+        let workspace: WorkspaceAreaViewController
+        let chatController: ChatViewController
         let sidebarItem: NSSplitViewItem
         let gitItem: NSSplitViewItem
     }
