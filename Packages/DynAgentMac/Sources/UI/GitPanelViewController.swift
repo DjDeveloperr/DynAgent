@@ -7,13 +7,6 @@ final class GitActionPanel: NSPanel {
     }
 }
 
-struct GitDiffHeaderInfo {
-    var path: String
-    var added: Int
-    var deleted: Int
-    var collapsed: Bool = false
-}
-
 final class GitDiffHeaderView: NSView {
     private var info: GitDiffHeaderInfo?
     private let titleFont = NSFont.systemFont(ofSize: 12.5, weight: .semibold)
@@ -98,6 +91,7 @@ final class GitDiffDocumentView: NSView {
     private var lines: [Line] = []
     private var rowTops: [CGFloat] = []
     private var sections: [Section] = []
+    private var layoutModel = GitDiffLayoutModel()
     private var collapsedPaths = Set<String>()
     private var preferredDocWidth: CGFloat = 1200
     private let codeFont = NSFont.monospacedSystemFont(ofSize: 12.5, weight: .regular)
@@ -149,13 +143,7 @@ final class GitDiffDocumentView: NSView {
     }
 
     func headerInfo(at y: CGFloat) -> GitDiffHeaderInfo? {
-        guard !sections.isEmpty, !lines.isEmpty else { return nil }
-        let row = rowIndex(at: max(0, y)) ?? 0
-        let sectionIndex = lines.indices.contains(row) ? lines[row].section : sections.indices.last ?? 0
-        guard sections.indices.contains(sectionIndex) else { return nil }
-        let s = sections[sectionIndex]
-        guard !collapsedPaths.contains(s.path) else { return nil }
-        return GitDiffHeaderInfo(path: s.path, added: s.added, deleted: s.deleted, collapsed: collapsedPaths.contains(s.path))
+        layoutModel.headerInfo(at: Double(y))
     }
 
     func updateVisibleOverlays() {
@@ -170,10 +158,7 @@ final class GitDiffDocumentView: NSView {
 
     func toggleHeader(at y: CGFloat) {
         guard let info = headerInfo(at: y) else { return }
-        if collapsedPaths.contains(info.path) { collapsedPaths.remove(info.path) }
-        else { collapsedPaths.insert(info.path) }
-        rebuildDisplayRows()
-        onCollapseChanged?()
+        toggle(path: info.path)
     }
 
     @discardableResult
@@ -210,8 +195,8 @@ final class GitDiffDocumentView: NSView {
     }
 
     private func toggle(path: String) {
-        if collapsedPaths.contains(path) { collapsedPaths.remove(path) }
-        else { collapsedPaths.insert(path) }
+        layoutModel.toggle(path: path)
+        collapsedPaths = layoutModel.collapsedPaths
         rebuildDisplayRows()
         onCollapseChanged?()
     }
@@ -380,17 +365,10 @@ final class GitDiffDocumentView: NSView {
     }
 
     private func rebuildDisplayRows() {
-        lines = rawLines.filter { line in
-            guard sections.indices.contains(line.section) else { return true }
-            return line.kind == "F" || !collapsedPaths.contains(sections[line.section].path)
-        }
-        rowTops.removeAll(keepingCapacity: true)
-        var y: CGFloat = 0
-        for line in lines {
-            rowTops.append(y)
-            y += rowHeight(for: line)
-        }
-        setFrameSize(NSSize(width: preferredDocWidth, height: max(80, y)))
+        layoutModel = GitDiffLayoutModel(diff: GitDiffModel(lines: rawLines, sections: sections), collapsedPaths: collapsedPaths)
+        lines = layoutModel.lines
+        rowTops = layoutModel.rowTops.map { CGFloat($0) }
+        setFrameSize(NSSize(width: preferredDocWidth, height: CGFloat(layoutModel.documentHeight)))
         rebuildSelectableText()
         textView.frame = bounds
         updateVisibleOverlays()
@@ -437,18 +415,7 @@ final class GitDiffDocumentView: NSView {
     }
 
     private func rowIndex(at y: CGFloat) -> Int? {
-        guard !rowTops.isEmpty else { return nil }
-        var low = 0
-        var high = rowTops.count - 1
-        while low <= high {
-            let mid = (low + high) / 2
-            let top = rowTops[mid]
-            let bottom = top + rowHeight(for: lines[mid])
-            if y < top { high = mid - 1 }
-            else if y >= bottom { low = mid + 1 }
-            else { return mid }
-        }
-        return min(max(low, 0), rowTops.count - 1)
+        layoutModel.rowIndex(at: Double(y))
     }
 
     static func drawFileHeader(_ info: GitDiffHeaderInfo, in rect: NSRect, visibleX: CGFloat, visibleWidth: CGFloat, titleFont: NSFont, statFont: NSFont, drawText: Bool = true) {

@@ -6,6 +6,7 @@
 - `ChromeControls.swift`: reusable AppKit chrome controls, currently `ChromeIconButton` and `ComposerMenuChrome`.
 - `MarkdownRenderer.swift`: tested markdown rendering for chat text, links, inline code, bullets, code fences, and directive tokens.
 - `GitDiffModel.swift`: tested pure parser for git diff sections, line numbers, metadata filtering, and hunk separator rows.
+- `GitDiffLayoutModel.swift`: tested pure layout model for diff row heights, visible row lookup, file header lookup, and collapsed file sections.
 - `ShellToolModel.swift`: tested command summarizer and command-title model for shell tool rows.
 - `EditToolModel.swift`: tested edit-tool parser and title model for grouped editing rows and popout diff data.
 - `TranscriptTurnModel.swift`: tested turn-planning model for prompt/steer boundaries, active-turn expansion, final-response collapse, timestamps, and large-thread trimming.
@@ -33,7 +34,7 @@ The iOS app should share behavior and visual language, but not copy the desktop 
 - Settings/search/commit overlays -> native SwiftUI sheets or presentation detents, using the same labels and action order as macOS.
 - Composer -> same model/reasoning/context/send ordering, with attachments previewed above the text field and keyboard-safe bottom padding.
 
-Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `SidebarModel`, `ComposerModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
+Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `SidebarModel`, `ComposerModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
 
 ## Verification Gates
 
@@ -45,6 +46,6 @@ Pure models should move toward platform-neutral Swift where possible (`MarkdownR
 ## Next Extraction Targets
 
 - Transcript virtualization or reusable transcript row data source for large threads.
-- Diff drawing component split from `GitPanelViewController`.
+- Diff drawing component split from `GitPanelViewController` after the layout model is fully adopted.
 - Composer visual component split from `ChatViewController`.
 - Sidebar row view models and reusable row chrome for pinned, chats, projects, and workspaces.
