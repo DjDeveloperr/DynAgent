@@ -51,7 +51,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var composerSelection = ComposerSelectionState()
     private let composerDrafts = ComposerDraftCoordinator()
     private var attachmentRemoveIds: [ObjectIdentifier: UUID] = [:]
-    private var lastActivityEmit: [String: TimeInterval] = [:]
+    private var activityThrottle = ChatActivityThrottleState()
     private var pendingToolRefreshByConversationId: [String: DispatchWorkItem] = [:]
     private var renderSession = TranscriptRenderSessionState()
     private var lastScrollToBottomAt: TimeInterval = 0
@@ -910,9 +910,14 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func emitActivity(_ c: Conversation, force: Bool = false) {
-        let now = Date().timeIntervalSince1970
-        if !force, now - (lastActivityEmit[c.id] ?? 0) < 2.0 { return }
-        lastActivityEmit[c.id] = now
+        let result = ChatActivityThrottleModel.planEmit(
+            conversationId: c.id,
+            force: force,
+            now: Date().timeIntervalSince1970,
+            state: activityThrottle
+        )
+        activityThrottle = result.state
+        guard result.shouldEmit else { return }
         onActivity?(c)
     }
 
