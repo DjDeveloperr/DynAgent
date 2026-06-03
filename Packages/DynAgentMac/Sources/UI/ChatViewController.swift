@@ -705,7 +705,17 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     var layoutMetrics: [String: Any] {
-        [
+        let rootSubviewFrames = view.subviews.enumerated().map { index, subview in
+            [
+                "index": index,
+                "class": String(describing: type(of: subview)),
+                "x": Double(subview.frame.minX),
+                "y": Double(subview.frame.minY),
+                "width": Double(subview.frame.width),
+                "height": Double(subview.frame.height),
+            ] as [String: Any]
+        }
+        return [
             "chatViewWidth": Double(view.frame.width),
             "chatViewHeight": Double(view.frame.height),
             "scrollWidth": Double(scroll.frame.width),
@@ -717,6 +727,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             "composerWidth": Double(card.frame.width),
             "composerHeight": Double(card.frame.height),
             "visibleRows": transcript.arrangedSubviews.count,
+            "rootSubviewFrames": rootSubviewFrames,
         ]
     }
 
@@ -725,15 +736,21 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         transcript.alignment = .leading
         transcript.spacing = 14
         transcript.translatesAutoresizingMaskIntoConstraints = false
+        transcript.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        transcript.setContentHuggingPriority(.defaultLow, for: .horizontal)
         let doc = FlippedView()
         doc.addSubview(transcript)
         doc.translatesAutoresizingMaskIntoConstraints = false
+        doc.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        doc.setContentHuggingPriority(.defaultLow, for: .horizontal)
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
         scroll.automaticallyAdjustsContentInsets = false
         scroll.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 96, right: 0)
         scroll.documentView = doc
         scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        scroll.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         headerTitle.font = .systemFont(ofSize: 14, weight: .semibold)
         headerTitle.textColor = .labelColor
@@ -883,7 +900,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         emptyStack.addArrangedSubview(emptyActions)
         emptyStack.translatesAutoresizingMaskIntoConstraints = false
 
-        let root = NSView()
+        let root = FlexibleContainerView()
+        root.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        root.setContentHuggingPriority(.defaultLow, for: .horizontal)
         root.addSubview(scroll)
         root.addSubview(headerTitle)
         root.addSubview(headerMenuButton)
@@ -2223,9 +2242,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             icon.centerYAnchor.constraint(equalTo: textStack.centerYAnchor),
             label.widthAnchor.constraint(lessThanOrEqualToConstant: 820),
         ])
-        if !isEdit {
-            textStack.widthAnchor.constraint(greaterThanOrEqualToConstant: 360).isActive = true
-        }
         if isEdit {
             if let editStats {
                 NSLayoutConstraint.activate([

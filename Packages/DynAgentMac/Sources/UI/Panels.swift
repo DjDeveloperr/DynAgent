@@ -37,7 +37,7 @@ final class PanelRegistry {
 
 private struct SplitSpec { let sideBySide: Bool; let kind: PanelKind }
 
-final class TilePanel: NSView {
+final class TilePanel: FlexibleContainerView {
     let content: NSView
     var splitHandler: ((TilePanel, Bool, PanelKind) -> Void)?
     var closeHandler: ((TilePanel) -> Void)?
@@ -60,6 +60,10 @@ final class TilePanel: NSView {
         header.translatesAutoresizingMaskIntoConstraints = false
 
         content.translatesAutoresizingMaskIntoConstraints = false
+        setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        setContentHuggingPriority(.defaultLow, for: .horizontal)
+        content.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        content.setContentHuggingPriority(.defaultLow, for: .horizontal)
         addSubview(content)
         if showsHeader {
             addSubview(header)
@@ -237,7 +241,7 @@ final class WorkspaceAreaViewController: NSViewController {
     }
 }
 
-private final class WorkspaceAreaRootView: NSView {
+private final class WorkspaceAreaRootView: FlexibleContainerView {
     weak var pinnedSplitView: NSSplitView?
 
     override func layout() {

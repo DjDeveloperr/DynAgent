@@ -84,7 +84,6 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         attached = true
         UserDefaults.standard.removeObject(forKey: "NSSplitView Subview Frames dynagent.split")
         UserDefaults.standard.removeObject(forKey: "NSWindow Frame main")
-        let desiredFrame = restoredMainWindowFrame() ?? wideWindowFrame()
         NSApp.mainMenu = buildMenu()
         chat.client = client
         chat.onActivity = { [weak self] c in self?.refreshActivity(c) }
@@ -166,6 +165,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         window.titlebarAppearsTransparent = true
         window.toolbarStyle = .unified
         unlockWindowSizing()
+        let desiredFrame = initialMainWindowFrame()
         window.delegate = self
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
@@ -1211,6 +1211,14 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         return WindowLayoutModel.restoredFrame(rect, minSize: window.minSize, visibleFrame: visible)
     }
 
+    private func initialMainWindowFrame() -> NSRect {
+        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+        if let current = WindowLayoutModel.restoredFrame(window.frame, minSize: window.minSize, visibleFrame: visible) {
+            return current
+        }
+        return restoredMainWindowFrame() ?? wideWindowFrame()
+    }
+
     private func saveMainWindowFrame(_ frame: NSRect) {
         guard WindowLayoutModel.shouldPersistFrame(frame, minSize: window.minSize) else { return }
         UserDefaults.standard.set(NSStringFromRect(frame), forKey: mainWindowFrameKey)
@@ -1234,11 +1242,17 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         let frame = window.frame
         unlockWindowSizing()
         gitItem.animator().isCollapsed.toggle()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            guard let self else { return }
-            self.unlockWindowSizing()
-            if self.window.frame.width < frame.width - 1 {
-                self.window.setFrame(frame, display: true)
+        for delay in [0.05, 0.2, 0.6] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self else { return }
+                self.unlockWindowSizing()
+                if self.window.frame.width < frame.width - 1 {
+                    self.window.setFrame(frame, display: true)
+                }
+                self.forceRootSplitToContentSize()
+                self.workspaceArea.forceLayoutToBounds()
+                self.rebalanceMainSplitIfNeeded()
+                self.writeLayoutMetrics(reason: "git-toggle")
             }
         }
     }

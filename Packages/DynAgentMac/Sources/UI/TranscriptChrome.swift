@@ -1,5 +1,17 @@
 import AppKit
 
+/// Frame-managed container for split/detail roots. It must not let loaded content
+/// advertise a preferred width back up to NSSplitView.
+class FlexibleContainerView: NSView {
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+
+    override var fittingSize: NSSize {
+        .zero
+    }
+}
+
 /// View whose origin is top-left so transcript/sidebar/search content grows downward.
 final class FlippedView: NSView {
     override var isFlipped: Bool { true }

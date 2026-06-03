@@ -54,6 +54,11 @@ enum WindowLayoutModel {
         current.width < applied.width - tolerance || current.height < applied.height - tolerance
     }
 
+    static func shouldRestoreUnexpectedShrink(current: CGRect, applied: CGRect, isUserLiveResizing: Bool, tolerance: CGFloat = 1) -> Bool {
+        guard !isUserLiveResizing, applied.width > 0, applied.height > 0 else { return false }
+        return current.width < applied.width - tolerance
+    }
+
     static func splitPlan(_ config: WindowSplitConfiguration) -> WindowSplitPlan {
         let sidebarWidth: CGFloat
         if config.sidebarCollapsed {

@@ -99,38 +99,32 @@ private final class HotReloadLoader {
         }
 
         current = LoadedUI(handle: handle, controller: controller, detach: detach, copiedDylib: dylib)
-        applyWideUsableFrame()
-        enforceWideFrameAfterLayout()
+        applyUsableWindowConstraints()
+        pinContentControllerToWindow()
+        enforceContentPinAfterLayout()
         window.subtitle = ""
         NSLog("DynAgent hot reload attached: \(dylib.path)")
     }
 
-    private func applyWideUsableFrame() {
+    private func applyUsableWindowConstraints() {
         window.styleMask.insert(.resizable)
         window.minSize = NSSize(width: 820, height: 480)
         window.maxSize = NSSize(width: 20_000, height: 20_000)
         window.contentMinSize = NSSize(width: 820, height: 480)
         window.contentMaxSize = NSSize(width: 20_000, height: 20_000)
+    }
 
-        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1512, height: 900)
-        let targetWidth = min(visible.width - 16, max(1240, visible.width * 0.96))
-        let targetHeight = min(visible.height - 24, max(720, visible.height * 0.84))
-        let frame = NSRect(
-            x: visible.midX - targetWidth / 2,
-            y: visible.midY - targetHeight / 2,
-            width: targetWidth,
-            height: targetHeight
-        )
-        window.setFrame(frame, display: true)
+    private func pinContentControllerToWindow() {
         window.contentView?.autoresizingMask = [.width, .height]
         window.contentViewController?.view.frame = window.contentView?.bounds ?? .zero
         window.contentViewController?.view.autoresizingMask = [.width, .height]
     }
 
-    private func enforceWideFrameAfterLayout() {
+    private func enforceContentPinAfterLayout() {
         for delay in [0.15, 0.5, 1.2, 2.5] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                self?.applyWideUsableFrame()
+                self?.applyUsableWindowConstraints()
+                self?.pinContentControllerToWindow()
             }
         }
     }
@@ -307,11 +301,11 @@ private final class HostDelegate: NSObject, NSApplicationDelegate {
         installReloadMonitor()
         installReloadSignal()
 
-        setWideInitialFrame()
+        restoreOrSetWideInitialFrame()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         loader.reload(reason: "Loaded")
-        enforceWideFrameAfterLaunch()
+        enforceInitialContentFrameAfterLaunch()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             self?.showMainWindow()
         }
@@ -400,7 +394,12 @@ private final class HostDelegate: NSObject, NSApplicationDelegate {
         window.backgroundColor = .windowBackgroundColor
     }
 
-    private func setWideInitialFrame() {
+    private func restoreOrSetWideInitialFrame() {
+        if let restored = restoredMainWindowFrame() {
+            window.setFrame(restored, display: true)
+            return
+        }
+
         let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1512, height: 900)
         let targetWidth = min(visible.width - 16, max(1240, visible.width * 0.96))
         let targetHeight = min(visible.height - 24, max(720, visible.height * 0.84))
@@ -413,10 +412,19 @@ private final class HostDelegate: NSObject, NSApplicationDelegate {
         window.setFrame(frame, display: true)
     }
 
-    private func enforceWideFrameAfterLaunch() {
+    private func restoredMainWindowFrame() -> NSRect? {
+        guard let value = UserDefaults.standard.string(forKey: "DynAgentMainWindowFrame") else { return nil }
+        let rect = NSRectFromString(value)
+        guard rect.width >= window.minSize.width, rect.height >= window.minSize.height else { return nil }
+        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+        guard visible.isEmpty || visible.intersects(rect) else { return nil }
+        return rect
+    }
+
+    private func enforceInitialContentFrameAfterLaunch() {
         for delay in [0.2, 0.8, 1.6, 3.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                self?.setWideInitialFrame()
+                self?.window.contentViewController?.view.frame = self?.window.contentView?.bounds ?? .zero
             }
         }
     }
