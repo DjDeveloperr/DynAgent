@@ -13,7 +13,7 @@ enum AppSplitLayoutChrome {
     static let gitMinimumWidth: CGFloat = 300
     static let gitMaximumWidth: CGFloat = 520
     static let sidebarHoldingPriority = NSLayoutConstraint.Priority(251)
-    static let mainHoldingPriority = NSLayoutConstraint.Priority(1)
+    static let mainHoldingPriority = NSLayoutConstraint.Priority(250)
     static let gitHoldingPriority = NSLayoutConstraint.Priority(249)
 
     static func makeRootSplit(
