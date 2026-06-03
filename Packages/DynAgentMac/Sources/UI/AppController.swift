@@ -925,6 +925,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             let capped = CGFloat(plan.appliedWidth ?? width)
             lastSyncedSidebarWidth = capped
             splitView.setPosition(capped, ofDividerAt: 0)
+            stabilizeMainLayout(reason: "codex-sidebar-state")
             if let payload = plan.correctionPayload {
                 Task { [client] in
                     await client.codexSetSidebarState(payload)

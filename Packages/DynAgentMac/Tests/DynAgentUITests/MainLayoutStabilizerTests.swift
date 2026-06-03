@@ -110,6 +110,42 @@ final class MainLayoutStabilizerTests: XCTestCase {
         XCTAssertEqual(gitFrame.maxX, fixture.root.splitView.bounds.maxX, accuracy: 2)
     }
 
+    func testStabilizeAfterLateSidebarWidthSyncKeepsLoadedThreadWide() throws {
+        let fixture = makeFixture(windowWidth: 1_472, windowHeight: 780)
+        fixture.root.splitView.setPosition(260, ofDividerAt: 0)
+
+        _ = try XCTUnwrap(MainLayoutStabilizer.stabilize(
+            window: fixture.window,
+            rootContentController: fixture.root,
+            splitView: fixture.root.splitView,
+            rootSplitController: fixture.root,
+            workspaceArea: fixture.workspace,
+            sidebarItem: fixture.sidebarItem,
+            gitItem: fixture.gitItem,
+            preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
+        ))
+        XCTAssertGreaterThan(fixture.chat.frame.width, 1_100)
+
+        fixture.root.splitView.setPosition(SidebarLayoutModel.maximumWidth, ofDividerAt: 0)
+        let plan = try XCTUnwrap(MainLayoutStabilizer.stabilize(
+            window: fixture.window,
+            rootContentController: fixture.root,
+            splitView: fixture.root.splitView,
+            rootSplitController: fixture.root,
+            workspaceArea: fixture.workspace,
+            sidebarItem: fixture.sidebarItem,
+            gitItem: fixture.gitItem,
+            preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
+        ))
+
+        let mainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
+        XCTAssertNotNil(plan.firstDividerPosition)
+        XCTAssertNil(plan.secondDividerPosition)
+        XCTAssertGreaterThan(mainFrame.width, 1_100)
+        XCTAssertEqual(fixture.workspace.view.frame.width, mainFrame.width, accuracy: 0.5)
+        XCTAssertEqual(fixture.chat.frame.width, mainFrame.width, accuracy: 0.5)
+    }
+
     private func makeFixture(windowWidth: CGFloat, windowHeight: CGFloat) -> Fixture {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
