@@ -339,13 +339,6 @@ final class EditStatsView: NSView {
     }
 }
 
-struct EditToolChange {
-    var path: String
-    var added: Int
-    var deleted: Int
-    var diff: String
-}
-
 final class DiffFileBlock: NSView {
     private let body = NSStackView()
     private let chevron = NSImageView()
@@ -2563,13 +2556,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         transcript.addArrangedSubview(sc)
     }
 
-    private struct EditSummary {
-        var status: String
-        var changes: [EditToolChange]
-        var added: Int { changes.reduce(0) { $0 + $1.added } }
-        var deleted: Int { changes.reduce(0) { $0 + $1.deleted } }
-    }
-
+    private typealias EditSummary = EditToolSummary
     private typealias ShellSummary = ShellToolSummary
     private typealias ShellTitleParts = ShellToolTitle
 
@@ -2598,46 +2585,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func editSummary(_ m: ChatMessage) -> EditSummary {
-        guard let detail = m.toolDetail, !detail.isEmpty else { return EditSummary(status: m.toolDone ? "completed" : "running", changes: []) }
-        if let json = editSummaryJSON(from: detail) {
-            var changes = (json["changes"] as? [[String: Any]] ?? []).compactMap { item -> EditToolChange? in
-                guard let path = item["path"] as? String else { return nil }
-                return EditToolChange(
-                    path: path,
-                    added: item["added"] as? Int ?? 0,
-                    deleted: item["deleted"] as? Int ?? 0,
-                    diff: item["diff"] as? String ?? ""
-                )
-            }
-            if changes.isEmpty, let path = json["path"] as? String {
-                changes.append(EditToolChange(
-                    path: path,
-                    added: json["added"] as? Int ?? json["additions"] as? Int ?? 0,
-                    deleted: json["deleted"] as? Int ?? json["deletions"] as? Int ?? 0,
-                    diff: json["diff"] as? String ?? ""
-                ))
-            }
-            return EditSummary(status: json["status"] as? String ?? "completed", changes: changes)
-        }
-        return EditSummary(status: m.toolDone ? "completed" : "running", changes: editPaths(m).map {
-            EditToolChange(path: $0, added: 0, deleted: 0, diff: "")
-        })
-    }
-
-    private func editSummaryJSON(from detail: String) -> [String: Any]? {
-        let chunks = detail.components(separatedBy: "\n\n")
-        for chunk in chunks.reversed() {
-            guard let start = chunk.firstIndex(of: "{") else { continue }
-            let candidate = String(chunk[start...])
-            guard let data = candidate.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
-            return json
-        }
-        if let data = detail.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            return json
-        }
-        return nil
+        EditToolModel.summary(from: m.toolDetail, done: m.toolDone)
     }
 
     private func toolString(_ m: ChatMessage) -> NSAttributedString {
@@ -2696,24 +2644,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func editTitle(_ m: ChatMessage) -> String {
         let count = editSummary(m).changes.count
-        if count > 0 { return m.toolDone ? "Edited \(count) file\(count == 1 ? "" : "s")" : "Editing \(count) file\(count == 1 ? "" : "s")" }
-        return m.toolDone ? "Edited files" : "Editing files"
-    }
-
-    private func editPaths(_ m: ChatMessage) -> [String] {
-        guard let detail = m.toolDetail, !detail.isEmpty else { return [] }
-        if let json = editSummaryJSON(from: detail) {
-            return (json["changes"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String }
-        }
-        let afterStatus = detail.split(separator: ":", maxSplits: 1).last.map(String.init) ?? detail
-        let ignored = Set(["completed", "complete", "running", "done", "success", "failed"])
-        return afterStatus.split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { value in
-                guard !value.isEmpty else { return false }
-                if ignored.contains(value.lowercased()) { return false }
-                return value.contains("/") || value.contains(".")
-            }
+        return EditToolModel.title(done: m.toolDone, changeCount: count)
     }
 
     private func toolPreview(_ m: ChatMessage) -> String {
