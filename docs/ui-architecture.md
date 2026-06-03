@@ -12,6 +12,7 @@
 - `EditToolModel.swift`: tested edit-tool parser and title model for grouped editing rows and popout diff data.
 - `TranscriptTurnModel.swift`: tested turn-planning model for prompt/steer boundaries, active-turn detection, active-turn expansion, final-response collapse, timestamps, and large-thread trimming.
 - `TranscriptRenderModel.swift`: tested row data-source model for render-cache fingerprints, turn batching, shell tool grouping, and completed edit grouping.
+- `ConversationTurnMutationModel.swift`: tested pure mutation model for completing the latest prompt turn, closing open tool rows, and reconciling pending/completed steer notices.
 - `WorkDividerModel.swift`: tested label/duration model for active and completed Codex-style work dividers.
 - `TranscriptChrome.swift`: reusable AppKit transcript text, shimmer, work-divider, edit-stat, and transcript row views.
 - `TranscriptToolChrome.swift`: reusable AppKit shell/edit/inline tool rows, grouped tool collapse controls, and inline edit diff popover blocks.
@@ -47,7 +48,7 @@ The iOS app should share behavior and visual language, but not copy the desktop 
 - Settings/search/commit overlays -> native SwiftUI sheets or presentation detents, using the same labels and action order as macOS.
 - Composer -> same model/reasoning/context/send ordering, with attachments previewed above the text field and keyboard-safe bottom padding.
 
-Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `ComposerModel`, `ComposerDraftStore`, `NavigationHistoryModel`, `WindowLayoutModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
+Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `ConversationTurnMutationModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `ComposerModel`, `ComposerDraftStore`, `NavigationHistoryModel`, `WindowLayoutModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
 
 ## Verification Gates
 

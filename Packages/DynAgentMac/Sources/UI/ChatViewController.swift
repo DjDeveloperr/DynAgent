@@ -1139,12 +1139,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                     fa.turnDuration = Date().timeIntervalSince1970 - started
                     fa.turnStatus = "completed"
                     fa.isFinal = true
-                    if let promptIndex = c.messages.lastIndex(where: { $0.role == .user && !($0.isSteer ?? false) }) {
-                        for msg in c.messages[promptIndex...] {
-                            if msg.turnStatus != nil { msg.turnStatus = "completed" }
-                            if msg.role == .tool { msg.toolDone = true }
-                        }
-                    }
+                    ConversationTurnMutationModel.finishLatestPromptTurn(in: c.messages)
                     if isVisible, let divider = self.liveWorkDividerByConversationId[c.id] {
                         divider.finish(duration: fa.turnDuration)
                         self.liveWorkDividerByConversationId[c.id] = nil
@@ -1171,12 +1166,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func finish(_ c: Conversation) {
-        if let promptIndex = c.messages.lastIndex(where: { $0.role == .user && !($0.isSteer ?? false) }) {
-            for msg in c.messages[promptIndex...] {
-                if msg.turnStatus != nil { msg.turnStatus = "completed" }
-                if msg.role == .tool { msg.toolDone = true }
-            }
-        }
+        ConversationTurnMutationModel.finishLatestPromptTurn(in: c.messages)
         setStreaming(false, for: c)
         streamTasks[c.id] = nil
         assistantByConversationId[c.id] = nil
@@ -1191,31 +1181,19 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func markOpenToolsCompleted(in c: Conversation) {
-        for msg in c.messages where msg.role == .tool && !msg.toolDone {
-            msg.toolDone = true
-            if msg.turnStatus != nil { msg.turnStatus = "completed" }
-        }
+        ConversationTurnMutationModel.markOpenToolsCompleted(in: c.messages)
     }
 
     private func addSteerNotice(to c: Conversation, text: String? = nil) {
-        if let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            if c.messages.last?.isSteer == true && c.messages.last?.text == text { return }
-            let steer = ChatMessage(role: .user, text: text)
-            steer.isSteer = true
-            steer.toolDetail = "pending"
-            steer.toolDone = false
-            c.messages.append(steer)
-        } else {
-            if let pending = c.messages.last(where: { $0.isSteer == true && $0.toolDetail == "pending" }) {
-                pending.toolDetail = nil
-                pending.toolDone = true
-                if conversation === c { show(c) }
-                return
-            }
-            if c.messages.last?.toolName == "steer" || c.messages.last?.isSteer == true { return }
-            let notice = ChatMessage(role: .tool, text: "", toolName: "steer", toolDetail: "Steered conversation")
-            notice.toolDone = true
-            c.messages.append(notice)
+        let result = ConversationTurnMutationModel.applySteerEvent(to: c, text: text)
+        switch result {
+        case .none:
+            return
+        case .completedPending:
+            if conversation === c { show(c) }
+            return
+        case .appended:
+            break
         }
         guard conversation === c else { return }
         let divider = ensureLiveWorkDivider(for: c)
