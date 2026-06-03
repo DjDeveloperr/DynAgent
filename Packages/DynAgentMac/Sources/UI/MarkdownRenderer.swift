@@ -33,13 +33,11 @@ enum MarkdownRenderer {
         func appendCodeBlock(_ lines: [String]) {
             guard !lines.isEmpty else { return }
             let text = lines.joined(separator: "\n")
-            let paragraph = NSMutableParagraphStyle()
-            paragraph.lineSpacing = 2
-            paragraph.paragraphSpacing = 10
+            let paragraph = DesignSystem.Paragraph.codeBlock()
             let block = NSMutableAttributedString(string: text + "\n", attributes: [
-                .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
-                .foregroundColor: NSColor.labelColor,
-                .backgroundColor: NSColor.secondaryLabelColor.withAlphaComponent(0.10),
+                .font: DesignSystem.Font.codeBlock,
+                .foregroundColor: DesignSystem.Color.primaryText,
+                .backgroundColor: DesignSystem.Color.subtleFill,
                 .paragraphStyle: paragraph,
             ])
             out.append(block)
@@ -63,9 +61,7 @@ enum MarkdownRenderer {
             }
 
             let renderedLine: NSAttributedString
-            let paragraph = NSMutableParagraphStyle()
-            paragraph.lineSpacing = 2
-            paragraph.paragraphSpacing = trimmed.isEmpty ? 6 : 4
+            let paragraph = DesignSystem.Paragraph.chatLine(empty: trimmed.isEmpty)
             if let match = line.range(of: #"^\s*[-*]\s+(.+)$"#, options: .regularExpression) {
                 let text = String(line[match])
                 let body = text.replacingOccurrences(of: #"^\s*[-*]\s+"#, with: "", options: .regularExpression)
@@ -89,10 +85,10 @@ enum MarkdownRenderer {
     }
 
     private static func inlineMarkdown(_ text: String, paragraph: NSParagraphStyle) -> NSAttributedString {
-        let baseFont = NSFont.systemFont(ofSize: 15)
+        let baseFont = DesignSystem.Font.chatBody
         let out = NSMutableAttributedString(string: text, attributes: [
             .font: baseFont,
-            .foregroundColor: NSColor.labelColor,
+            .foregroundColor: DesignSystem.Color.primaryText,
             .paragraphStyle: paragraph,
         ])
         replaceInlineGroups(pattern: #"\[([^\]\n]+)\]\(([^)\n]+)\)"#, in: out) { groups in
@@ -100,7 +96,7 @@ enum MarkdownRenderer {
             let target = groups.dropFirst().first ?? ""
             var attrs: [NSAttributedString.Key: Any] = [
                 .font: baseFont,
-                .foregroundColor: NSColor.controlAccentColor,
+                .foregroundColor: DesignSystem.Color.linkText,
                 .underlineStyle: NSUnderlineStyle.single.rawValue,
                 .paragraphStyle: paragraph,
             ]
@@ -109,16 +105,16 @@ enum MarkdownRenderer {
         }
         replaceInline(pattern: #"`([^`\n]+)`"#, in: out) { inner in
             NSAttributedString(string: inner, attributes: [
-                .font: NSFont.monospacedSystemFont(ofSize: 14, weight: .regular),
-                .foregroundColor: NSColor.labelColor,
-                .backgroundColor: NSColor.secondaryLabelColor.withAlphaComponent(0.12),
+                .font: DesignSystem.Font.inlineCode,
+                .foregroundColor: DesignSystem.Color.primaryText,
+                .backgroundColor: DesignSystem.Color.inlineCodeFill,
                 .paragraphStyle: paragraph,
             ])
         }
         replaceInline(pattern: #"\*\*([^*\n]+)\*\*"#, in: out) { inner in
             NSAttributedString(string: inner, attributes: [
-                .font: NSFont.systemFont(ofSize: 15, weight: .semibold),
-                .foregroundColor: NSColor.labelColor,
+                .font: DesignSystem.Font.chatBodyBold,
+                .foregroundColor: DesignSystem.Color.primaryText,
                 .paragraphStyle: paragraph,
             ])
         }
@@ -126,7 +122,7 @@ enum MarkdownRenderer {
             let italic = NSFontManager.shared.convert(baseFont, toHaveTrait: .italicFontMask)
             return NSAttributedString(string: inner, attributes: [
                 .font: italic,
-                .foregroundColor: NSColor.labelColor,
+                .foregroundColor: DesignSystem.Color.primaryText,
                 .paragraphStyle: paragraph,
             ])
         }
