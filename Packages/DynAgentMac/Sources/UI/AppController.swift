@@ -23,7 +23,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private let chatMenuButton = NSButton(image: NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "Chat actions")!, target: nil, action: nil)
     private let navBackButton = NSButton(image: NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")!, target: nil, action: nil)
     private let navForwardButton = NSButton(image: NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")!, target: nil, action: nil)
-    private var usageRemainingTitle = "Usage remaining"
+    private lazy var usageCoordinator = AppUsageCoordinator(client: client)
 
     private var conversations: [Conversation] = []
     private var draft: Conversation?
@@ -1035,7 +1035,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     @objc private func showSettingsMenu(_ sender: NSButton) {
         let menu = SettingsOverlayChrome.makeMenu(
-            usageTitle: usageRemainingTitle,
+            usageTitle: usageCoordinator.usageRemainingTitle,
             target: self,
             settingsAction: #selector(openSettingsOverlay)
         )
@@ -1048,13 +1048,8 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     private func loadQuota() {
         Task { @MainActor in
-            if let c = try? await client.credits() {
-                usageRemainingTitle = String(format: "Usage remaining: %.0f / %.0f credits", max(0, c.limit - c.used), c.limit)
-            } else {
-                usageRemainingTitle = "Usage remaining"
-            }
-            if let q = try? await client.quota() {
-                chat.setContext(q.contextUsagePercentage)
+            await usageCoordinator.refresh { [weak chat] percent in
+                chat?.setContext(percent)
             }
         }
     }
