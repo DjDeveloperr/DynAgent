@@ -4,12 +4,14 @@
 
 - `DesignSystem.swift`: shared typography, colors, and paragraph tokens. Add visual constants here before introducing one-off styling in feature controllers.
 - `ChromeControls.swift`: reusable AppKit chrome controls, currently `ChromeIconButton` and `ComposerMenuChrome`.
+- `AppToolbarChrome.swift`: tested AppKit toolbar identifiers and chrome builders for navigation, native actions, Git scope, and chat-title controls.
 - `MarkdownRenderer.swift`: tested markdown rendering for chat text, links, inline code, bullets, code fences, and directive tokens.
 - `GitDiffModel.swift`: tested pure parser for git diff sections, line numbers, metadata filtering, and hunk separator rows.
 - `GitDiffLayoutModel.swift`: tested pure layout model for diff row heights, visible row lookup, file header lookup, and collapsed file sections.
 - `GitDiffViews.swift`: reusable AppKit diff document/header/gutter views that consume the diff parser and layout model.
 - `GitActionModel.swift`: tested git action labels, modal sizing, pending-status text, and commit request payload helpers.
 - `GitActionChrome.swift`: reusable AppKit git action sheet/panel chrome for commit, push, branch, and PR actions.
+- `GitPanelModel.swift`: tested git status and pull-request presentation model for branch labels, diff text, changed-file counts, and PR summaries.
 - `ShellToolModel.swift`: tested command summarizer and command-title model for shell tool rows.
 - `EditToolModel.swift`: tested edit-tool parser and title model for grouped editing rows and popout diff data.
 - `TranscriptTurnModel.swift`: tested turn-planning model for prompt/steer boundaries, active-turn detection, active-turn expansion, final-response collapse, timestamps, and large-thread trimming.
@@ -53,7 +55,7 @@ The iOS app should share behavior and visual language, but not copy the desktop 
 - Settings/search/commit overlays -> native SwiftUI sheets or presentation detents, using the same labels and action order as macOS.
 - Composer -> same model/reasoning/context/send ordering, with attachments previewed above the text field and keyboard-safe bottom padding.
 
-Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `GitActionModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `ConversationTurnMutationModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `ComposerModel`, `ComposerDraftStore`, `NavigationHistoryModel`, `AppHotStateModel`, `ChatLayoutModel`, `WindowLayoutModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
+Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `GitActionModel`, `GitPanelModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `ConversationTurnMutationModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `ComposerModel`, `ComposerDraftStore`, `NavigationHistoryModel`, `AppHotStateModel`, `ChatLayoutModel`, `WindowLayoutModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
 
 ## Verification Gates
 

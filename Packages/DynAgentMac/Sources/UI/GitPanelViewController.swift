@@ -189,31 +189,41 @@ final class GitPanelViewController: NSViewController {
         guard !workspace.isEmpty else { return }
         Task { @MainActor in
             guard let s = try? await client.gitStatus(workspace, staged: showingStaged) else { return }
-            if let err = s.error {
-                branchLabel.stringValue = err; diffDocument.setDiff(""); updateDiffHeader(); statusLabel.stringValue = ""; prBox.isHidden = true; return
-            }
-            branchLabel.stringValue = s.branch ?? "—"
-            if let diff = s.diff, !diff.isEmpty {
-                diffDocument.setDiff(diff)
-            } else {
-                diffDocument.setDiff("")
-            }
+            let presentation = GitPanelModel.statusPresentation(GitStatusInput(
+                branch: s.branch,
+                fileCount: s.files?.count ?? 0,
+                diff: s.diff,
+                error: s.error
+            ))
+            branchLabel.stringValue = presentation.branchLabel
+            diffDocument.setDiff(presentation.diff)
             updateDiffHeader()
-            let n = s.files?.count ?? 0
-            statusLabel.stringValue = n == 0 ? "" : "\(n) changed file\(n == 1 ? "" : "s")"
+            statusLabel.stringValue = presentation.statusLabel
+            if presentation.hidesPR {
+                prBox.isHidden = true
+                return
+            }
             loadPRInfo()
         }
     }
 
     private func loadPRInfo() {
         Task { @MainActor in
-            guard let pr = try? await client.prInfo(workspace) else { prBox.isHidden = true; return }
-            if pr.none == true { prBox.isHidden = true; return }
-            guard let title = pr.title, let url = pr.url else { prBox.isHidden = true; return }
-            let state = pr.state ?? "?"
-            let review = pr.reviewDecision ?? "PENDING"
-            prLabel.stringValue = "PR #\(pr.number ?? 0): \(title)\n\(state) | \(review) | +\(pr.additions ?? 0) -\(pr.deletions ?? 0)\n\(url)"
-            prBox.isHidden = false
+            let pr = try? await client.prInfo(workspace)
+            let presentation = GitPanelModel.prPresentation(pr.map {
+                GitPRInput(
+                    number: $0.number,
+                    title: $0.title,
+                    state: $0.state,
+                    url: $0.url,
+                    additions: $0.additions,
+                    deletions: $0.deletions,
+                    reviewDecision: $0.reviewDecision,
+                    none: $0.none
+                )
+            })
+            prLabel.stringValue = presentation.label
+            prBox.isHidden = presentation.isHidden
         }
     }
 

@@ -363,11 +363,10 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     // MARK: Toolbar
 
     private func makeToolbar() -> NSToolbar {
-        let t = NSToolbar(identifier: "main"); t.delegate = self; t.displayMode = .iconOnly
-        return t
+        AppToolbarChrome.makeMainToolbar(delegate: self)
     }
     func toolbarDefaultItemIdentifiers(_ t: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .init("navBack"), .init("navForward"), .flexibleSpace, .init("addWorkspace"), .sidebarTrackingSeparator, .init("chatTitle"), .flexibleSpace, .init("gitScope"), .init("gitCommit"), .init("git")]
+        AppToolbarID.defaultIdentifiers
     }
     func toolbarAllowedItemIdentifiers(_ t: NSToolbar) -> [NSToolbarItem.Identifier] { toolbarDefaultItemIdentifiers(t) }
 
@@ -376,80 +375,24 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         let item = NSToolbarItem(itemIdentifier: id)
         switch id.rawValue {
         case "navBack":
-            item.view = navigationButton(navBackButton, symbol: "chevron.left", action: #selector(goBack), tip: "Back")
+            item.view = AppToolbarChrome.configureNavigationButton(navBackButton, symbol: "chevron.left", target: self, action: #selector(goBack), tooltip: "Back")
         case "navForward":
-            item.view = navigationButton(navForwardButton, symbol: "chevron.right", action: #selector(goForward), tip: "Forward")
-        case "new": item.view = button("square.and.pencil", #selector(newChat), "New Chat")
-        case "add": item.view = button("folder.badge.plus", #selector(showAddMenu(_:)), "Add Workspace / Worktree")
+            item.view = AppToolbarChrome.configureNavigationButton(navForwardButton, symbol: "chevron.right", target: self, action: #selector(goForward), tooltip: "Forward")
+        case "new": item.view = AppToolbarChrome.texturedIconButton(symbol: "square.and.pencil", target: self, action: #selector(newChat), tooltip: "New Chat")
+        case "add": item.view = AppToolbarChrome.texturedIconButton(symbol: "folder.badge.plus", target: self, action: #selector(showAddMenu(_:)), tooltip: "Add Workspace / Worktree")
         case "addWorkspace":
-            item.image = NSImage(systemSymbolName: "folder.badge.plus", accessibilityDescription: "Add Workspace")
-            item.label = "Add Workspace"
-            item.paletteLabel = "Add Workspace"
-            item.toolTip = "Add Workspace"
-            item.target = self
-            item.action = #selector(addWorkspace)
+            AppToolbarChrome.configureNativeActionItem(item, symbol: "folder.badge.plus", label: "Add Workspace", tooltip: "Add Workspace", target: self, action: #selector(addWorkspace))
         case "gitCommit":
-            item.image = NSImage(systemSymbolName: "checkmark", accessibilityDescription: "Commit")
-            item.label = "Commit"
-            item.paletteLabel = "Commit"
-            item.toolTip = "Commit and push"
-            item.target = gitPanel
-            item.action = #selector(GitPanelViewController.showGitActions)
+            AppToolbarChrome.configureNativeActionItem(item, symbol: "checkmark", label: "Commit", tooltip: "Commit and push", target: gitPanel, action: #selector(GitPanelViewController.showGitActions))
         case "gitScope":
-            let control = gitPanel.scopeToolbarView
-            control.setContentHuggingPriority(.required, for: .horizontal)
-            control.setContentCompressionResistancePriority(.required, for: .horizontal)
-            NSLayoutConstraint.activate([
-                control.widthAnchor.constraint(equalToConstant: 112),
-                control.heightAnchor.constraint(equalToConstant: 24),
-            ])
-            item.view = control
-            item.label = "Diff Scope"
-            item.paletteLabel = "Diff Scope"
-            item.toolTip = "Show all or staged changes"
-        case "git": item.view = button("arrow.triangle.branch", #selector(toggleGit), "Toggle Git")
+            AppToolbarChrome.configureScopeItem(item, control: gitPanel.scopeToolbarView)
+        case "git": item.view = AppToolbarChrome.texturedIconButton(symbol: "arrow.triangle.branch", target: self, action: #selector(toggleGit), tooltip: "Toggle Git")
         case "chatTitle":
-            chatTitleLabel.font = .systemFont(ofSize: 13.5, weight: .semibold)
-            chatTitleLabel.lineBreakMode = .byTruncatingTail
-            chatTitleLabel.maximumNumberOfLines = 1
-            chatTitleLabel.translatesAutoresizingMaskIntoConstraints = false
-            chatMenuButton.isBordered = false
-            chatMenuButton.contentTintColor = .secondaryLabelColor
-            chatMenuButton.target = self
-            chatMenuButton.action = #selector(showChatTitleMenu(_:))
-            chatMenuButton.toolTip = "Chat actions"
-            chatMenuButton.translatesAutoresizingMaskIntoConstraints = false
-            let stack = NSStackView(views: [chatTitleLabel, chatMenuButton])
-            stack.orientation = .horizontal
-            stack.alignment = .centerY
-            stack.spacing = 8
-            stack.edgeInsets = NSEdgeInsets(top: 0, left: 11, bottom: 0, right: 8)
-            stack.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                stack.heightAnchor.constraint(equalToConstant: 28),
-                chatTitleLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 360),
-                chatMenuButton.widthAnchor.constraint(equalToConstant: 24),
-                chatMenuButton.heightAnchor.constraint(equalToConstant: 22),
-            ])
-            item.view = stack
+            item.view = AppToolbarChrome.makeChatTitleView(titleLabel: chatTitleLabel, menuButton: chatMenuButton, target: self, menuAction: #selector(showChatTitleMenu(_:)))
         default: return nil
         }
         item.label = id.rawValue
         return item
-    }
-
-    private func navigationButton(_ button: NSButton, symbol: String, action: Selector, tip: String) -> NSButton {
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)?
-            .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold))
-        button.imagePosition = .imageOnly
-        button.isBordered = false
-        button.contentTintColor = .secondaryLabelColor
-        button.toolTip = tip
-        button.target = self
-        button.action = action
-        button.widthAnchor.constraint(equalToConstant: 28).isActive = true
-        button.heightAnchor.constraint(equalToConstant: 28).isActive = true
-        return button
     }
 
     private func currentNavigableConversation() -> Conversation? {
@@ -643,13 +586,6 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
                 height: Double(view.frame.height)
             )
         }
-    }
-
-    private func button(_ symbol: String, _ action: Selector, _ tip: String) -> NSButton {
-        let b = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: tip)!, target: self, action: action)
-        b.bezelStyle = .texturedRounded
-        b.toolTip = tip
-        return b
     }
 
     // MARK: Chats & drafts
