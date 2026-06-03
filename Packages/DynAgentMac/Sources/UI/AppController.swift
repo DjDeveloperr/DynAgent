@@ -54,9 +54,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private var detachedChatWindows: [DetachedChatWindowController] = []
     private let projectlessCodexKey = "__codex_projectless__"
     private var navigationHistory = NavigationHistoryModel<Conversation>()
-    private var lastRequestedMainFrame: NSRect = .zero
-    private var lastAppliedMainFrame: NSRect = .zero
-    private var isUserLiveResizing = false
+    private var mainWindowFrameState = MainWindowFrameState()
 
     init(window: NSWindow, hotState: NSMutableDictionary? = nil) {
         self.window = window
@@ -173,9 +171,9 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
                 guard let self else { return }
                 if WindowLayoutModel.shouldRestoreAppliedFrame(
                     current: self.window.frame,
-                    applied: self.lastAppliedMainFrame
+                    applied: self.mainWindowFrameState.appliedFrame
                 ) {
-                    self.setMainWindowFrame(self.lastAppliedMainFrame)
+                    self.setMainWindowFrame(self.mainWindowFrameState.appliedFrame)
                 }
                 self.applyMainLayoutStabilization()
                 self.writeLayoutMetrics()
@@ -447,9 +445,19 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private func stabilizeMainLayout(reason: String) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            self.restoreUnexpectedMainWindowShrinkIfNeeded()
             self.applyMainLayoutStabilization()
             self.writeLayoutMetrics(reason: reason)
         }
+    }
+
+    private func restoreUnexpectedMainWindowShrinkIfNeeded() {
+        guard case .restore(let frame) = MainWindowFrameModel.resizeDecision(
+            current: window.frame,
+            state: mainWindowFrameState
+        ) else { return }
+        window.setFrame(frame, display: true)
+        mainWindowFrameState = MainWindowFrameModel.recordingApplied(window.frame, in: mainWindowFrameState)
     }
 
     private func applyMainLayoutStabilization() {
@@ -485,10 +493,10 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             splitViewX: Double(splitView?.frame.minX ?? -1),
             splitViewClass: String(describing: type(of: splitView ?? NSSplitView())),
             rootSubviews: WindowLayoutChrome.frameMetrics(for: window.contentView?.subviews ?? []),
-            requestedFrameWidth: Double(lastRequestedMainFrame.width),
-            requestedFrameHeight: Double(lastRequestedMainFrame.height),
-            appliedFrameWidth: Double(lastAppliedMainFrame.width),
-            appliedFrameHeight: Double(lastAppliedMainFrame.height),
+            requestedFrameWidth: Double(mainWindowFrameState.requestedFrame.width),
+            requestedFrameHeight: Double(mainWindowFrameState.requestedFrame.height),
+            appliedFrameWidth: Double(mainWindowFrameState.appliedFrame.width),
+            appliedFrameHeight: Double(mainWindowFrameState.appliedFrame.height),
             screenVisibleWidth: Double(visible.width),
             screenVisibleHeight: Double(visible.height),
             sidebarCollapsed: sidebarItem.isCollapsed,
@@ -980,33 +988,21 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         WindowLayoutChrome.applyUsableSizing(to: window)
     }
 
-    private func wideWindowFrame() -> NSRect {
-        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1512, height: 900)
-        return WindowLayoutModel.wideFrame(visibleFrame: visible)
-    }
-
     private func setMainWindowFrame(_ frame: NSRect) {
-        lastRequestedMainFrame = frame
+        mainWindowFrameState = MainWindowFrameModel.recordingRequest(frame, in: mainWindowFrameState)
         window.setFrame(frame, display: true)
-        lastAppliedMainFrame = window.frame
+        mainWindowFrameState = MainWindowFrameModel.recordingApplied(window.frame, in: mainWindowFrameState)
         saveMainWindowFrame(window.frame)
     }
 
-    private func restoredMainWindowFrame() -> NSRect? {
-        guard let value = UserDefaults.standard.string(forKey: mainWindowFrameKey) else { return nil }
-        let rect = NSRectFromString(value)
-        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
-        let wide = wideWindowFrame()
-        return WindowLayoutModel.restoredFrame(
-            rect,
-            minSize: window.minSize,
-            visibleFrame: visible,
-            minimumRestoredWidth: wide.width * 0.92
-        )
-    }
-
     private func initialMainWindowFrame() -> NSRect {
-        return restoredMainWindowFrame() ?? wideWindowFrame()
+        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+        let saved = UserDefaults.standard.string(forKey: mainWindowFrameKey).map(NSRectFromString)
+        return MainWindowFrameModel.initialFrame(
+            savedFrame: saved,
+            minSize: window.minSize,
+            visibleFrame: visible
+        )
     }
 
     private func saveMainWindowFrame(_ frame: NSRect) {
@@ -1021,30 +1017,29 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     func windowDidResize(_ notification: Notification) {
         unlockWindowSizing()
-        if WindowLayoutModel.shouldRestoreUnexpectedShrink(
-            current: window.frame,
-            applied: lastAppliedMainFrame,
-            isUserLiveResizing: isUserLiveResizing
-        ) {
-            window.setFrame(lastAppliedMainFrame, display: true)
+        switch MainWindowFrameModel.resizeDecision(current: window.frame, state: mainWindowFrameState) {
+        case .restore(let frame):
+            window.setFrame(frame, display: true)
+            mainWindowFrameState = MainWindowFrameModel.recordingApplied(window.frame, in: mainWindowFrameState)
             applyMainLayoutStabilization()
             writeLayoutMetrics(reason: "restored-unexpected-shrink")
             return
+        case .accept(let frame):
+            mainWindowFrameState = MainWindowFrameModel.recordingApplied(frame, in: mainWindowFrameState)
+            saveMainWindowFrame(frame)
         }
-        lastAppliedMainFrame = window.frame
-        saveMainWindowFrame(window.frame)
         applyMainLayoutStabilization()
         writeLayoutMetrics(reason: "window-resize")
     }
 
     func windowWillStartLiveResize(_ notification: Notification) {
-        isUserLiveResizing = true
+        mainWindowFrameState = MainWindowFrameModel.recordingLiveResize(true, in: mainWindowFrameState)
     }
 
     func windowDidEndLiveResize(_ notification: Notification) {
-        isUserLiveResizing = false
+        mainWindowFrameState = MainWindowFrameModel.recordingLiveResize(false, in: mainWindowFrameState)
         unlockWindowSizing()
-        lastAppliedMainFrame = window.frame
+        mainWindowFrameState = MainWindowFrameModel.recordingApplied(window.frame, in: mainWindowFrameState)
         saveMainWindowFrame(window.frame)
         applyMainLayoutStabilization()
         writeLayoutMetrics(reason: "window-live-resize")
@@ -1060,6 +1055,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
                 self.unlockWindowSizing()
                 if self.window.frame.width < frame.width - 1 {
                     self.window.setFrame(frame, display: true)
+                    self.mainWindowFrameState = MainWindowFrameModel.recordingApplied(self.window.frame, in: self.mainWindowFrameState)
                 }
                 self.applyMainLayoutStabilization()
                 self.writeLayoutMetrics(reason: "git-toggle")
