@@ -147,6 +147,7 @@ struct ComposerSelectionState: Equatable {
     }
 
     mutating func pickCodexModel(_ id: String) -> ComposerCodexMenuModel {
+        desiredModel = id
         selectedCodexModel = id
         return installCodexMenu(ids: codexModelIds.isEmpty ? [id] : codexModelIds)
     }

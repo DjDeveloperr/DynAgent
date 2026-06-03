@@ -226,11 +226,27 @@ final class ComposerSelectionModelTests: XCTestCase {
         var state = ComposerSelectionState(codexModelIds: ["gpt-5.5-codex", "gpt-5.5-mini"])
 
         let modelMenu = state.pickCodexModel("gpt-5.5-mini")
+        XCTAssertEqual(state.desiredModel, "gpt-5.5-mini")
         XCTAssertEqual(state.selectedCodexModel, "gpt-5.5-mini")
         XCTAssertEqual(modelMenu.modelItems.map(\.isSelected), [false, true])
 
         let effortMenu = state.pickCodexEffort("xhigh")
         XCTAssertEqual(state.selectedCodexEffort, "xhigh")
         XCTAssertEqual(effortMenu.effortItems.map(\.isSelected), [false, false, false, true])
+    }
+
+    func testPickingCodexModelOverridesRememberedDesiredModel() {
+        var state = ComposerSelectionState(
+            desiredModel: "gpt-5.5-codex",
+            codexModelIds: ["gpt-5.5-codex", "gpt-5.5-mini"],
+            selectedCodexModel: "gpt-5.5-codex"
+        )
+
+        let menu = state.pickCodexModel("gpt-5.5-mini")
+
+        XCTAssertEqual(state.desiredModel, "gpt-5.5-mini")
+        XCTAssertEqual(state.selectedCodexModel, "gpt-5.5-mini")
+        XCTAssertEqual(menu.selectedModel, "gpt-5.5-mini")
+        XCTAssertEqual(menu.modelItems.map(\.isSelected), [false, true])
     }
 }
