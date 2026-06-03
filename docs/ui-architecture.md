@@ -43,6 +43,7 @@
 - `TranscriptToolPopoverCoordinator.swift`: tested AppKit coordinator that owns the tool popover and bridges transcript tool/edit clicks to popover plans.
 - `SidebarModel.swift`: tested pure grouping model for pinned chats, projectless chats, project workspaces, archived filtering, and recency ordering.
 - `SidebarRowModel.swift`: tested pure row-presentation model for short relative timestamps, workspace/chat tooltip content, worktree indicators, and working/pinned/unread state.
+- `SidebarLayoutModel.swift`: tested sidebar width band and Codex sidebar-width sync plan used by the macOS split view.
 - `SidebarArchiveConfirmationModel.swift`: tested archive confirmation reducer for first-click confirmation, second-click archive, hover-out cancellation, and reload decisions.
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
 - `SearchOverlayModel.swift`: tested pure search overlay model for bounded chat/message matching, recency sorting, result limiting, and row detail labels.

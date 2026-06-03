@@ -91,6 +91,9 @@ final class WorkspaceAreaViewController: NSViewController {
 
     func forceLayoutToBounds() {
         guard isViewLoaded else { return }
+        if let superview = view.superview, view.frame != superview.bounds {
+            view.frame = superview.bounds
+        }
         root.frame = view.bounds
         root.adjustSubviews()
         if root.arrangedSubviews.count == 1 {

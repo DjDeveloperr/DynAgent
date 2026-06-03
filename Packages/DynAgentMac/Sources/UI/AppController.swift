@@ -124,7 +124,9 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         }
         let side = NSSplitViewItem(viewController: sidebar)
         sidebarItem = side
-        side.minimumThickness = 260; side.maximumThickness = 320; side.canCollapse = true
+        side.minimumThickness = SidebarLayoutModel.minimumWidth
+        side.maximumThickness = SidebarLayoutModel.maximumWidth
+        side.canCollapse = true
         side.holdingPriority = NSLayoutConstraint.Priority(251)
         side.preferredThicknessFraction = 0
         split.addSplitViewItem(side)
@@ -435,7 +437,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     private func splitViewDidResizeSubviews(_ notification: Notification) {
         guard let width = splitView?.subviews.first?.frame.width, width > 0 else { return }
-        let capped = max(sidebarItem.minimumThickness, min(width, sidebarItem.maximumThickness))
+        let capped = SidebarLayoutModel.clampedWidth(width)
         guard abs(capped - lastSyncedSidebarWidth) > 1 else { return }
         lastSyncedSidebarWidth = capped
         Task { [client] in
@@ -453,11 +455,12 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func scheduleUnexpectedMainWindowRestoreIfNeeded(reason: String) {
-        guard !pendingWindowFrameRestore else { return }
-        guard case .restore = MainWindowFrameModel.resizeDecision(
+        guard case .restore(let frame) = MainWindowFrameModel.resizeDecision(
             current: window.frame,
             state: mainWindowFrameState
         ) else { return }
+        applyRestoredMainWindowFrame(frame, reason: reason)
+        guard !pendingWindowFrameRestore else { return }
         pendingWindowFrameRestore = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             guard let self else { return }
@@ -466,11 +469,16 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
                 current: self.window.frame,
                 state: self.mainWindowFrameState
             ) else { return }
-            self.window.setFrame(frame, display: true)
-            self.mainWindowFrameState = MainWindowFrameModel.recordingApplied(self.window.frame, in: self.mainWindowFrameState)
-            self.applyMainLayoutStabilization()
-            self.writeLayoutMetrics(reason: reason)
+            self.applyRestoredMainWindowFrame(frame, reason: reason)
         }
+    }
+
+    private func applyRestoredMainWindowFrame(_ frame: NSRect, reason: String) {
+        unlockWindowSizing()
+        window.setFrame(frame, display: true)
+        mainWindowFrameState = MainWindowFrameModel.recordingApplied(window.frame, in: mainWindowFrameState)
+        applyMainLayoutStabilization()
+        writeLayoutMetrics(reason: reason)
     }
 
     private func applyMainLayoutStabilization() {
@@ -913,11 +921,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         guard let state = try? await client.codexSidebarState() else { return }
         sidebar.applyCodexSidebarState(collapsedGroups: state.collapsedGroups, collapsedSections: state.collapsedSections)
         if let width = state.sidebarWidth, let splitView, splitView.subviews.count > 1 {
-            let plan = AppSidebarSyncModel.widthPlan(
-                receivedWidth: width,
-                minimumWidth: Double(sidebarItem.minimumThickness),
-                maximumWidth: Double(sidebarItem.maximumThickness)
-            )
+            let plan = SidebarLayoutModel.syncPlan(receivedWidth: width)
             let capped = CGFloat(plan.appliedWidth ?? width)
             lastSyncedSidebarWidth = capped
             splitView.setPosition(capped, ofDividerAt: 0)

@@ -84,8 +84,8 @@ final class MainLayoutStabilizerTests: XCTestCase {
         git.view = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: windowHeight))
 
         let sidebarItem = NSSplitViewItem(viewController: sidebar)
-        sidebarItem.minimumThickness = 260
-        sidebarItem.maximumThickness = 380
+        sidebarItem.minimumThickness = SidebarLayoutModel.minimumWidth
+        sidebarItem.maximumThickness = SidebarLayoutModel.maximumWidth
         sidebarItem.canCollapse = true
         let mainItem = NSSplitViewItem(viewController: workspace)
         mainItem.minimumThickness = 360

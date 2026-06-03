@@ -1,14 +1,5 @@
 import AppKit
 
-private final class ChatRootView: FlexibleContainerView {
-    override func layout() {
-        if let superview, frame != superview.bounds {
-            frame = superview.bounds
-        }
-        super.layout()
-    }
-}
-
 /// Detail pane: a centered transcript (user / assistant / tool rows) and a composer card.
 final class ChatViewController: NSViewController, NSTextViewDelegate {
     var client: AgentClient!
@@ -303,7 +294,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         ))
         ChatEmptyStateChrome.configureStack(emptyStack, title: emptyTitle, subtitle: emptySub, actions: emptyActions)
 
-        let root = ChatRootView()
+        let root = FlexibleContainerView()
         root.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         root.setContentHuggingPriority(.defaultLow, for: .horizontal)
         root.addSubview(scroll)
