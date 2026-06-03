@@ -560,10 +560,14 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         }
         syncComposerMenus()
         let fingerprint = TranscriptRenderModel.fingerprint(for: c, maxRenderedMessages: maxRenderedMessages)
-        if wasShowingSameConversation,
-           !isActiveConversation(c),
-           renderedTranscriptConversationId == c.id,
-           renderedTranscriptFingerprint == fingerprint {
+        if ChatPresentationModel.shouldReuseRenderedTranscript(
+            wasShowingSameConversation: wasShowingSameConversation,
+            isActive: isActiveConversation(c),
+            renderedConversationId: renderedTranscriptConversationId,
+            renderedFingerprint: renderedTranscriptFingerprint,
+            conversationId: c.id,
+            fingerprint: fingerprint
+        ) {
             restoreComposerDraft(for: c)
             updateEmptyState()
             updateSendButton()
@@ -615,7 +619,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         renderedTranscriptConversationId = nil
         renderedTranscriptFingerprint = nil
         transcript.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        let loading = NSTextField(labelWithString: c.needsLoad ? "Loading latest thread..." : "Loading conversation...")
+        let loading = NSTextField(labelWithString: ChatPresentationModel.loadingText(needsLoad: c.needsLoad))
         loading.font = .systemFont(ofSize: 12.5, weight: .medium)
         loading.textColor = .tertiaryLabelColor
         loading.translatesAutoresizingMaskIntoConstraints = false
@@ -803,15 +807,14 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func updateEmptyState() {
-        let isEmpty = conversation?.messages.isEmpty ?? true
-        if let workspace = conversation?.workspace, !workspace.isEmpty {
-            emptySub.stringValue = (workspace as NSString).lastPathComponent
-        } else {
-            emptySub.stringValue = "Workspace"
-        }
-        emptyStack.isHidden = !isEmpty
-        cardBottomConstraint?.isActive = !isEmpty
-        cardCenterYConstraint?.isActive = isEmpty
+        let state = ChatPresentationModel.emptyState(
+            messages: conversation?.messages ?? [],
+            workspace: conversation?.workspace
+        )
+        emptySub.stringValue = state.subtitle
+        emptyStack.isHidden = state.isHidden
+        cardBottomConstraint?.isActive = state.isHidden
+        cardCenterYConstraint?.isActive = !state.isHidden
     }
 
     // MARK: - Sending
@@ -1143,18 +1146,10 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func showThinking() {
         guard shimmerView == nil else { return }
-        let s = ShimmerLabel()
-        shimmerView = s
-        let container = NSView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(s)
-        NSLayoutConstraint.activate([
-            s.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            s.topAnchor.constraint(equalTo: container.topAnchor),
-            s.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
-        transcript.addArrangedSubview(container)
-        container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
+        let row = TranscriptRowChrome.thinkingRow()
+        shimmerView = row.shimmer
+        transcript.addArrangedSubview(row.container)
+        row.container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
         scrollToBottom()
     }
 

@@ -4,6 +4,23 @@ import XCTest
 
 @MainActor
 final class TranscriptRowChromeTests: XCTestCase {
+    func testThinkingRowBuildsPinnedShimmerContainer() {
+        let row = TranscriptRowChrome.thinkingRow(text: "Thinking")
+
+        XCTAssertFalse(row.container.translatesAutoresizingMaskIntoConstraints)
+        XCTAssertTrue(row.shimmer.superview === row.container)
+        XCTAssertFalse(row.shimmer.translatesAutoresizingMaskIntoConstraints)
+        XCTAssertTrue(row.container.constraints.contains {
+            $0.firstAnchor == row.shimmer.leadingAnchor && $0.secondAnchor == row.container.leadingAnchor
+        })
+        XCTAssertTrue(row.container.constraints.contains {
+            $0.firstAnchor == row.shimmer.topAnchor && $0.secondAnchor == row.container.topAnchor
+        })
+        XCTAssertTrue(row.container.constraints.contains {
+            $0.firstAnchor == row.shimmer.bottomAnchor && $0.secondAnchor == row.container.bottomAnchor
+        })
+    }
+
     func testUserBubbleBuildsSelectableWrappingTextWithoutFixedWidth() throws {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false

@@ -288,6 +288,19 @@ final class EditStatsView: NSView {
 }
 
 enum TranscriptRowChrome {
+    static func thinkingRow(text: String = "Thinking") -> (container: NSView, shimmer: ShimmerLabel) {
+        let shimmer = ShimmerLabel(text: text)
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(shimmer)
+        NSLayoutConstraint.activate([
+            shimmer.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            shimmer.topAnchor.constraint(equalTo: container.topAnchor),
+            shimmer.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        return (container, shimmer)
+    }
+
     static func installAssistantContent(_ content: NSView, in container: NSView) {
         container.addSubview(content)
         NSLayoutConstraint.activate([
