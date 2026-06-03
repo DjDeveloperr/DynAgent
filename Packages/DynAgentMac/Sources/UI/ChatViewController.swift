@@ -1333,62 +1333,21 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     @discardableResult
     private func addRow(for m: ChatMessage) -> NSView {
-        let container = NSView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        let content = MessageTextView()
-        content.isSelectable = true
-        content.translatesAutoresizingMaskIntoConstraints = false
-
-        switch m.role {
-        case .assistant:
-            content.setRich(Self.markdown(m.text))
-            TranscriptRowChrome.installAssistantContent(content, in: container)
-        case .user:
-            if m.isSteer == true {
-                let pending = m.toolDetail == "pending"
-                TranscriptRowChrome.installSteerBubble(text: m.text, pending: pending, in: container)
-                break
-            }
-            TranscriptRowChrome.installUserBubble(text: m.text, in: container)
-        case .tool:
-            if m.toolName == "steer" {
-                let detail = m.toolDetail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                TranscriptRowChrome.installSteerNotice(detail: detail, pending: m.toolDetail == "pending", in: container)
-                break
-            }
-            if m.toolName == "shell" {
-                let summary = TranscriptToolFormatter.shellSummary(m)
-                let row = ShellToolView(title: TranscriptToolFormatter.shellTitle(m, summary: summary), output: summary.output, done: m.toolDone)
-                container.addSubview(row)
-                NSLayoutConstraint.activate([
-                    row.topAnchor.constraint(equalTo: container.topAnchor),
-                    row.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-                    row.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-                    row.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-                ])
-                break
-            }
-            content.isSelectable = false
-            content.setRich(TranscriptToolFormatter.toolString(m))
-            let inline = TranscriptInlineToolChrome.make(label: content, message: m)
-            if let editStats = inline.editStats {
-                editStatsByMessage[ObjectIdentifier(m)] = editStats
-            }
-            let row = inline.view
+        let built = TranscriptRowFactory.makeRow(for: m, markdown: Self.markdown)
+        let container = built.container
+        if let content = built.label {
+            labels[ObjectIdentifier(m)] = content
+        }
+        if let editStats = built.editStats {
+            editStatsByMessage[ObjectIdentifier(m)] = editStats
+        }
+        if let row = built.clickableToolView {
             toolByView[ObjectIdentifier(row)] = m
             row.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(toolClicked(_:))))
-            container.addSubview(row)
-            NSLayoutConstraint.activate([
-                row.topAnchor.constraint(equalTo: container.topAnchor),
-                row.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-                row.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-                row.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            ])
         }
-        labels[ObjectIdentifier(m)] = content
         transcript.addArrangedSubview(container)
-        if m.role == .tool {
-            transcript.setCustomSpacing(6, after: container)
+        if let spacing = built.customSpacingAfter {
+            transcript.setCustomSpacing(spacing, after: container)
         }
         container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
         // Keep the "Thinking" shimmer pinned to the bottom while streaming.
@@ -1402,7 +1361,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func addLargeThreadNotice(hiddenCount: Int) {
-        let container = TranscriptRowChrome.largeThreadNotice(
+        let container = TranscriptRowFactory.largeThreadNotice(
             maxRenderedMessages: maxRenderedMessages,
             hiddenCount: hiddenCount
         )

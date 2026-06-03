@@ -1,12 +1,5 @@
 import AppKit
 
-final class GitActionPanel: NSPanel {
-    var onDismiss: (() -> Void)?
-    override func cancelOperation(_ sender: Any?) {
-        onDismiss?()
-    }
-}
-
 /// Right pane: git branch, changed files, diff, commit/push/PR actions.
 final class GitPanelViewController: NSViewController {
     var client: AgentClient!
@@ -149,90 +142,20 @@ final class GitPanelViewController: NSViewController {
 
     @objc func showGitActions() {
         guard let window = view.window else { return }
-        let panel = GitActionPanel(contentRect: NSRect(x: 0, y: 0, width: 380, height: isWorktree ? 302 : 220),
-                            styleMask: [.titled, .closable],
-                            backing: .buffered,
-                            defer: false)
-        panel.title = "Git Actions"
-        panel.isReleasedWhenClosed = false
+        let panel = GitActionSheetChrome.makePanel(
+            branch: branchLabel.stringValue,
+            isWorktree: isWorktree,
+            commitField: commitField,
+            target: self,
+            selectors: GitActionSelectors(
+                commit: #selector(doCommit),
+                commitPush: #selector(doCommitPush),
+                push: #selector(doPush),
+                createBranch: #selector(doCreateBranch),
+                createPR: #selector(doCreatePR)
+            )
+        )
         panel.onDismiss = { [weak self] in self?.dismissGitActions() }
-
-        let title = NSTextField(labelWithString: "Commit changes")
-        title.font = .systemFont(ofSize: 16, weight: .semibold)
-
-        let branchIcon = NSImageView(image: NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 13, weight: .medium)) ?? NSImage())
-        branchIcon.contentTintColor = .secondaryLabelColor
-        branchIcon.translatesAutoresizingMaskIntoConstraints = false
-        let subtitle = NSTextField(labelWithString: branchLabel.stringValue)
-        subtitle.font = .monospacedSystemFont(ofSize: 12.5, weight: .regular)
-        subtitle.textColor = .secondaryLabelColor
-        subtitle.lineBreakMode = .byTruncatingMiddle
-        let branchRow = NSStackView(views: [branchIcon, subtitle])
-        branchRow.orientation = .horizontal
-        branchRow.alignment = .centerY
-        branchRow.spacing = 6
-        branchRow.translatesAutoresizingMaskIntoConstraints = false
-
-        commitField.placeholderString = "Commit message (blank = auto-generate)"
-        commitField.font = .systemFont(ofSize: 14)
-        commitField.isBordered = false
-        commitField.drawsBackground = false
-        commitField.usesSingleLineMode = false
-        commitField.lineBreakMode = .byWordWrapping
-        commitField.translatesAutoresizingMaskIntoConstraints = false
-        let inputBox = NSVisualEffectView()
-        inputBox.material = .contentBackground
-        inputBox.blendingMode = .withinWindow
-        inputBox.state = .active
-        inputBox.wantsLayer = true
-        inputBox.layer?.cornerRadius = 10
-        inputBox.translatesAutoresizingMaskIntoConstraints = false
-        inputBox.addSubview(commitField)
-
-        let commitBtn = makeBtn("Commit", #selector(doCommit))
-        let commitPushBtn = makeBtn("Commit & Push", #selector(doCommitPush))
-        let pushBtn = makeBtn("Push", #selector(doPush))
-        let buttons = NSStackView(views: [commitBtn, commitPushBtn, pushBtn])
-        buttons.orientation = .vertical
-        buttons.spacing = 8
-        buttons.alignment = .width
-
-        var arranged: [NSView] = [title, branchRow, inputBox, buttons]
-        if isWorktree {
-            let divider = NSBox()
-            divider.boxType = .separator
-            let branchBtn = makeBtn("New Branch", #selector(doCreateBranch))
-            let prBtn = makeBtn("Create PR", #selector(doCreatePR))
-            let worktreeButtons = NSStackView(views: [branchBtn, prBtn])
-            worktreeButtons.orientation = .vertical
-            worktreeButtons.spacing = 8
-            worktreeButtons.alignment = .width
-            arranged.append(contentsOf: [divider, worktreeButtons])
-        }
-
-        let stack = NSStackView(views: arranged)
-        stack.orientation = .vertical
-        stack.spacing = 10
-        stack.edgeInsets = NSEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
-        let root = NSView()
-        root.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: root.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: root.bottomAnchor),
-            branchIcon.widthAnchor.constraint(equalToConstant: 16),
-            branchIcon.heightAnchor.constraint(equalToConstant: 16),
-            inputBox.heightAnchor.constraint(equalToConstant: 82),
-            commitField.leadingAnchor.constraint(equalTo: inputBox.leadingAnchor, constant: 11),
-            commitField.trailingAnchor.constraint(equalTo: inputBox.trailingAnchor, constant: -11),
-            commitField.topAnchor.constraint(equalTo: inputBox.topAnchor, constant: 9),
-            commitField.bottomAnchor.constraint(equalTo: inputBox.bottomAnchor, constant: -9),
-        ])
-        panel.contentView = root
         gitActionSheet = panel
         gitActionOutsideMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown]) { [weak self, weak panel] event in
             guard let self, let panel else { return event }
@@ -258,20 +181,6 @@ final class GitPanelViewController: NSViewController {
     private func dismissGitActions() {
         guard let sheet = gitActionSheet, let parent = sheet.sheetParent else { return }
         parent.endSheet(sheet)
-    }
-
-    private func makeBtn(_ title: String, _ action: Selector) -> NSButton {
-        let b = NSButton(title: title, target: self, action: action)
-        b.isBordered = false
-        b.alignment = .center
-        b.font = .systemFont(ofSize: 13.5, weight: .semibold)
-        b.wantsLayer = true
-        b.layer?.cornerRadius = 10
-        b.layer?.backgroundColor = NSColor.controlColor.withAlphaComponent(0.70).cgColor
-        b.contentTintColor = .labelColor
-        b.translatesAutoresizingMaskIntoConstraints = false
-        b.heightAnchor.constraint(equalToConstant: 38).isActive = true
-        return b
     }
 
     func show(workspace: String) { self.workspace = workspace; reload() }
@@ -311,13 +220,11 @@ final class GitPanelViewController: NSViewController {
     // MARK: Actions
 
     @objc private func doCommit() {
-        let msg = commitField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        statusLabel.stringValue = msg.isEmpty ? "generating commit message..." : "committing..."
+        let msg = GitActionSheetModel.trimmedMessage(commitField.stringValue)
+        statusLabel.stringValue = GitActionKind.commit.pendingStatus(hasMessage: !msg.isEmpty)
         dismissGitActions()
         Task { @MainActor in
-            var body: [String: Any] = ["cwd": workspace]
-            if !msg.isEmpty { body["message"] = msg }
-            let r = try? await client.postJSON("git/commit", body)
+            let r = try? await client.postJSON("git/commit", GitActionSheetModel.commitBody(cwd: workspace, message: msg))
             if let err = r?["error"] as? String { statusLabel.stringValue = err }
             else { statusLabel.stringValue = "committed: \(r?["message"] as? String ?? "")"; commitField.stringValue = "" }
             reload()
@@ -325,13 +232,11 @@ final class GitPanelViewController: NSViewController {
     }
 
     @objc private func doCommitPush() {
-        let msg = commitField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        statusLabel.stringValue = msg.isEmpty ? "generating message & pushing..." : "committing & pushing..."
+        let msg = GitActionSheetModel.trimmedMessage(commitField.stringValue)
+        statusLabel.stringValue = GitActionKind.commitPush.pendingStatus(hasMessage: !msg.isEmpty)
         dismissGitActions()
         Task { @MainActor in
-            var body: [String: Any] = ["cwd": workspace]
-            if !msg.isEmpty { body["message"] = msg }
-            let r = try? await client.postJSON("git/commit-push", body)
+            let r = try? await client.postJSON("git/commit-push", GitActionSheetModel.commitBody(cwd: workspace, message: msg))
             if let err = r?["error"] as? String { statusLabel.stringValue = err }
             else { statusLabel.stringValue = "pushed: \(r?["message"] as? String ?? "")"; commitField.stringValue = "" }
             reload()
@@ -339,7 +244,7 @@ final class GitPanelViewController: NSViewController {
     }
 
     @objc private func doPush() {
-        statusLabel.stringValue = "pushing..."
+        statusLabel.stringValue = GitActionKind.push.pendingStatus(hasMessage: false)
         dismissGitActions()
         Task { @MainActor in
             let r = try? await client.postJSON("git/push", ["cwd": workspace])
