@@ -57,7 +57,7 @@ enum AppConversationIndexModel {
             .map { conversation in
                 DockRecentConversation(
                     id: conversation.id,
-                    title: conversation.title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "New Chat",
+                    title: ChatTitleModel.displayTitle(for: conversation),
                     workspace: conversation.workspace,
                     updatedAt: conversation.updatedAt
                 )

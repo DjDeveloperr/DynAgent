@@ -732,7 +732,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func updateWindowTitle(_ c: Conversation?) {
-        let title = c?.title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "New Chat"
+        let title = ChatTitleModel.displayTitle(for: c)
         window.title = title
         chatTitleLabel.stringValue = title
         chat.setHeaderTitle(title)
@@ -1157,33 +1157,18 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             await loadProjectlessCodexThreads()
             for ref in workspaceRefs {
                 let cwds = [ref.path] + (worktreesByPath[ref.path] ?? [])
-                var stubs: [Conversation] = []
-                var existingById: [String: Conversation] = [:]
-                for c in codexStubs[ref.path] ?? [] {
-                    if let id = c.codexThreadId { existingById[id] = c }
-                }
-                for c in conversations {
-                    if let id = c.codexThreadId { existingById[id] = c }
-                }
+                var batches: [(cwd: String, threads: [AgentClient.CodexThread])] = []
                 for cwd in cwds {
                     guard let threads = try? await client.codexThreads(cwd: cwd) else { continue }
-                    stubs += threads.filter { !archivedCodexIds.contains($0.id) && $0.projectless != true }.map { t in
-                        let c = existingById[t.id] ?? Conversation(model: modelCache[.codex]?.first ?? "gpt-5.5", workspace: cwd, harness: .codex)
-                        if c.codexThreadId == nil { c.id = "codex:" + t.id }
-                        let previousUpdatedAt = c.updatedAt
-                        c.title = t.title
-                        c.workspace = cwd
-                        c.harness = .codex
-                        c.codexThreadId = t.id
-                        c.pinned = t.pinned == true
-                        c.updatedAt = t.updatedAt
-                        if c.messages.isEmpty || t.updatedAt > previousUpdatedAt + 1 {
-                            c.needsLoad = true
-                        }
-                        return c
-                    }
+                    batches.append((cwd: cwd, threads: threads))
                 }
-                codexStubs[ref.path] = Array(stubs.prefix(60))
+                codexStubs[ref.path] = AppCodexThreadStubModel.workspaceStubs(
+                    threadBatches: batches,
+                    existingStubs: codexStubs[ref.path] ?? [],
+                    localConversations: conversations,
+                    archivedIds: archivedCodexIds,
+                    defaultModel: modelCache[.codex]?.first ?? "gpt-5.5"
+                )
             }
             Store.saveCodexStubs(codexStubs)
             rebuildGroups(select: chat.conversation)
@@ -1195,28 +1180,13 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     @MainActor private func loadProjectlessCodexThreads() async {
         guard let threads = try? await client.codexThreads() else { return }
-        var existingById: [String: Conversation] = [:]
-        for c in codexStubs[projectlessCodexKey] ?? [] {
-            if let id = c.codexThreadId { existingById[id] = c }
-        }
-        let stubs = threads
-            .filter { !archivedCodexIds.contains($0.id) && ($0.projectless == true || $0.pinned == true) }
-            .map { t in
-                let c = existingById[t.id] ?? Conversation(model: modelCache[.codex]?.first ?? "gpt-5.5", workspace: t.workspace ?? primaryPath, harness: .codex)
-                if c.codexThreadId == nil { c.id = "codex:" + t.id }
-                let previousUpdatedAt = c.updatedAt
-                c.title = t.title
-                c.workspace = t.workspace ?? primaryPath
-                c.harness = .codex
-                c.codexThreadId = t.id
-                c.pinned = t.pinned == true
-                c.updatedAt = t.updatedAt
-                if c.messages.isEmpty || t.updatedAt > previousUpdatedAt + 1 {
-                    c.needsLoad = true
-                }
-                return c
-            }
-        codexStubs[projectlessCodexKey] = Array(stubs.prefix(80))
+        codexStubs[projectlessCodexKey] = AppCodexThreadStubModel.projectlessStubs(
+            threads: threads,
+            existingStubs: codexStubs[projectlessCodexKey] ?? [],
+            archivedIds: archivedCodexIds,
+            defaultModel: modelCache[.codex]?.first ?? "gpt-5.5",
+            fallbackWorkspace: primaryPath
+        )
     }
 
 }
@@ -1247,7 +1217,7 @@ final class DetachedChatWindowController: NSObject, NSWindowDelegate {
         if !models.isEmpty { chat.setModels(models) }
         chat.show(conversation)
 
-        let title = conversation.title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "New Chat"
+        let title = ChatTitleModel.displayTitle(for: conversation)
         window.title = title
         chat.setHeaderTitle(title)
         window.titleVisibility = .visible
@@ -1270,7 +1240,7 @@ final class DetachedChatWindowController: NSObject, NSWindowDelegate {
     }
 
     func refreshTitle() {
-        let title = conversation.title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "New Chat"
+        let title = ChatTitleModel.displayTitle(for: conversation)
         window.title = title
         chat.setHeaderTitle(title)
     }
