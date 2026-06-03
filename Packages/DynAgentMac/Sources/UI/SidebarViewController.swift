@@ -233,127 +233,36 @@ final class SidebarViewController: NSViewController {
 
     private func addConversationRow(_ c: Conversation, indent: CGFloat = 32) {
         let model = SidebarRowModel.conversation(c)
-        weak var pinButton: SidebarActionButton?
-        weak var archiveButton: SidebarActionButton?
-        weak var timeLabel: NSTextField?
-        weak var worktreeIcon: NSImageView?
-        weak var spinnerView: Spinner?
-        var titleToTime: NSLayoutConstraint?
-        var titleToActions: NSLayoutConstraint?
-        var rowRef: SidebarRow?
-        let row = SidebarRow(height: 32, onClick: { [weak self] in self?.select(c) }, menu: { [weak self] in self?.menu(for: c) ?? NSMenu() }, onHoverChanged: { [weak self] hovering in
-            guard let self else { return }
-            let confirming = self.archiveConfirmation.isConfirming(conversationId: c.id)
-            pinButton?.isHidden = !hovering || confirming
-            archiveButton?.isHidden = !hovering && !confirming
-            timeLabel?.isHidden = model.isWorking || hovering || confirming
-            worktreeIcon?.isHidden = !model.isWorktree || model.isWorking || hovering || confirming
-            spinnerView?.isHidden = !model.isWorking || hovering || confirming
-            titleToTime?.isActive = !hovering && !confirming
-            titleToActions?.isActive = hovering || confirming
-            self.archiveConfirmation.updateHover(
-                hovering: hovering,
-                conversationId: c.id,
-                cancelAndReload: { [weak self] in self?.reload() }
-            )
-            if let row = rowRef {
-                if hovering { self.scheduleHoverTip(title: model.tooltip.title, detail: model.tooltip.detail, row: row) }
-                else { self.hideHoverTip() }
-            }
-        }) { container in
-            let tf = SidebarRowsChrome.singleLineLabel(model.title, size: 14.5)
-            let time = NSTextField(labelWithString: model.timeLabel)
-            time.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-            time.textColor = model.isWorking ? .secondaryLabelColor : .tertiaryLabelColor
-            time.lineBreakMode = .byTruncatingTail
-            time.maximumNumberOfLines = 1
-            time.cell?.usesSingleLineMode = true
-            time.cell?.truncatesLastVisibleLine = true
-            time.setContentCompressionResistancePriority(.required, for: .horizontal)
-            time.setContentHuggingPriority(.required, for: .horizontal)
-            time.translatesAutoresizingMaskIntoConstraints = false
-            let branchIcon = NSImageView(image: NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Worktree")?
-                .withSymbolConfiguration(.init(pointSize: 10.5, weight: .regular)) ?? NSImage())
-            branchIcon.contentTintColor = .tertiaryLabelColor
-            branchIcon.isHidden = !model.isWorktree || model.isWorking
-            branchIcon.translatesAutoresizingMaskIntoConstraints = false
-            let pin = SidebarActionButton(symbol: model.isPinned ? "pin.slash" : "pin", tooltip: model.isPinned ? "Unpin" : "Pin")
-            pin.isHidden = true
-            pin.handler = { [weak self, weak c] _ in
+        let state = SidebarConversationRowChrome.make(
+            model: model,
+            indent: indent,
+            onClick: { [weak self] in self?.select(c) },
+            menu: { [weak self] in self?.menu(for: c) ?? NSMenu() },
+            onPin: { [weak self, weak c] in
                 guard let self, let c else { return }
                 self.cancelPendingArchive(immediate: true)
                 self.onPin?(c)
-            }
-            let archive = SidebarActionButton(symbol: "archivebox", tooltip: "Archive")
-            archive.toolTip = "Archive"
-            archive.isHidden = true
-            archive.handler = { [weak self, weak c, weak pin] button in
+            },
+            onArchive: { [weak self, weak c] button, pin in
                 guard let self, let c else { return }
                 self.archiveButtonClicked(button, conversation: c, pin: pin)
+            },
+            onHoverChanged: { [weak self, weak c] hovering, state in
+                guard let self, let c else { return }
+                let confirming = self.archiveConfirmation.isConfirming(conversationId: c.id)
+                state.applyHover(hovering, confirming: confirming)
+                self.archiveConfirmation.updateHover(
+                    hovering: hovering,
+                    conversationId: c.id,
+                    cancelAndReload: { [weak self] in self?.reload() }
+                )
+                if hovering { self.scheduleHoverTip(title: model.tooltip.title, detail: model.tooltip.detail, row: state.row) }
+                else { self.hideHoverTip() }
             }
-            pinButton = pin
-            archiveButton = archive
-            timeLabel = time
-            worktreeIcon = branchIcon
-            container.addSubview(tf)
-            container.addSubview(branchIcon)
-            container.addSubview(time)
-            container.addSubview(pin)
-            container.addSubview(archive)
-            titleToTime = tf.trailingAnchor.constraint(lessThanOrEqualTo: model.isWorktree ? branchIcon.leadingAnchor : time.leadingAnchor, constant: -8)
-            titleToActions = tf.trailingAnchor.constraint(lessThanOrEqualTo: pin.leadingAnchor, constant: -8)
-            titleToActions?.isActive = false
-            // Title left-padded to align with workspace labels.
-            NSLayoutConstraint.activate([
-                tf.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: indent),
-                tf.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-                archive.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -4),
-                archive.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-                archive.heightAnchor.constraint(equalToConstant: 24),
-                archive.widthAnchor.constraint(greaterThanOrEqualToConstant: 24),
-                pin.trailingAnchor.constraint(equalTo: archive.leadingAnchor, constant: -2),
-                pin.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-                pin.widthAnchor.constraint(equalToConstant: 24),
-                pin.heightAnchor.constraint(equalToConstant: 24),
-                time.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
-                time.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-                branchIcon.trailingAnchor.constraint(equalTo: time.leadingAnchor, constant: -4),
-                branchIcon.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-                branchIcon.widthAnchor.constraint(equalToConstant: 12),
-                branchIcon.heightAnchor.constraint(equalToConstant: 12),
-                titleToTime!,
-            ])
-            // Blue unread dot in the left icon slot (only when unread).
-            if model.isUnread {
-                let dot = NSView()
-                dot.wantsLayer = true; dot.layer?.cornerRadius = 3.5
-                dot.layer?.backgroundColor = NSColor.systemBlue.cgColor
-                dot.translatesAutoresizingMaskIntoConstraints = false
-                container.addSubview(dot)
-                NSLayoutConstraint.activate([
-                    dot.centerXAnchor.constraint(equalTo: container.leadingAnchor, constant: 15),
-                    dot.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-                    dot.widthAnchor.constraint(equalToConstant: 7), dot.heightAnchor.constraint(equalToConstant: 7),
-                ])
-            }
-            // Smooth spinner on the right while the agent is working.
-            if model.isWorking {
-                let spinner = Spinner()
-                spinnerView = spinner
-                container.addSubview(spinner)
-                time.isHidden = true
-                NSLayoutConstraint.activate([
-                    spinner.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
-                    spinner.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-                    spinner.widthAnchor.constraint(equalToConstant: 14), spinner.heightAnchor.constraint(equalToConstant: 14),
-                    tf.trailingAnchor.constraint(lessThanOrEqualTo: spinner.leadingAnchor, constant: -6),
-                ])
-            }
-        }
-        rowRef = row
-        row.selected = (c.id == selectedId)
-        rowsById[c.id] = row
-        fullWidth(row)
+        )
+        state.row.selected = (c.id == selectedId)
+        rowsById[c.id] = state.row
+        fullWidth(state.row)
     }
 
     private func archiveButtonClicked(_ sender: SidebarActionButton, conversation c: Conversation, pin: SidebarActionButton?) {

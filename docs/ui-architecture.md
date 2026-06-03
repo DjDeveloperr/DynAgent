@@ -64,6 +64,7 @@
 - `DesignSystem.swift`: shared AppKit design tokens for chrome fonts, radii, spacing, and semantic fill/backdrop colors used by reusable UI components.
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
 - `SidebarRowsChrome.swift`: tested AppKit builders for reusable sidebar action rows, section headers, workspace rows, empty workspace labels, and show-more rows.
+- `SidebarConversationRowChrome.swift`: tested AppKit conversation-row builder for title/time/worktree/spinner affordances, hover action state, and pin/archive callbacks.
 - `SearchOverlayModel.swift`: tested pure search overlay model for bounded chat/message matching, recency sorting, result limiting, and row detail labels.
 - `SearchOverlayChrome.swift`: tested AppKit search overlay panel, backdrop, padded search field, scroll/stack layout, and result-row chrome.
 - `ComposerModel.swift`: tested composer behavior model for model/reasoning menu data, picker selection, draft keys, attachment message text, draft snapshots, attachment normalization, context state, and send/stop state.

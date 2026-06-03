@@ -235,7 +235,7 @@ final class MainLayoutStabilizerTests: XCTestCase {
         root.addSplitViewItem(mainItem)
         root.addSplitViewItem(gitItem)
         root.deactivateInternalSplitSizingConstraints()
-        window.contentViewController = root
+        installFullWindowHost(root: root, in: window, width: windowWidth, height: windowHeight)
         window.setContentSize(NSSize(width: windowWidth, height: windowHeight))
         root.view.frame = window.contentView?.bounds ?? NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight)
         root.splitView.frame = root.view.bounds
@@ -286,7 +286,7 @@ final class MainLayoutStabilizerTests: XCTestCase {
         root.addSplitViewItem(mainItem)
         root.addSplitViewItem(gitItem)
         root.deactivateInternalSplitSizingConstraints()
-        window.contentViewController = root
+        installFullWindowHost(root: root, in: window, width: windowWidth, height: windowHeight)
         window.setContentSize(NSSize(width: windowWidth, height: windowHeight))
         root.view.frame = window.contentView?.bounds ?? NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight)
         root.splitView.frame = root.view.bounds
@@ -321,5 +321,16 @@ final class MainLayoutStabilizerTests: XCTestCase {
 
     private func splitFrame(containing view: NSView) -> NSRect? {
         view.superview?.frame ?? view.frame
+    }
+
+    private func installFullWindowHost(root: RootSplitViewController, in window: NSWindow, width: CGFloat, height: CGFloat) {
+        let host = FullWindowHostView(frame: window.contentView?.bounds ?? NSRect(x: 0, y: 0, width: width, height: height))
+        host.autoresizingMask = [.width, .height]
+        host.pinnedView = root.view
+        root.view.removeFromSuperview()
+        host.addSubview(root.view)
+        root.view.frame = host.bounds
+        window.contentViewController = nil
+        window.contentView = host
     }
 }
