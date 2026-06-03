@@ -182,30 +182,12 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             selectedEffort: selectedCodexEffort
         )
         selectedCodexModel = menuModel.selectedModel
-        let modelMenu = NSMenu()
-        for entry in menuModel.modelItems {
-            let item = NSMenuItem(title: entry.title, action: #selector(codexModelPicked(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = entry.representedValue
-            item.state = entry.isSelected ? .on : .off
-            modelMenu.addItem(item)
-        }
-        let effortMenu = NSMenu()
-        for entry in menuModel.effortItems {
-            let item = NSMenuItem(title: entry.title, action: #selector(codexEffortPicked(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = entry.representedValue
-            item.state = entry.isSelected ? .on : .off
-            effortMenu.addItem(item)
-        }
-        let menu = NSMenu()
-        let modelParent = NSMenuItem(title: "Model", action: nil, keyEquivalent: "")
-        modelParent.submenu = modelMenu
-        let effortParent = NSMenuItem(title: "Reasoning", action: nil, keyEquivalent: "")
-        effortParent.submenu = effortMenu
-        menu.addItem(modelParent)
-        menu.addItem(effortParent)
-        modelPopup.menu = menu
+        modelPopup.menu = ComposerChrome.codexNestedMenu(
+            model: menuModel,
+            target: self,
+            modelAction: #selector(codexModelPicked(_:)),
+            effortAction: #selector(codexEffortPicked(_:))
+        )
         reasoningPopup.isHidden = true
         syncComposerMenus()
     }
@@ -308,7 +290,10 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         let harnessMenu = ComposerMenuChrome(popup: harnessPopup, minWidth: 82)
         let modelMenu = ComposerMenuChrome(popup: modelPopup, minWidth: 58)
         let reasoningMenu = ComposerMenuChrome(popup: reasoningPopup, minWidth: 70)
-        modelMenu.displayProvider = { [weak self] in self?.modelMenuTitle() }
+        modelMenu.displayProvider = { [weak self] in
+            guard let self, self.selectedHarness == .codex else { return nil }
+            return ComposerChrome.codexMenuTitle(model: self.selectedCodexModel, effort: self.selectedCodexEffort)
+        }
         self.harnessMenu = harnessMenu
         self.modelMenu = modelMenu
         self.reasoningMenu = reasoningMenu
@@ -454,19 +439,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         placeholder.stringValue = state.placeholder
         harnessMenu?.isHidden = !state.showsHarnessMenu
         reasoningMenu?.isHidden = !state.showsReasoningMenu
-    }
-
-    private func modelMenuTitle() -> NSAttributedString? {
-        guard selectedHarness == .codex else { return nil }
-        let title = NSMutableAttributedString(string: ComposerModel.shortCodexModelName(selectedCodexModel), attributes: [
-            .font: NSFont.systemFont(ofSize: 15, weight: .medium),
-            .foregroundColor: NSColor.labelColor,
-        ])
-        title.append(NSAttributedString(string: " \(ComposerModel.effortDisplayName(selectedCodexEffort))", attributes: [
-            .font: NSFont.systemFont(ofSize: 15, weight: .medium),
-            .foregroundColor: NSColor.secondaryLabelColor,
-        ]))
-        return title
     }
 
     @objc private func addWorkspaceClicked() {

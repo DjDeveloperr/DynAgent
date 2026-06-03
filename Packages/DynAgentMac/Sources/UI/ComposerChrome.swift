@@ -115,6 +115,52 @@ enum ComposerChrome {
         popup.translatesAutoresizingMaskIntoConstraints = false
     }
 
+    static func codexMenuTitle(model: String, effort: String) -> NSAttributedString {
+        let title = NSMutableAttributedString(string: ComposerModel.shortCodexModelName(model), attributes: [
+            .font: NSFont.systemFont(ofSize: 15, weight: .medium),
+            .foregroundColor: NSColor.labelColor,
+        ])
+        title.append(NSAttributedString(string: " \(ComposerModel.effortDisplayName(effort))", attributes: [
+            .font: NSFont.systemFont(ofSize: 15, weight: .medium),
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ]))
+        return title
+    }
+
+    static func codexNestedMenu(
+        model: ComposerCodexMenuModel,
+        target: AnyObject,
+        modelAction: Selector,
+        effortAction: Selector
+    ) -> NSMenu {
+        let modelMenu = NSMenu()
+        for entry in model.modelItems {
+            let item = NSMenuItem(title: entry.title, action: modelAction, keyEquivalent: "")
+            item.target = target
+            item.representedObject = entry.representedValue
+            item.state = entry.isSelected ? .on : .off
+            modelMenu.addItem(item)
+        }
+
+        let effortMenu = NSMenu()
+        for entry in model.effortItems {
+            let item = NSMenuItem(title: entry.title, action: effortAction, keyEquivalent: "")
+            item.target = target
+            item.representedObject = entry.representedValue
+            item.state = entry.isSelected ? .on : .off
+            effortMenu.addItem(item)
+        }
+
+        let menu = NSMenu()
+        let modelParent = NSMenuItem(title: "Model", action: nil, keyEquivalent: "")
+        modelParent.submenu = modelMenu
+        let effortParent = NSMenuItem(title: "Reasoning", action: nil, keyEquivalent: "")
+        effortParent.submenu = effortMenu
+        menu.addItem(modelParent)
+        menu.addItem(effortParent)
+        return menu
+    }
+
     static func configureAttachmentStrip(stack: NSStackView, scroll: NSScrollView) {
         stack.orientation = .horizontal
         stack.alignment = .centerY

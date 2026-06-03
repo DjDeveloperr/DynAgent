@@ -17,6 +17,50 @@ final class ComposerChromeTests: XCTestCase {
         XCTAssertFalse(popup.translatesAutoresizingMaskIntoConstraints)
     }
 
+    func testCodexMenuTitleUsesPrimaryModelAndSecondaryEffortText() {
+        let title = ComposerChrome.codexMenuTitle(model: "gpt-5.5-codex", effort: "xhigh")
+
+        XCTAssertEqual(title.string, "5.5 Codex Extra High")
+        let modelColor = title.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+        let effortColor = title.attribute(.foregroundColor, at: "5.5 Codex ".count, effectiveRange: nil) as? NSColor
+        XCTAssertEqual(modelColor, NSColor.labelColor)
+        XCTAssertEqual(effortColor, NSColor.secondaryLabelColor)
+    }
+
+    func testCodexNestedMenuBuildsModelAndReasoningSubmenus() throws {
+        let target = AttachmentRemoveTarget()
+        let model = ComposerCodexMenuModel(
+            selectedModel: "gpt-5.5",
+            modelItems: [
+                ComposerMenuItemModel(title: "5.5", representedValue: "gpt-5.5", isSelected: true),
+                ComposerMenuItemModel(title: "5.5 Mini", representedValue: "gpt-5.5-mini", isSelected: false),
+            ],
+            effortItems: [
+                ComposerMenuItemModel(title: "High", representedValue: "high", isSelected: false),
+                ComposerMenuItemModel(title: "Extra High", representedValue: "xhigh", isSelected: true),
+            ]
+        )
+
+        let menu = ComposerChrome.codexNestedMenu(
+            model: model,
+            target: target,
+            modelAction: #selector(AttachmentRemoveTarget.remove(_:)),
+            effortAction: #selector(AttachmentRemoveTarget.remove(_:))
+        )
+
+        XCTAssertEqual(menu.items.map(\.title), ["Model", "Reasoning"])
+        let modelMenu = try XCTUnwrap(menu.item(at: 0)?.submenu)
+        let effortMenu = try XCTUnwrap(menu.item(at: 1)?.submenu)
+        XCTAssertEqual(modelMenu.items.map(\.title), ["5.5", "5.5 Mini"])
+        XCTAssertEqual(effortMenu.items.map(\.title), ["High", "Extra High"])
+        XCTAssertTrue((modelMenu.item(at: 0)?.target as AnyObject?) === target)
+        XCTAssertEqual(modelMenu.item(at: 0)?.representedObject as? String, "gpt-5.5")
+        XCTAssertEqual(modelMenu.item(at: 0)?.state, .on)
+        XCTAssertEqual(modelMenu.item(at: 1)?.state, .off)
+        XCTAssertEqual(effortMenu.item(at: 1)?.representedObject as? String, "xhigh")
+        XCTAssertEqual(effortMenu.item(at: 1)?.state, .on)
+    }
+
     func testSendContainerAndFooterUseStableComposerSizing() {
         let target = AttachmentRemoveTarget()
         let sendButton = NSButton()

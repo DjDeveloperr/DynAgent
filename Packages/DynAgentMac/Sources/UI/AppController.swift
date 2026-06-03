@@ -905,12 +905,17 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         guard let state = try? await client.codexSidebarState() else { return }
         sidebar.applyCodexSidebarState(collapsedGroups: state.collapsedGroups, collapsedSections: state.collapsedSections)
         if let width = state.sidebarWidth, let splitView, splitView.subviews.count > 1 {
-            let capped = max(sidebarItem.minimumThickness, min(CGFloat(width), sidebarItem.maximumThickness))
+            let plan = AppSidebarSyncModel.widthPlan(
+                receivedWidth: width,
+                minimumWidth: Double(sidebarItem.minimumThickness),
+                maximumWidth: Double(sidebarItem.maximumThickness)
+            )
+            let capped = CGFloat(plan.appliedWidth ?? width)
             lastSyncedSidebarWidth = capped
             splitView.setPosition(capped, ofDividerAt: 0)
-            if abs(CGFloat(width) - capped) > 1 {
+            if let payload = plan.correctionPayload {
                 Task { [client] in
-                    await client.codexSetSidebarState(["sidebarWidth": Double(capped)])
+                    await client.codexSetSidebarState(payload)
                 }
             }
         }
@@ -919,13 +924,13 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     private func setCodexSection(_ section: String, collapsed: Bool) {
         Task { [client] in
-            await client.codexSetSidebarState(["section": section, "sectionCollapsed": collapsed])
+            await client.codexSetSidebarState(AppSidebarSyncModel.sectionPayload(section: section, collapsed: collapsed))
         }
     }
 
     private func setCodexWorkspace(_ path: String, collapsed: Bool) {
         Task { [client] in
-            await client.codexSetSidebarState(["groupPath": path, "groupCollapsed": collapsed])
+            await client.codexSetSidebarState(AppSidebarSyncModel.workspacePayload(path: path, collapsed: collapsed))
         }
     }
 
