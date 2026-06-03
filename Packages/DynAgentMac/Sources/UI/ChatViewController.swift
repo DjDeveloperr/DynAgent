@@ -50,9 +50,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var currentAssistant: ChatMessage?
     private var assistantByConversationId: [String: ChatMessage] = [:]
     private let maxRenderedMessages = 240
-    private var codexModelIds: [String] = []
-    private var selectedCodexModel = "gpt-5.5"
-    private var selectedCodexEffort = "high"
+    private var composerSelection = ComposerSelectionState()
     private var attachments: [ComposerAttachment] = []
     private var attachmentRemoveIds: [ObjectIdentifier: UUID] = [:]
     private var lastActivityEmit: [String: TimeInterval] = [:]
@@ -74,22 +72,19 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     var selectedModel: String {
-        if selectedHarness == .codex { return resolvedCodexModel(selectedCodexModel) }
+        if selectedHarness == .codex { return composerSelection.resolvedCodexModel }
         return modelPopup.titleOfSelectedItem ?? "auto"
     }
     var selectedHarness: Harness { Harness(rawValue: harnessPopup.titleOfSelectedItem ?? "") ?? .dynagent }
     var selectedReasoning: String {
-        if selectedHarness == .codex { return selectedCodexEffort }
+        if selectedHarness == .codex { return composerSelection.selectedCodexEffort }
         return reasoningPopup.titleOfSelectedItem ?? "high"
     }
     var onHarnessChanged: ((Harness) -> Void)?
     var onChatMenu: ((NSButton) -> Void)?
-    /// Model to auto-select once a (possibly async) model list arrives.
-    private var desiredModel: String?
-
     /// Sync the composer's harness picker to a conversation, reloading models if it changed.
     func setHarness(_ h: Harness, preferredModel: String? = nil) {
-        if let preferredModel { desiredModel = preferredModel }
+        composerSelection.rememberPreferredModel(preferredModel)
         let changed = selectedHarness != h
         if changed {
             harnessPopup.selectItem(withTitle: h.rawValue)
@@ -109,7 +104,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     /// Apply remembered harness+model as the composer defaults (used for new chats on launch).
     func applyDefaults(harness: Harness, model: String?) {
-        desiredModel = model
+        composerSelection.applyDefaultModel(model)
         if harnessPopup.titleOfSelectedItem != harness.rawValue {
             harnessPopup.selectItem(withTitle: harness.rawValue)
             reasoningPopup.isHidden = harness == .codex
@@ -128,7 +123,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     func setModels(_ ids: [String]) {
         guard !ids.isEmpty else {
-            installModelFallback(for: selectedHarness, preferred: desiredModel)
+            installModelFallback(for: selectedHarness, preferred: composerSelection.desiredModel)
             return
         }
         if selectedHarness == .codex {
@@ -139,15 +134,14 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         modelPopup.addItems(withTitles: ids)
         let icon = NSImage(systemSymbolName: "cpu", accessibilityDescription: nil)
         for i in modelPopup.itemArray.indices { modelPopup.item(at: i)?.image = icon }
-        if let selected = ComposerModel.selectedModelForList(ids: ids, desiredModel: desiredModel) {
+        if let selected = ComposerModel.selectedModelForList(ids: ids, desiredModel: composerSelection.desiredModel) {
             modelPopup.selectItem(withTitle: selected)
         }
         syncComposerMenus()
     }
 
     private func installModelFallback(for harness: Harness, preferred: String?) {
-        let fallback = ComposerModel.fallbackModel(for: harness, preferred: preferred)
-        if harness == .codex { selectedCodexModel = fallback }
+        let fallback = composerSelection.installFallback(for: harness, preferred: preferred)
         modelPopup.removeAllItems()
         modelPopup.addItem(withTitle: fallback)
         modelPopup.selectItem(withTitle: fallback)
@@ -155,26 +149,17 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         syncComposerMenus()
     }
 
-    private func resolvedCodexModel(_ preferred: String?) -> String {
-        ComposerModel.resolvedCodexModel(preferred, available: codexModelIds)
-    }
-
     private func ensureSelectedCodexModelIsSupported() {
-        let resolved = resolvedCodexModel(selectedCodexModel)
-        guard resolved != selectedCodexModel else { return }
-        selectedCodexModel = resolved
-        if !codexModelIds.isEmpty { installCodexModelMenu(codexModelIds) }
+        guard composerSelection.ensureCodexModelIsSupported() else { return }
+        if !composerSelection.codexModelIds.isEmpty { installCodexModelMenu(composerSelection.codexModelIds) }
     }
 
     private func installCodexModelMenu(_ ids: [String]) {
-        codexModelIds = ids
-        let menuModel = ComposerModel.codexMenuModel(
-            ids: ids,
-            desiredModel: desiredModel,
-            currentModel: selectedCodexModel,
-            selectedEffort: selectedCodexEffort
-        )
-        selectedCodexModel = menuModel.selectedModel
+        let menuModel = composerSelection.installCodexMenu(ids: ids)
+        installCodexMenu(menuModel)
+    }
+
+    private func installCodexMenu(_ menuModel: ComposerCodexMenuModel) {
         modelPopup.menu = ComposerChrome.codexNestedMenu(
             model: menuModel,
             target: self,
@@ -269,7 +254,10 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         let reasoningMenu = ComposerMenuChrome(popup: reasoningPopup, minWidth: 70)
         modelMenu.displayProvider = { [weak self] in
             guard let self, self.selectedHarness == .codex else { return nil }
-            return ComposerChrome.codexMenuTitle(model: self.selectedCodexModel, effort: self.selectedCodexEffort)
+            return ComposerChrome.codexMenuTitle(
+                model: self.composerSelection.selectedCodexModel,
+                effort: self.composerSelection.selectedCodexEffort
+            )
         }
         self.harnessMenu = harnessMenu
         self.modelMenu = modelMenu
@@ -492,10 +480,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         saveComposerDraft()
         let wasShowingSameConversation = conversation === c
         conversation = c
-        desiredModel = c.model
+        composerSelection.adoptConversationModel(c.model, harness: c.harness)
         if c.harness == .codex {
-            selectedCodexModel = c.model.nilIfEmpty ?? selectedCodexModel
-            if !codexModelIds.isEmpty { installCodexModelMenu(codexModelIds) }
+            if !composerSelection.codexModelIds.isEmpty { installCodexModelMenu(composerSelection.codexModelIds) }
         } else if modelPopup.itemTitles.contains(c.model) {
             modelPopup.selectItem(withTitle: c.model)
         }
@@ -539,10 +526,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         saveComposerDraft()
         renderSession = TranscriptRenderSessionModel.beginLoadingShell(state: renderSession)
         conversation = c
-        desiredModel = c.model
+        composerSelection.adoptConversationModel(c.model, harness: c.harness)
         if c.harness == .codex {
-            selectedCodexModel = c.model.nilIfEmpty ?? selectedCodexModel
-            if !codexModelIds.isEmpty { installCodexModelMenu(codexModelIds) }
+            if !composerSelection.codexModelIds.isEmpty { installCodexModelMenu(composerSelection.codexModelIds) }
         } else if modelPopup.itemTitles.contains(c.model) {
             modelPopup.selectItem(withTitle: c.model)
         }
@@ -1024,14 +1010,12 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     @objc private func codexModelPicked(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String else { return }
-        selectedCodexModel = id
-        installCodexModelMenu(codexModelIds.isEmpty ? [id] : codexModelIds)
+        installCodexMenu(composerSelection.pickCodexModel(id))
     }
 
     @objc private func codexEffortPicked(_ sender: NSMenuItem) {
         guard let effort = sender.representedObject as? String else { return }
-        selectedCodexEffort = effort
-        installCodexModelMenu(codexModelIds.isEmpty ? [selectedCodexModel] : codexModelIds)
+        installCodexMenu(composerSelection.pickCodexEffort(effort))
     }
 
     private func setStreaming(_ on: Bool, for c: Conversation) {
