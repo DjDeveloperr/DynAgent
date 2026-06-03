@@ -31,6 +31,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         UserDefaults.standard.set(Array(ids), forKey: "archivedCodexIds")
     }
     private lazy var worktreeCoordinator = AppWorktreeCoordinator(client: client)
+    private let layoutMetricsCoordinator = AppLayoutMetricsCoordinator()
 
     private var conversations: [Conversation] = []
     private var draft: Conversation?
@@ -523,12 +524,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             chatMetrics: chat.layoutMetrics,
             workspaceMetrics: workspaceArea.layoutMetrics
         )
-        let payload = WindowLayoutModel.metricsPayload(from: snapshot)
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".dynagent")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) {
-            try? data.write(to: dir.appendingPathComponent("ui-layout-metrics.json"))
-        }
+        layoutMetricsCoordinator.write(snapshot: snapshot)
     }
 
     // MARK: Chats & drafts
