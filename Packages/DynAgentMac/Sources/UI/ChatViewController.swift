@@ -820,9 +820,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                             stats.isHidden = summary.added == 0 && summary.deleted == 0
                             stats.setValues(added: summary.added, deleted: summary.deleted)
                         }
-                        if t.toolName == "edit" || t.toolName == "shell" {
-                            self.scheduleToolRefresh(for: c)
-                        }
+                        self.scheduleToolRefresh(for: c, trigger: .completedTool(name: t.toolName))
                     }
                     self.emitActivity(c, force: true)
                 }
@@ -856,7 +854,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                     if isVisible { self.addFinalFooter(for: fa) }
                 }
                 c.status = .idle; self.finish(c)
-                if isVisible { self.scheduleToolRefresh(for: c) }
+                if isVisible { self.scheduleToolRefresh(for: c, trigger: .streamDone) }
             }
             c.updatedAt = Date().timeIntervalSince1970
             if isVisible { self.scrollToBottom() }
@@ -921,16 +919,19 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         onActivity?(c)
     }
 
-    private func scheduleToolRefresh(for c: Conversation) {
-        guard conversation === c else { return }
-        guard !isActiveConversation(c) else { return }
+    private func scheduleToolRefresh(for c: Conversation, trigger: ChatToolRefreshTrigger) {
+        guard ChatToolRefreshModel.shouldScheduleRefresh(
+            trigger: trigger,
+            isVisible: conversation === c,
+            isActive: isActiveConversation(c)
+        ) else { return }
         pendingToolRefreshByConversationId[c.id]?.cancel()
         let item = DispatchWorkItem { [weak self, weak c] in
             guard let self, let c, self.conversation === c else { return }
             self.show(c)
         }
         pendingToolRefreshByConversationId[c.id] = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + ChatToolRefreshModel.delay, execute: item)
     }
 
     /// Re-render the active assistant message as markdown once its text is final.
