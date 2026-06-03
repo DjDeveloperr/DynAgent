@@ -20,6 +20,11 @@ let package = Package(
             name: "DynAgentUI",
             dependencies: [.product(name: "SwiftTerm", package: "SwiftTerm")],
             path: "Sources/UI"
+        ),
+        .testTarget(
+            name: "DynAgentUITests",
+            dependencies: ["DynAgentUI"],
+            path: "Tests/DynAgentUITests"
         )
     ]
 )
