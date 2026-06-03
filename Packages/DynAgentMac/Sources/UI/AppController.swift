@@ -653,7 +653,8 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             "chatViewHeight": Double(chat.view.frame.height),
             "workspaceWidth": Double(workspaceArea.view.frame.width),
             "workspaceHeight": Double(workspaceArea.view.frame.height),
-            "expectedWorkspaceWidth": Double(expectedWorkspaceWidth()),
+            "mainSplitItemWidth": Double(mainSplitItemWidth()),
+            "workspaceWidthSlack": Double(mainSplitItemWidth() - workspaceArea.view.frame.width),
         ]
         payload["chat"] = chat.layoutMetrics
         payload["workspace"] = workspaceArea.layoutMetrics
@@ -1228,13 +1229,9 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         UserDefaults.standard.set(NSStringFromRect(frame), forKey: mainWindowFrameKey)
     }
 
-    private func expectedWorkspaceWidth() -> CGFloat {
-        guard let splitView else { return -1 }
-        let dividerCount = max(0, splitView.subviews.count - 1)
-        let dividerWidth = CGFloat(dividerCount) * splitView.dividerThickness
-        let sidebarWidth = sidebarItem.isCollapsed ? 0 : (splitView.subviews.first?.frame.width ?? 0)
-        let gitWidth = gitItem.isCollapsed || splitView.subviews.count < 3 ? 0 : splitView.subviews[2].frame.width
-        return max(0, splitView.bounds.width - sidebarWidth - gitWidth - dividerWidth)
+    private func mainSplitItemWidth() -> CGFloat {
+        guard let splitView, splitView.subviews.count >= 2 else { return -1 }
+        return splitView.subviews[1].frame.width
     }
 
     func windowDidResize(_ notification: Notification) {
