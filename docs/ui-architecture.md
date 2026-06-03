@@ -12,6 +12,7 @@
 - `TranscriptTurnModel.swift`: tested turn-planning model for prompt/steer boundaries, active-turn expansion, final-response collapse, timestamps, and large-thread trimming.
 - `SidebarModel.swift`: tested pure grouping model for pinned chats, projectless chats, project workspaces, archived filtering, and recency ordering.
 - `SidebarRowModel.swift`: tested pure row-presentation model for short relative timestamps, workspace/chat tooltip content, worktree indicators, and working/pinned/unread state.
+- `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
 - `ComposerModel.swift`: tested composer behavior model for model/reasoning labels, draft keys, attachment message text, context state, and send/stop state.
 - `WindowHosting.swift`: full-window host and split-view pinning used by the hot-reloadable macOS UI.
 
