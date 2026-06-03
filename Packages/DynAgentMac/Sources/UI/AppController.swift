@@ -408,7 +408,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     private func splitViewDidResizeSubviews(_ notification: Notification) {
         let plan = AppSidebarSyncModel.resizeSyncPlan(
-            observedWidth: splitView?.subviews.first.map { Double($0.frame.width) },
+            observedWidth: Double(WindowLayoutChrome.splitItemWidth(containing: sidebar.view)),
             lastSyncedWidth: Double(lastSyncedSidebarWidth),
             minimumWidth: Double(SidebarLayoutModel.minimumWidth),
             maximumWidth: Double(SidebarLayoutModel.maximumWidth)
@@ -430,12 +430,11 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func scheduleUnexpectedMainWindowRestoreIfNeeded(reason: String) {
-        guard case .restore(let frame) = MainWindowFrameModel.resizeDecision(
+        guard MainWindowFrameModel.shouldScheduleUnexpectedRestore(
             current: window.frame,
-            state: mainWindowFrameState
+            state: mainWindowFrameState,
+            pending: pendingWindowFrameRestore
         ) else { return }
-        applyRestoredMainWindowFrame(frame, reason: reason)
-        guard !pendingWindowFrameRestore else { return }
         pendingWindowFrameRestore = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             guard let self else { return }
@@ -931,8 +930,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func mainSplitItemWidth() -> CGFloat {
-        guard let splitView, splitView.subviews.count >= 2 else { return -1 }
-        return splitView.subviews[1].frame.width
+        WindowLayoutChrome.splitItemWidth(containing: workspaceArea.view)
     }
 
     func windowDidResize(_ notification: Notification) {

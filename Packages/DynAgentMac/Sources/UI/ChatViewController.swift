@@ -894,11 +894,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         TranscriptStackChrome.appendFullWidthRow(container, to: transcript, customSpacingAfter: built.customSpacingAfter)
         // Keep the "Thinking" shimmer pinned to the bottom while streaming.
         if !renderSession.bulkLoading { pinShimmerToBottom() }
-        // Smooth fade-in for live (streamed) rows.
-        if !renderSession.bulkLoading {
-            container.alphaValue = 0
-            NSAnimationContext.runAnimationGroup { ctx in ctx.duration = 0.22; container.animator().alphaValue = 1 }
-        }
         return container
     }
 

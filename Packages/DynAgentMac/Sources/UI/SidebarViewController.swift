@@ -41,7 +41,6 @@ final class SidebarViewController: NSViewController {
     override func loadView() {
         let scroll = SidebarScrollView()
         scroll.hasVerticalScroller = true
-        scroll.drawsBackground = false
         scroll.onScroll = { [weak self] in self?.clearHoverState() }
         let doc = FlippedView()
         doc.translatesAutoresizingMaskIntoConstraints = false
@@ -58,7 +57,7 @@ final class SidebarViewController: NSViewController {
             list.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: 8),
             list.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -8),
         ])
-        view = scroll
+        view = SidebarChrome.makeNativeRoot(containing: scroll)
     }
 
     func reload(selecting: Conversation? = nil) {

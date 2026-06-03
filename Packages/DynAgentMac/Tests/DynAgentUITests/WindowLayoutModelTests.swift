@@ -121,7 +121,7 @@ final class WindowLayoutModelTests: XCTestCase {
         XCTAssertEqual(plan.sidebarWidth, 260)
         XCTAssertEqual(plan.gitWidth, 0)
         XCTAssertEqual(plan.firstDividerPosition, 260)
-        XCTAssertNil(plan.secondDividerPosition)
+        XCTAssertEqual(plan.secondDividerPosition, 1452)
     }
 
     func testSplitPlanDoesNotPreserveMaxSidebarWhenGitIsCollapsed() {
@@ -140,7 +140,7 @@ final class WindowLayoutModelTests: XCTestCase {
 
         XCTAssertEqual(plan.sidebarWidth, 260)
         XCTAssertEqual(plan.firstDividerPosition, 260)
-        XCTAssertNil(plan.secondDividerPosition)
+        XCTAssertEqual(plan.secondDividerPosition, 1472)
     }
 
     func testSplitPlanClampsSidebarAndGitWidths() {

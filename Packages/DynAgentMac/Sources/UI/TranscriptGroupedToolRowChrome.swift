@@ -18,7 +18,11 @@ enum TranscriptGroupedToolRowChrome {
         }
         let title = TranscriptToolFormatter.shellGroupTitle(messages.map(TranscriptToolFormatter.shellSummary))
         let group = ShellGroupView(title: title, items: items)
-        let container = TranscriptStackChrome.appendFullWidthContainer(containing: group, to: transcript)
+        let container = TranscriptStackChrome.appendFullWidthContainer(
+            containing: group,
+            to: transcript,
+            customSpacingAfter: TranscriptStackChrome.toolSpacingAfter
+        )
         return TranscriptGroupedToolRow(container: container, content: group)
     }
 
@@ -30,7 +34,11 @@ enum TranscriptGroupedToolRowChrome {
     ) -> TranscriptGroupedToolRow {
         let group = EditGroupView(changes: changes)
         group.onOpenChange = onOpenChange
-        let container = TranscriptStackChrome.appendFullWidthContainer(containing: group, to: transcript)
+        let container = TranscriptStackChrome.appendFullWidthContainer(
+            containing: group,
+            to: transcript,
+            customSpacingAfter: TranscriptStackChrome.toolSpacingAfter
+        )
         return TranscriptGroupedToolRow(container: container, content: group)
     }
 }

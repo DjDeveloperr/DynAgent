@@ -19,7 +19,7 @@ enum MainWindowFrameModel {
             savedFrame,
             minSize: minSize,
             visibleFrame: visibleFrame,
-            minimumRestoredWidth: wide.width * 0.92
+            minimumRestoredWidth: max(wide.width * 0.98, wide.width - 32)
         ) ?? wide
     }
 
@@ -50,5 +50,11 @@ enum MainWindowFrameModel {
             return .restore(state.appliedFrame)
         }
         return .accept(current)
+    }
+
+    static func shouldScheduleUnexpectedRestore(current: CGRect, state: MainWindowFrameState, pending: Bool) -> Bool {
+        guard !pending else { return false }
+        guard case .restore = resizeDecision(current: current, state: state) else { return false }
+        return true
     }
 }

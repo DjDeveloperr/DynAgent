@@ -49,11 +49,11 @@ enum WindowLayoutChrome {
         guard let splitView, splitView.subviews.count >= 2 else { return nil }
         let plan = WindowLayoutModel.splitPlan(WindowSplitConfiguration(
             totalWidth: splitView.bounds.width,
-            sidebarCurrentWidth: splitView.subviews.first?.frame.width ?? 0,
+            sidebarCurrentWidth: splitItemWidth(containing: sidebarItem.viewController.view),
             sidebarMinimumWidth: sidebarItem.minimumThickness,
             sidebarMaximumWidth: sidebarItem.maximumThickness,
             sidebarCollapsed: sidebarItem.isCollapsed,
-            gitCurrentWidth: splitView.subviews.count >= 3 ? splitView.subviews[2].frame.width : 0,
+            gitCurrentWidth: splitItemWidth(containing: gitItem.viewController.view),
             gitMinimumWidth: gitItem.minimumThickness,
             gitMaximumWidth: gitItem.maximumThickness,
             gitCollapsed: gitItem.isCollapsed,
@@ -79,6 +79,10 @@ enum WindowLayoutChrome {
                 height: Double(view.frame.height)
             )
         }
+    }
+
+    static func splitItemWidth(containing view: NSView) -> CGFloat {
+        view.superview?.frame.width ?? view.frame.width
     }
 
     private static func apply(_ plan: WindowSplitPlan, to splitView: NSSplitView) {

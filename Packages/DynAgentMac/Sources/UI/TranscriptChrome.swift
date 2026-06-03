@@ -204,6 +204,8 @@ final class WorkDivider: NSView {
 }
 
 enum TranscriptStackChrome {
+    static let toolSpacingAfter: CGFloat = 2
+
     static func makeFullWidthContainer(containing content: NSView) -> NSView {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
@@ -435,7 +437,7 @@ enum TranscriptRowChrome {
             bubble.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             bubble.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             bubble.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 110),
-            bubble.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: 0.72),
+            bubble.widthAnchor.constraint(lessThanOrEqualTo: container.widthAnchor, multiplier: 0.72),
         ])
     }
 

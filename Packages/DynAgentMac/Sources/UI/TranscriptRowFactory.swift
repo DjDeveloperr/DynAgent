@@ -45,7 +45,11 @@ enum TranscriptRowFactory {
                     pending: message.toolDetail == "pending",
                     in: container
                 )
-                return TranscriptRowBuildResult(container: container, label: content, customSpacingAfter: 6)
+                return TranscriptRowBuildResult(
+                    container: container,
+                    label: content,
+                    customSpacingAfter: TranscriptStackChrome.toolSpacingAfter
+                )
             }
             if message.toolName == "shell" {
                 let summary = TranscriptToolFormatter.shellSummary(message)
@@ -55,7 +59,10 @@ enum TranscriptRowFactory {
                     done: message.toolDone
                 )
                 install(row, in: container)
-                return TranscriptRowBuildResult(container: container, customSpacingAfter: 6)
+                return TranscriptRowBuildResult(
+                    container: container,
+                    customSpacingAfter: TranscriptStackChrome.toolSpacingAfter
+                )
             }
             content.isSelectable = false
             content.setRich(TranscriptToolFormatter.toolString(message))
@@ -67,7 +74,7 @@ enum TranscriptRowFactory {
                 label: content,
                 clickableToolView: row,
                 editStats: inline.editStats,
-                customSpacingAfter: 6
+                customSpacingAfter: TranscriptStackChrome.toolSpacingAfter
             )
         }
     }

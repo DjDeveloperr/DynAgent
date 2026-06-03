@@ -33,7 +33,7 @@ final class TranscriptRowFactoryTests: XCTestCase {
         XCTAssertNil(row.label)
         XCTAssertNil(row.clickableToolView)
         XCTAssertNil(row.editStats)
-        XCTAssertEqual(row.customSpacingAfter, 6)
+        XCTAssertEqual(row.customSpacingAfter, TranscriptStackChrome.toolSpacingAfter)
         XCTAssertFalse(findSubviews(of: ShellToolView.self, in: row.container).isEmpty)
     }
 
@@ -52,7 +52,7 @@ final class TranscriptRowFactoryTests: XCTestCase {
         XCTAssertFalse(label.isSelectable)
         XCTAssertNotNil(row.clickableToolView)
         XCTAssertNotNil(row.editStats)
-        XCTAssertEqual(row.customSpacingAfter, 6)
+        XCTAssertEqual(row.customSpacingAfter, TranscriptStackChrome.toolSpacingAfter)
     }
 
     func testLargeThreadNoticeDelegatesToChrome() throws {

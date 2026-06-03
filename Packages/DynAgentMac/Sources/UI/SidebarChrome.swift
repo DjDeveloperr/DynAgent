@@ -1,5 +1,27 @@
 import AppKit
 
+enum SidebarChrome {
+    static func makeNativeRoot(containing scroll: NSScrollView) -> NSVisualEffectView {
+        let root = NSVisualEffectView()
+        root.material = .sidebar
+        root.blendingMode = .behindWindow
+        root.state = .active
+        root.translatesAutoresizingMaskIntoConstraints = false
+
+        scroll.drawsBackground = false
+        scroll.borderType = .noBorder
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(scroll)
+        NSLayoutConstraint.activate([
+            scroll.topAnchor.constraint(equalTo: root.topAnchor),
+            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+        ])
+        return root
+    }
+}
+
 /// A fully custom sidebar row with explicit clear/hover/selected states and right-click menu.
 /// Avoids NSOutlineView's selection styling quirks.
 final class SidebarRow: NSView {

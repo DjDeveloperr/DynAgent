@@ -14,6 +14,7 @@ final class AppCodexHistoryRefreshCoordinator {
     typealias HistoryLoader = (_ threadId: String) async -> [AgentClient.HistMsg]?
 
     private let loadHistory: HistoryLoader
+    private let inFlightQueue = DispatchQueue(label: "dev.dj.DynAgent.codex-history-refresh")
     private var inFlight = Set<String>()
 
     init(loadHistory: @escaping HistoryLoader) {
@@ -30,13 +31,15 @@ final class AppCodexHistoryRefreshCoordinator {
         for conversation: Conversation,
         force: Bool = false
     ) -> AppCodexHistoryRefreshRequest? {
-        guard let threadId = AppCodexHistoryModel.refreshThreadId(
-            for: conversation,
-            force: force,
-            inFlight: inFlight
-        ) else { return nil }
-        inFlight.insert(threadId)
-        return AppCodexHistoryRefreshRequest(threadId: threadId)
+        inFlightQueue.sync {
+            guard let threadId = AppCodexHistoryModel.refreshThreadId(
+                for: conversation,
+                force: force,
+                inFlight: inFlight
+            ) else { return nil }
+            inFlight.insert(threadId)
+            return AppCodexHistoryRefreshRequest(threadId: threadId)
+        }
     }
 
     func finishRefresh(
@@ -44,7 +47,9 @@ final class AppCodexHistoryRefreshCoordinator {
         applyingTo conversation: Conversation
     ) async -> AppCodexHistoryRefreshResult? {
         defer {
-            inFlight.remove(request.threadId)
+            _ = inFlightQueue.sync {
+                inFlight.remove(request.threadId)
+            }
             conversation.needsLoad = false
         }
         guard let history = await loadHistory(request.threadId) else { return nil }
@@ -61,6 +66,8 @@ final class AppCodexHistoryRefreshCoordinator {
     }
 
     func isRefreshing(threadId: String) -> Bool {
-        inFlight.contains(threadId)
+        inFlightQueue.sync {
+            inFlight.contains(threadId)
+        }
     }
 }

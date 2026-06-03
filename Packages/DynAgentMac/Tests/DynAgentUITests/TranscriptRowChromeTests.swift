@@ -42,6 +42,9 @@ final class TranscriptRowChromeTests: XCTestCase {
         let completed = NSView()
         TranscriptRowChrome.installSteerBubble(text: "adjust this", pending: false, in: completed)
         XCTAssertTrue(findSubviews(of: NSTextField.self, in: completed).contains { $0.stringValue == "Steered conversation" })
+        XCTAssertFalse(completed.constraints.contains {
+            $0.firstAttribute == .width && $0.relation == .equal
+        })
     }
 
     func testSteerNoticeCombinesStatusAndDetail() throws {
@@ -153,10 +156,10 @@ final class TranscriptRowChromeTests: XCTestCase {
         let row = NSView()
         row.translatesAutoresizingMaskIntoConstraints = false
 
-        let constraint = TranscriptStackChrome.appendFullWidthRow(row, to: transcript, customSpacingAfter: 6)
+        let constraint = TranscriptStackChrome.appendFullWidthRow(row, to: transcript, customSpacingAfter: TranscriptStackChrome.toolSpacingAfter)
 
         XCTAssertTrue(transcript.arrangedSubviews.contains(row))
-        XCTAssertEqual(transcript.customSpacing(after: row), 6)
+        XCTAssertEqual(transcript.customSpacing(after: row), TranscriptStackChrome.toolSpacingAfter)
         XCTAssertEqual(constraint.firstAnchor, row.widthAnchor)
         XCTAssertEqual(constraint.secondAnchor, transcript.widthAnchor)
         XCTAssertTrue(constraint.isActive)

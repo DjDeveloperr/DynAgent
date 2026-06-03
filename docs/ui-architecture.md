@@ -95,7 +95,7 @@
 - `AppSplitLayoutChrome.swift`: tested AppKit builder for the top-level sidebar/main/git split, split item sizing priorities, collapsed git inspector default, and autoresizing installation.
 - `AppHotStateModel.swift`: tested hot-reload state serializer/restorer for conversations, active Codex thread status, workspace refs, model cache, and selection.
 - `AppHotStateCoordinator.swift`: tested hot-reload dictionary bridge for restore, immediate saves, debounced saves, and pending-save cancellation.
-- `MainWindowFrameModel.swift`: tested main-window frame state model for initial saved-frame restoration, requested/applied frame tracking, live-resize state, and unexpected-shrink recovery.
+- `MainWindowFrameModel.swift`: tested main-window frame state model for initial saved-frame restoration, requested/applied frame tracking, live-resize state, delayed unexpected-shrink recovery, and pending-restore suppression.
 - `ChatLayoutModel.swift`: shared chat-column constants, readable-width cap, and inspector-aware split sizing.
 - `ChatViewportLayoutModel.swift`: tested chat viewport layout policy for scroll frame pinning, document-width correction, and composer bottom inset updates.
 - `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, root content bounds, wide fallback sizing, split divider planning, metrics payloads, and post-load width invariants.

@@ -27,7 +27,7 @@ enum AppSplitLayoutChrome {
         root.splitView.dividerStyle = .thin
         root.splitView.autosaveName = nil
 
-        let sidebarItem = NSSplitViewItem(viewController: sidebar)
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
         sidebarItem.minimumThickness = SidebarLayoutModel.minimumWidth
         sidebarItem.maximumThickness = SidebarLayoutModel.maximumWidth
         sidebarItem.canCollapse = true

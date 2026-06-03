@@ -14,6 +14,7 @@ final class TranscriptGroupedToolRowChromeTests: XCTestCase {
         let row = TranscriptGroupedToolRowChrome.appendShellGroup(messages: [first, second], to: transcript)
 
         XCTAssertTrue(transcript.arrangedSubviews.contains(row.container))
+        XCTAssertEqual(transcript.customSpacing(after: row.container), TranscriptStackChrome.toolSpacingAfter)
         XCTAssertTrue(row.content is ShellGroupView)
         XCTAssertEqual(findSubviews(of: ShellToolView.self, in: row.container).count, 2)
         let labels = findSubviews(of: NSTextField.self, in: row.container).map(\.stringValue)
@@ -32,6 +33,7 @@ final class TranscriptGroupedToolRowChromeTests: XCTestCase {
         }
 
         XCTAssertTrue(transcript.arrangedSubviews.contains(row.container))
+        XCTAssertEqual(transcript.customSpacing(after: row.container), TranscriptStackChrome.toolSpacingAfter)
         XCTAssertTrue(row.content is EditGroupView)
         let headerLabels = findSubviews(of: NSTextField.self, in: row.container).map(\.stringValue)
         XCTAssertTrue(headerLabels.contains("Edited 1 file"))

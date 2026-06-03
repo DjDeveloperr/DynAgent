@@ -27,6 +27,7 @@ final class AppSplitLayoutChromeTests: XCTestCase {
 
         XCTAssertEqual(bundle.sidebarItem.minimumThickness, SidebarLayoutModel.minimumWidth)
         XCTAssertEqual(bundle.sidebarItem.maximumThickness, SidebarLayoutModel.maximumWidth)
+        XCTAssertEqual(bundle.sidebarItem.behavior, .sidebar)
         XCTAssertTrue(bundle.sidebarItem.canCollapse)
         XCTAssertEqual(bundle.sidebarItem.holdingPriority, AppSplitLayoutChrome.sidebarHoldingPriority)
         XCTAssertEqual(bundle.sidebarItem.preferredThicknessFraction, 0)

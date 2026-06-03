@@ -1,7 +1,7 @@
 import AppKit
 
 enum TranscriptViewportChrome {
-    static let transcriptSpacing: CGFloat = 14
+    static let transcriptSpacing: CGFloat = 12
     static let initialBottomInset: CGFloat = 96
     static let topPadding: CGFloat = 20
     static let bottomPadding: CGFloat = 12

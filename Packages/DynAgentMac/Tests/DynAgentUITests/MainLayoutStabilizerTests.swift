@@ -26,9 +26,9 @@ final class MainLayoutStabilizerTests: XCTestCase {
         XCTAssertEqual(fixture.root.view.frame.width, contentWidth, accuracy: 0.5)
         XCTAssertEqual(fixture.root.splitView.frame.width, contentWidth, accuracy: 0.5)
         XCTAssertEqual(try XCTUnwrap(plan.firstDividerPosition), 260, accuracy: 0.5)
-        XCTAssertNil(plan.secondDividerPosition)
+        XCTAssertEqual(try XCTUnwrap(plan.secondDividerPosition), 1_472, accuracy: 0.5)
 
-        let mainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
+        let mainFrame = try XCTUnwrap(splitFrame(containing: fixture.workspace.view))
         XCTAssertEqual(fixture.workspace.view.frame.width, mainFrame.width, accuracy: 0.5)
         XCTAssertEqual(fixture.chat.frame.width, mainFrame.width, accuracy: 0.5)
         XCTAssertGreaterThan(mainFrame.width, 1_100)
@@ -58,8 +58,8 @@ final class MainLayoutStabilizerTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(plan.firstDividerPosition), 260, accuracy: 0.5)
         XCTAssertEqual(try XCTUnwrap(plan.secondDividerPosition), 1_172, accuracy: 0.5)
 
-        let mainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
-        let gitFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 2]?.frame)
+        let mainFrame = try XCTUnwrap(splitFrame(containing: fixture.workspace.view))
+        let gitFrame = try XCTUnwrap(splitFrame(containing: fixture.gitItem.viewController.view))
         XCTAssertEqual(mainFrame.width, 911, accuracy: 2)
         XCTAssertEqual(gitFrame.width, 299, accuracy: 2)
         XCTAssertEqual(fixture.workspace.view.frame.width, mainFrame.width, accuracy: 0.5)
@@ -81,7 +81,7 @@ final class MainLayoutStabilizerTests: XCTestCase {
             preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
         ))
 
-        let loadedMainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
+        let loadedMainFrame = try XCTUnwrap(splitFrame(containing: fixture.workspace.view))
         XCTAssertGreaterThan(loadedMainFrame.width, 1_100)
         XCTAssertEqual(fixture.workspace.view.frame.width, loadedMainFrame.width, accuracy: 0.5)
         XCTAssertEqual(fixture.chat.frame.width, loadedMainFrame.width, accuracy: 0.5)
@@ -98,8 +98,8 @@ final class MainLayoutStabilizerTests: XCTestCase {
             preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
         ))
 
-        let mainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
-        let gitFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 2]?.frame)
+        let mainFrame = try XCTUnwrap(splitFrame(containing: fixture.workspace.view))
+        let gitFrame = try XCTUnwrap(splitFrame(containing: fixture.gitItem.viewController.view))
         XCTAssertEqual(try XCTUnwrap(expandedPlan.firstDividerPosition), 260, accuracy: 0.5)
         XCTAssertEqual(try XCTUnwrap(expandedPlan.secondDividerPosition), 1_172, accuracy: 0.5)
         XCTAssertEqual(mainFrame.width, 911, accuracy: 2)
@@ -138,9 +138,9 @@ final class MainLayoutStabilizerTests: XCTestCase {
             preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
         ))
 
-        let mainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
+        let mainFrame = try XCTUnwrap(splitFrame(containing: fixture.workspace.view))
         XCTAssertNotNil(plan.firstDividerPosition)
-        XCTAssertNil(plan.secondDividerPosition)
+        XCTAssertNotNil(plan.secondDividerPosition)
         XCTAssertGreaterThan(mainFrame.width, 1_100)
         XCTAssertEqual(fixture.workspace.view.frame.width, mainFrame.width, accuracy: 0.5)
         XCTAssertEqual(fixture.chat.frame.width, mainFrame.width, accuracy: 0.5)
@@ -165,8 +165,8 @@ final class MainLayoutStabilizerTests: XCTestCase {
             preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
         ))
 
-        let shellMainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
-        XCTAssertGreaterThan(shellMainFrame.width, 1_100)
+        let shellMainFrame = try XCTUnwrap(splitFrame(containing: fixture.workspace.view))
+        XCTAssertGreaterThanOrEqual(shellMainFrame.width, ChatLayoutModel.preferredMainWidthWithInspector)
         XCTAssertEqual(fixture.chatController.view.frame.width, shellMainFrame.width, accuracy: 0.5)
 
         conversation.needsLoad = false
@@ -190,9 +190,9 @@ final class MainLayoutStabilizerTests: XCTestCase {
             preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
         ))
 
-        let loadedMainFrame = try XCTUnwrap(fixture.root.splitView.subviews[safe: 1]?.frame)
+        let loadedMainFrame = try XCTUnwrap(splitFrame(containing: fixture.workspace.view))
         let chatMetrics = fixture.chatController.layoutMetrics
-        XCTAssertGreaterThan(loadedMainFrame.width, 1_100)
+        XCTAssertGreaterThanOrEqual(loadedMainFrame.width, ChatLayoutModel.preferredMainWidthWithInspector)
         XCTAssertEqual(fixture.workspace.view.frame.width, loadedMainFrame.width, accuracy: 0.5)
         XCTAssertEqual(fixture.chatController.view.frame.width, loadedMainFrame.width, accuracy: 0.5)
         XCTAssertEqual(try XCTUnwrap(chatMetrics["chatViewWidth"] as? Double), Double(loadedMainFrame.width), accuracy: 0.5)
@@ -318,10 +318,8 @@ final class MainLayoutStabilizerTests: XCTestCase {
         let sidebarItem: NSSplitViewItem
         let gitItem: NSSplitViewItem
     }
-}
 
-private extension Array {
-    subscript(safe index: Index) -> Element? {
-        indices.contains(index) ? self[index] : nil
+    private func splitFrame(containing view: NSView) -> NSRect? {
+        view.superview?.frame ?? view.frame
     }
 }

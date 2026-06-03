@@ -66,4 +66,13 @@ final class WindowLayoutChromeTests: XCTestCase {
         XCTAssertEqual(metrics[1].width, 32)
         XCTAssertEqual(metrics[1].height, 28)
     }
+
+    func testSplitItemWidthUsesContainingWrapperInsteadOfSubviewOrder() {
+        let wrapper = NSView(frame: NSRect(x: 268, y: 0, width: 1_204, height: 798))
+        let workspace = NSView(frame: wrapper.bounds)
+        wrapper.addSubview(workspace)
+
+        XCTAssertEqual(WindowLayoutChrome.splitItemWidth(containing: workspace), 1_204, accuracy: 0.5)
+        XCTAssertEqual(WindowLayoutChrome.splitItemWidth(containing: NSView(frame: NSRect(x: 0, y: 0, width: 900, height: 600))), 900, accuracy: 0.5)
+    }
 }

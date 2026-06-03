@@ -146,7 +146,7 @@ enum WindowLayoutModel {
                 sidebarWidth: sidebarWidth,
                 gitWidth: 0,
                 firstDividerPosition: config.sidebarCollapsed ? nil : sidebarWidth,
-                secondDividerPosition: nil
+                secondDividerPosition: config.totalWidth
             )
         }
 
