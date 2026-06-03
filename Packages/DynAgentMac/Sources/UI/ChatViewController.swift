@@ -775,32 +775,31 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func startTurn(_ text: String, on c: Conversation, appendUser: Bool = true) {
         if selectedHarness == .codex { ensureSelectedCodexModelIsSupported() }
-        // Lock the conversation to the selected harness/model and remember as defaults.
-        c.harness = selectedHarness
-        c.model = selectedModel
         Store.saveLast(harness: selectedHarness, model: selectedModel)
         let startedAt = Date().timeIntervalSince1970
-        if appendUser { turnStart = Date(timeIntervalSince1970: startedAt) }
-
-        if appendUser {
-            let user = ChatStreamMutationModel.appendUserPrompt(text, to: c, startedAt: startedAt)
+        let start = ChatStreamStartModel.prepareTurn(
+            text: text,
+            conversation: c,
+            harness: selectedHarness,
+            model: selectedModel,
+            appendUser: appendUser,
+            now: startedAt
+        )
+        if appendUser { turnStart = Date(timeIntervalSince1970: start.startedAt) }
+        if let user = start.userMessage {
             addRow(for: user)
         }
         if conversation === c { syncComposerMenus() }
         updateEmptyState()
 
-        let isFirstMessage = c.messages.filter { $0.role == .user }.count == 1
-
         setStreaming(true, for: c)
-        c.status = .thinking
-        c.updatedAt = Date().timeIntervalSince1970
         if conversation === c {
             _ = ensureLiveWorkDivider(for: c)
             showThinking()
         }
         emitActivity(c, force: true)
 
-        if isFirstMessage { generateTitle(for: c, prompt: text) }
+        if start.shouldGenerateTitle { generateTitle(for: c, prompt: text) }
 
         assistantByConversationId[c.id] = nil
         if conversation === c { currentAssistant = nil }
