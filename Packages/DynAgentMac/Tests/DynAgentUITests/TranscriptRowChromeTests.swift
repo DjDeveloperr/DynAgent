@@ -147,6 +147,42 @@ final class TranscriptRowChromeTests: XCTestCase {
         })
     }
 
+    func testTranscriptStackAppendAddsFullWidthRowAndCustomSpacing() {
+        let transcript = NSStackView()
+        transcript.translatesAutoresizingMaskIntoConstraints = false
+        let row = NSView()
+        row.translatesAutoresizingMaskIntoConstraints = false
+
+        let constraint = TranscriptStackChrome.appendFullWidthRow(row, to: transcript, customSpacingAfter: 6)
+
+        XCTAssertTrue(transcript.arrangedSubviews.contains(row))
+        XCTAssertEqual(transcript.customSpacing(after: row), 6)
+        XCTAssertEqual(constraint.firstAnchor, row.widthAnchor)
+        XCTAssertEqual(constraint.secondAnchor, transcript.widthAnchor)
+        XCTAssertTrue(constraint.isActive)
+    }
+
+    func testTranscriptStackAppendContainerAddsPinnedWrappedContent() throws {
+        let transcript = NSStackView()
+        transcript.translatesAutoresizingMaskIntoConstraints = false
+        let content = NSTextField(labelWithString: "tool group")
+        content.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = TranscriptStackChrome.appendFullWidthContainer(containing: content, to: transcript)
+
+        XCTAssertTrue(transcript.arrangedSubviews.contains(container))
+        XCTAssertTrue(content.superview === container)
+        XCTAssertTrue(container.constraints.contains {
+            $0.firstAnchor == content.leadingAnchor && $0.secondAnchor == container.leadingAnchor
+        })
+        XCTAssertTrue(container.constraints.contains {
+            $0.firstAnchor == content.trailingAnchor && $0.secondAnchor == container.trailingAnchor
+        })
+        XCTAssertTrue(transcript.constraints.contains {
+            $0.firstAnchor == container.widthAnchor && $0.secondAnchor == transcript.widthAnchor
+        })
+    }
+
     private func findSubviews<T: NSView>(of type: T.Type, in root: NSView) -> [T] {
         var result: [T] = []
         if let match = root as? T {

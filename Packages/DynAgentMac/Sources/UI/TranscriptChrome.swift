@@ -223,6 +223,30 @@ enum TranscriptStackChrome {
         constraint.isActive = true
         return constraint
     }
+
+    @discardableResult
+    static func appendFullWidthRow(
+        _ row: NSView,
+        to transcript: NSStackView,
+        customSpacingAfter: CGFloat? = nil
+    ) -> NSLayoutConstraint {
+        transcript.addArrangedSubview(row)
+        if let customSpacingAfter {
+            transcript.setCustomSpacing(customSpacingAfter, after: row)
+        }
+        return pinRowToTranscriptWidth(row, transcript: transcript)
+    }
+
+    @discardableResult
+    static func appendFullWidthContainer(
+        containing content: NSView,
+        to transcript: NSStackView,
+        customSpacingAfter: CGFloat? = nil
+    ) -> NSView {
+        let container = makeFullWidthContainer(containing: content)
+        appendFullWidthRow(container, to: transcript, customSpacingAfter: customSpacingAfter)
+        return container
+    }
 }
 
 enum TranscriptLoadingShellChrome {

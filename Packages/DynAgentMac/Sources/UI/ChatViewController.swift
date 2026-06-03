@@ -540,8 +540,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
         transcript.arrangedSubviews.forEach { $0.removeFromSuperview() }
         let container = TranscriptLoadingShellChrome.makeRow(text: ChatPresentationModel.loadingText(needsLoad: c.needsLoad))
-        transcript.addArrangedSubview(container)
-        TranscriptLoadingShellChrome.pinRowToTranscriptWidth(container, transcript: transcript)
+        TranscriptStackChrome.appendFullWidthRow(container, to: transcript)
         emptyStack.isHidden = true
         cardBottomConstraint?.isActive = true
         cardCenterYConstraint?.isActive = false
@@ -630,9 +629,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         }
         let title = TranscriptToolFormatter.shellGroupTitle(messages.map(TranscriptToolFormatter.shellSummary))
         let group = ShellGroupView(title: title, items: items)
-        let container = TranscriptStackChrome.makeFullWidthContainer(containing: group)
-        transcript.addArrangedSubview(container)
-        TranscriptStackChrome.pinRowToTranscriptWidth(container, transcript: transcript)
+        let container = TranscriptStackChrome.appendFullWidthContainer(containing: group, to: transcript)
         if !renderSession.bulkLoading { pinShimmerToBottom() }
         return container
     }
@@ -644,9 +641,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             guard let self else { return }
             self.toolPopoverCoordinator.presentEditChanges([change], from: anchor)
         }
-        let container = TranscriptStackChrome.makeFullWidthContainer(containing: group)
-        transcript.addArrangedSubview(container)
-        TranscriptStackChrome.pinRowToTranscriptWidth(container, transcript: transcript)
+        let container = TranscriptStackChrome.appendFullWidthContainer(containing: group, to: transcript)
         if !renderSession.bulkLoading { pinShimmerToBottom() }
         return container
     }
@@ -654,8 +649,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     @discardableResult
     private func addWorkDivider(duration: Double?, collapsed: Bool = true, active: Bool = false) -> WorkDivider {
         let divider = WorkDivider(duration: duration, collapsed: collapsed, active: active)
-        transcript.addArrangedSubview(divider)
-        TranscriptStackChrome.pinRowToTranscriptWidth(divider, transcript: transcript)
+        TranscriptStackChrome.appendFullWidthRow(divider, to: transcript)
         pinShimmerToBottom()
         return divider
     }
@@ -687,8 +681,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         let copy = footer.copyButton
         transcriptRegistry.registerCopyText(m.text, for: copy)
         let container = footer.view
-        transcript.addArrangedSubview(container)
-        TranscriptStackChrome.pinRowToTranscriptWidth(container, transcript: transcript)
+        TranscriptStackChrome.appendFullWidthRow(container, to: transcript)
     }
 
     @objc private func copyFinal(_ sender: NSButton) {
@@ -1005,8 +998,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         guard shimmerView == nil else { return }
         let row = TranscriptRowChrome.thinkingRow()
         shimmerView = row.shimmer
-        transcript.addArrangedSubview(row.container)
-        TranscriptStackChrome.pinRowToTranscriptWidth(row.container, transcript: transcript)
+        TranscriptStackChrome.appendFullWidthRow(row.container, to: transcript)
         scrollToBottom()
     }
 
@@ -1056,11 +1048,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         if let row = built.clickableToolView {
             row.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(toolClicked(_:))))
         }
-        transcript.addArrangedSubview(container)
-        if let spacing = built.customSpacingAfter {
-            transcript.setCustomSpacing(spacing, after: container)
-        }
-        TranscriptStackChrome.pinRowToTranscriptWidth(container, transcript: transcript)
+        TranscriptStackChrome.appendFullWidthRow(container, to: transcript, customSpacingAfter: built.customSpacingAfter)
         // Keep the "Thinking" shimmer pinned to the bottom while streaming.
         if !renderSession.bulkLoading { pinShimmerToBottom() }
         // Smooth fade-in for live (streamed) rows.
@@ -1076,8 +1064,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             maxRenderedMessages: maxRenderedMessages,
             hiddenCount: hiddenCount
         )
-        transcript.addArrangedSubview(container)
-        TranscriptStackChrome.pinRowToTranscriptWidth(container, transcript: transcript)
+        TranscriptStackChrome.appendFullWidthRow(container, to: transcript)
     }
 
     private func renderLiveAssistant(_ assistant: ChatMessage, force: Bool = false) {
