@@ -178,30 +178,12 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     var layoutMetrics: [String: Any] {
-        let rootSubviewFrames = view.subviews.enumerated().map { index, subview in
-            [
-                "index": index,
-                "class": String(describing: type(of: subview)),
-                "x": Double(subview.frame.minX),
-                "y": Double(subview.frame.minY),
-                "width": Double(subview.frame.width),
-                "height": Double(subview.frame.height),
-            ] as [String: Any]
-        }
-        return [
-            "chatViewWidth": Double(view.frame.width),
-            "chatViewHeight": Double(view.frame.height),
-            "scrollWidth": Double(scroll.frame.width),
-            "scrollHeight": Double(scroll.frame.height),
-            "documentWidth": Double((scroll.documentView?.frame.width) ?? -1),
-            "documentHeight": Double((scroll.documentView?.frame.height) ?? -1),
-            "transcriptWidth": Double(transcript.frame.width),
-            "transcriptHeight": Double(transcript.frame.height),
-            "composerWidth": Double(card.frame.width),
-            "composerHeight": Double(card.frame.height),
-            "visibleRows": transcript.arrangedSubviews.count,
-            "rootSubviewFrames": rootSubviewFrames,
-        ]
+        ChatViewportMetricsChrome.payload(
+            root: view,
+            scroll: scroll,
+            transcript: transcript,
+            composer: card
+        )
     }
 
     override func loadView() {
