@@ -13,7 +13,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private let transcript = NSStackView()
     private let scroll = NSScrollView()
     private let headerTitle = NSTextField(labelWithString: "New Chat")
-    private let headerMenuButton = NSButton(image: NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "Chat actions")!, target: nil, action: nil)
+    private let headerMenuButton = NSButton()
     private let composer = ComposerTextView()
     private let placeholder = NSTextField(labelWithString: "Message the agent…  (⏎ to send, ⇧⏎ for newline)")
     private let modelPopup = NSPopUpButton()
@@ -269,18 +269,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         scroll.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         scroll.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        headerTitle.font = .systemFont(ofSize: 14, weight: .semibold)
-        headerTitle.textColor = .labelColor
-        headerTitle.lineBreakMode = .byTruncatingTail
-        headerTitle.maximumNumberOfLines = 1
-        headerTitle.isHidden = true
-        headerTitle.translatesAutoresizingMaskIntoConstraints = false
-        headerMenuButton.isBordered = false
-        headerMenuButton.contentTintColor = .secondaryLabelColor
-        headerMenuButton.isHidden = true
-        headerMenuButton.target = self
-        headerMenuButton.action = #selector(showHeaderMenu(_:))
-        headerMenuButton.translatesAutoresizingMaskIntoConstraints = false
+        ChatHeaderChrome.configureTitle(headerTitle)
+        ChatHeaderChrome.configureMenuButton(headerMenuButton, target: self, action: #selector(showHeaderMenu(_:)))
 
         // Composer card
         composer.delegate = self
@@ -425,13 +415,11 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             emptyStack.bottomAnchor.constraint(equalTo: card.topAnchor, constant: -24),
             emptyStack.widthAnchor.constraint(lessThanOrEqualToConstant: 440),
 
-            headerTitle.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14),
-            headerTitle.topAnchor.constraint(equalTo: root.topAnchor, constant: 15),
-            headerTitle.trailingAnchor.constraint(lessThanOrEqualTo: headerMenuButton.leadingAnchor, constant: -4),
-            headerMenuButton.leadingAnchor.constraint(equalTo: headerTitle.trailingAnchor, constant: 6),
-            headerMenuButton.centerYAnchor.constraint(equalTo: headerTitle.centerYAnchor),
-            headerMenuButton.widthAnchor.constraint(equalToConstant: 24),
-            headerMenuButton.heightAnchor.constraint(equalToConstant: 22),
+        ] + ChatHeaderChrome.constraints(
+            title: headerTitle,
+            menuButton: headerMenuButton,
+            root: root
+        ) + [
 
             topBorder.topAnchor.constraint(equalTo: root.topAnchor),
             topBorder.leadingAnchor.constraint(equalTo: root.leadingAnchor),

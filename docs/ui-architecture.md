@@ -8,6 +8,7 @@
 - `AppToolbarChrome.swift`: tested AppKit toolbar identifiers and chrome builders for navigation, native actions, Git scope, and chat-title controls.
 - `ChatActionMenuChrome.swift`: tested AppKit chat-title action menu construction for pin, rename, archive, and detached-window actions.
 - `ChatEmptyStateChrome.swift`: tested AppKit new-chat empty-state title/subtitle/action chrome and liquid-glass action wrappers.
+- `ChatHeaderChrome.swift`: tested AppKit in-chat title and ellipsis action-button styling/placement.
 - `SettingsOverlayChrome.swift`: tested AppKit settings pill, settings/usage menu, and settings sheet chrome.
 - `MarkdownRenderer.swift`: tested markdown rendering for chat text, links, inline code, bullets, code fences, and directive tokens.
 - `GitDiffModel.swift`: tested pure parser for git diff sections, line numbers, metadata filtering, and hunk separator rows.
