@@ -400,12 +400,8 @@ final class ShellToolView: NSView {
 
     @objc private func toggle() {
         guard !output.isEmpty else { return }
-        outputPopover.close()
         let content = TranscriptPopoverChrome.shellOutput(output)
-        outputPopover.contentViewController = content.controller
-        outputPopover.contentSize = content.size
-        outputPopover.behavior = .transient
-        outputPopover.show(relativeTo: bounds, of: self, preferredEdge: .maxY)
+        TranscriptPopoverChrome.show(content, in: outputPopover, relativeTo: bounds, of: self)
     }
 }
 

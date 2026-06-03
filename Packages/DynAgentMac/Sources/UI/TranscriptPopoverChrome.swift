@@ -3,9 +3,25 @@ import AppKit
 struct TranscriptPopoverContent {
     var controller: NSViewController
     var size: NSSize
+
+    func install(in popover: NSPopover) {
+        popover.close()
+        popover.contentViewController = controller
+        popover.contentSize = size
+        popover.behavior = .transient
+    }
 }
 
 enum TranscriptPopoverChrome {
+    static func show(_ content: TranscriptPopoverContent,
+                     in popover: NSPopover,
+                     relativeTo rect: NSRect,
+                     of view: NSView,
+                     preferredEdge: NSRectEdge = .maxY) {
+        content.install(in: popover)
+        popover.show(relativeTo: rect, of: view, preferredEdge: preferredEdge)
+    }
+
     static func toolDetail(name: String?, done: Bool, detail: String?) -> TranscriptPopoverContent {
         selectableText(
             "\(name ?? "tool")\(done ? "  ✓" : "")\n\n\(detail ?? "(no details)")",
@@ -79,7 +95,14 @@ enum TranscriptPopoverChrome {
         scroll.drawsBackground = false
         scroll.documentView = text
         text.frame = scroll.bounds
-        text.autoresizingMask = [.width]
+        text.autoresizingMask = horizontalScroller ? [.height] : [.width]
+        text.isHorizontallyResizable = horizontalScroller
+        text.isVerticallyResizable = true
+        text.textContainer?.widthTracksTextView = !horizontalScroller
+        if horizontalScroller {
+            text.textContainer?.containerSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+            text.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        }
 
         let controller = NSViewController()
         controller.view = scroll

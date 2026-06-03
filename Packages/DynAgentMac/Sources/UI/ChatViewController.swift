@@ -1797,21 +1797,24 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             return
         }
         let content = TranscriptPopoverChrome.toolDetail(name: m.toolName, done: m.toolDone, detail: m.toolDetail)
-        toolPopover.contentViewController = content.controller
-        toolPopover.contentSize = content.size
-        toolPopover.behavior = .transient
         // Anchor a small rect at the click point so the popover appears next to the tool label.
         let p = g.location(in: view)
-        toolPopover.show(relativeTo: NSRect(x: p.x - 4, y: view.bounds.minY, width: 8, height: view.bounds.height), of: view, preferredEdge: .maxY)
+        TranscriptPopoverChrome.show(
+            content,
+            in: toolPopover,
+            relativeTo: NSRect(x: p.x - 4, y: view.bounds.minY, width: 8, height: view.bounds.height),
+            of: view
+        )
     }
 
     private func showEditPopover(changes: [EditToolChange], anchor: NSView) {
-        toolPopover.close()
         let content = TranscriptPopoverChrome.editDiff(changes: changes)
-        toolPopover.contentViewController = content.controller
-        toolPopover.contentSize = content.size
-        toolPopover.behavior = .transient
-        toolPopover.show(relativeTo: anchor.bounds.isEmpty ? NSRect(x: 0, y: 0, width: 1, height: 1) : anchor.bounds, of: anchor, preferredEdge: .maxY)
+        TranscriptPopoverChrome.show(
+            content,
+            in: toolPopover,
+            relativeTo: anchor.bounds.isEmpty ? NSRect(x: 0, y: 0, width: 1, height: 1) : anchor.bounds,
+            of: anchor
+        )
     }
 
     /// A rounded, padded background box hugging its content.
