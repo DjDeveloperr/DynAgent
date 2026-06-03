@@ -25,6 +25,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private let navForwardButton = NSButton(image: NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")!, target: nil, action: nil)
     private lazy var usageCoordinator = AppUsageCoordinator(client: client)
     private lazy var modelCatalog = AppModelCatalogCoordinator(client: client)
+    private lazy var codexHistoryRefreshCoordinator = AppCodexHistoryRefreshCoordinator(client: client)
 
     private var conversations: [Conversation] = []
     private var draft: Conversation?
@@ -33,7 +34,6 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private var archivedCodexIds = Set(UserDefaults.standard.stringArray(forKey: "archivedCodexIds") ?? [])
     /// Worktree cwds belonging to each top-level workspace path (threads grouped under the parent).
     private var worktreesByPath: [String: [String]] = [:]
-    private var codexRefreshInFlight = Set<String>()
     private var pendingRenderConversationId: String?
     private var workspaceRefs: [WorkspaceRef] = []
     private var primaryPath = FileManager.default.currentDirectoryPath
@@ -574,18 +574,9 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func refreshCodexHistoryIfNeeded(_ c: Conversation, force: Bool = false) {
-        guard let tid = AppCodexHistoryModel.refreshThreadId(for: c, force: force, inFlight: codexRefreshInFlight) else { return }
-        codexRefreshInFlight.insert(tid)
+        guard let request = codexHistoryRefreshCoordinator.startRefresh(for: c, force: force) else { return }
         Task { @MainActor in
-            defer {
-                codexRefreshInFlight.remove(tid)
-                c.needsLoad = false
-            }
-            guard let hist = try? await client.codexThread(id: tid) else { return }
-            let previousUpdatedAt = c.updatedAt
-            c.messages = AppCodexHistoryModel.messages(from: hist)
-            c.status = AppCodexHistoryModel.status(afterLoading: c.messages)
-            c.updatedAt = previousUpdatedAt
+            guard await codexHistoryRefreshCoordinator.finishRefresh(request, applyingTo: c) != nil else { return }
             if chat.conversation === c {
                 chat.show(c)
                 stabilizeMainLayout(reason: "codex-history-render")
