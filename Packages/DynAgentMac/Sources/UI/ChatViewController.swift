@@ -609,27 +609,19 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     @discardableResult
     private func addShellGroupRow(_ messages: [ChatMessage]) -> NSView {
-        let items = messages.map { m -> ShellGroupItem in
-            let summary = TranscriptToolFormatter.shellSummary(m)
-            return ShellGroupItem(title: TranscriptToolFormatter.shellTitle(m, summary: summary), output: summary.output, done: m.toolDone)
-        }
-        let title = TranscriptToolFormatter.shellGroupTitle(messages.map(TranscriptToolFormatter.shellSummary))
-        let group = ShellGroupView(title: title, items: items)
-        let container = TranscriptStackChrome.appendFullWidthContainer(containing: group, to: transcript)
+        let row = TranscriptGroupedToolRowChrome.appendShellGroup(messages: messages, to: transcript)
         if !renderSession.bulkLoading { pinShimmerToBottom() }
-        return container
+        return row.container
     }
 
     @discardableResult
     private func addEditGroupRow(_ changes: [EditToolChange]) -> NSView {
-        let group = EditGroupView(changes: changes)
-        group.onOpenChange = { [weak self] change, anchor in
+        let row = TranscriptGroupedToolRowChrome.appendEditGroup(changes: changes, to: transcript) { [weak self] change, anchor in
             guard let self else { return }
             self.toolPopoverCoordinator.presentEditChanges([change], from: anchor)
         }
-        let container = TranscriptStackChrome.appendFullWidthContainer(containing: group, to: transcript)
         if !renderSession.bulkLoading { pinShimmerToBottom() }
-        return container
+        return row.container
     }
 
     @discardableResult
