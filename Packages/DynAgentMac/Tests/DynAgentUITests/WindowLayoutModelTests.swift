@@ -39,6 +39,27 @@ final class WindowLayoutModelTests: XCTestCase {
         ))
     }
 
+    func testUnexpectedShrinkRestoreIgnoresUserLiveResize() {
+        let applied = CGRect(x: 0, y: 0, width: 1452, height: 798)
+        let current = CGRect(x: 0, y: 0, width: 1291, height: 798)
+
+        XCTAssertTrue(WindowLayoutModel.shouldRestoreUnexpectedShrink(
+            current: current,
+            applied: applied,
+            isUserLiveResizing: false
+        ))
+        XCTAssertFalse(WindowLayoutModel.shouldRestoreUnexpectedShrink(
+            current: current,
+            applied: applied,
+            isUserLiveResizing: true
+        ))
+        XCTAssertFalse(WindowLayoutModel.shouldRestoreUnexpectedShrink(
+            current: applied,
+            applied: applied,
+            isUserLiveResizing: false
+        ))
+    }
+
     func testSplitPlanKeepsCenterWideWhenGitIsCollapsed() {
         let plan = WindowLayoutModel.splitPlan(WindowSplitConfiguration(
             totalWidth: 1452,

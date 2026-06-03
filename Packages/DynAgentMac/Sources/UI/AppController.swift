@@ -72,6 +72,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private let maximumWindowSize = NSSize(width: 20_000, height: 20_000)
     private var lastRequestedMainFrame: NSRect = .zero
     private var lastAppliedMainFrame: NSRect = .zero
+    private var isUserLiveResizing = false
 
     init(window: NSWindow, hotState: NSMutableDictionary? = nil) {
         self.window = window
@@ -1231,11 +1232,37 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     func windowDidResize(_ notification: Notification) {
         unlockWindowSizing()
+        if WindowLayoutModel.shouldRestoreUnexpectedShrink(
+            current: window.frame,
+            applied: lastAppliedMainFrame,
+            isUserLiveResizing: isUserLiveResizing
+        ) {
+            window.setFrame(lastAppliedMainFrame, display: true)
+            forceRootSplitToContentSize()
+            workspaceArea.forceLayoutToBounds()
+            rebalanceMainSplitIfNeeded()
+            writeLayoutMetrics(reason: "restored-unexpected-shrink")
+            return
+        }
         lastAppliedMainFrame = window.frame
         saveMainWindowFrame(window.frame)
         forceRootSplitToContentSize()
         rebalanceMainSplitIfNeeded()
         writeLayoutMetrics(reason: "window-resize")
+    }
+
+    func windowWillStartLiveResize(_ notification: Notification) {
+        isUserLiveResizing = true
+    }
+
+    func windowDidEndLiveResize(_ notification: Notification) {
+        isUserLiveResizing = false
+        unlockWindowSizing()
+        lastAppliedMainFrame = window.frame
+        saveMainWindowFrame(window.frame)
+        forceRootSplitToContentSize()
+        rebalanceMainSplitIfNeeded()
+        writeLayoutMetrics(reason: "window-live-resize")
     }
 
     @objc private func toggleGit() {
