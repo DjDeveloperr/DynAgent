@@ -92,16 +92,16 @@
 - `AppWorktreeCoordinator.swift`: tested worktree bridge for workspace path detection, branch-name normalization, create-result parsing, and create failure handling.
 - `AppSidebarSyncModel.swift`: tested Codex sidebar-state bridge for width clamping/correction payloads, resize tolerance, and collapsed section/workspace payloads.
 - `AppLayoutMetricsCoordinator.swift`: tested layout metrics persistence bridge for live width-regression diagnostics and hot-reload verification payloads.
-- `AppSplitLayoutChrome.swift`: tested AppKit builder for the top-level sidebar/main/git split, split item sizing priorities, collapsed git inspector default, and autoresizing installation.
+- `AppSplitLayoutChrome.swift`: tested AppKit builder for the top-level sidebar/main/git split, split item sizing priorities, collapsed git inspector default, frame-managed root hosting, and autoresizing installation.
 - `AppHotStateModel.swift`: tested hot-reload state serializer/restorer for conversations, active Codex thread status, workspace refs, model cache, and selection.
 - `AppHotStateCoordinator.swift`: tested hot-reload dictionary bridge for restore, immediate saves, debounced saves, and pending-save cancellation.
-- `MainWindowFrameModel.swift`: tested main-window frame state model for initial saved-frame restoration, requested/applied frame tracking, live-resize state, delayed unexpected-shrink recovery, and pending-restore suppression.
+- `MainWindowFrameModel.swift`: tested main-window frame state model for initial saved-frame restoration, requested/applied frame tracking, live-resize state, non-user shrink proposals, and startup requested-frame retry suppression after manual resize.
 - `ChatLayoutModel.swift`: shared chat-column constants, readable-width cap, and inspector-aware split sizing.
 - `ChatViewportLayoutModel.swift`: tested chat viewport layout policy for scroll frame pinning, document-width correction, and composer bottom inset updates.
 - `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, root content bounds, wide fallback sizing, split divider planning, metrics payloads, and post-load width invariants.
 - `WindowLayoutChrome.swift`: tested AppKit bridge for applying usable window limits, pinning root/split frames to content bounds, applying split plans, and capturing frame metrics.
 - `MainLayoutStabilizer.swift`: tested AppKit orchestration for the post-load/resize/git-toggle layout pass that keeps the root split, workspace tile, and chat view tracking the real window width.
-- `WindowHosting.swift`: full-window host and split-view pinning used by the hot-reloadable macOS UI.
+- `WindowHosting.swift`: non-fitting full-window host and split-view pinning used by the hot-reloadable macOS UI.
 - `WorkspaceAreaChrome.swift`: tested workspace root split setup, forced frame layout, and width metrics for center-pane fill invariants.
 - `WorkspacePanelChrome.swift`: reusable AppKit workspace tile chrome and root split pinning for chat, terminal, and browser panels.
 
@@ -113,7 +113,7 @@ Feature controllers should keep behavior and orchestration, not reusable visual/
 - The left sidebar is a custom AppKit stack-based surface with a fixed practical width band capped tightly enough that restored Codex sidebar state cannot steal the readable chat column.
 - The center chat/workspace surface owns transcript rendering, composer state, and panel layout. The workspace canvas fills the split item; transcript and composer use a centered readable column without advertising a fitted width back to the window.
 - The right git panel is a collapsible split item; opening it preserves a readable center width before growing the inspector. The git diff document uses `GitDiffModel` for all parsing.
-- Hot reload must preserve the window size and keep the content split filling the visible window. Current verified invariant: content width, split width, and visible window width match after reload.
+- Hot reload must preserve the window size and keep the content split filling the visible window. Current verified invariant: after a fresh relaunch and Codex history render on a 1512px-wide visible screen, `windowWidth == contentViewWidth == splitViewWidth == 1452`, `mainSplitItemWidth == workspaceWidth == chatViewWidth == 1128`, and `workspaceWidthSlack == 0`.
 
 ## iOS Adaptation Contract
 
