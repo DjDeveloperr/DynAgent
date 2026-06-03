@@ -16,6 +16,7 @@ targets:
       - path: ../DynAgentMac/Sources/UI/TranscriptTurnModel.swift
       - path: ../DynAgentMac/Sources/UI/TranscriptRenderModel.swift
       - path: ../DynAgentMac/Sources/UI/WorkDividerModel.swift
+      - path: ../DynAgentMac/Sources/UI/MobilePresentationModel.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.dynagent.mobile

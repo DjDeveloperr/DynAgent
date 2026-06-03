@@ -322,42 +322,13 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     // MARK: Menu bar
 
     private func buildMenu() -> NSMenu {
-        let main = NSMenu()
-        func menu(_ title: String, _ items: [NSMenuItem]) -> NSMenuItem {
-            let top = NSMenuItem(); let sub = NSMenu(title: title)
-            items.forEach { sub.addItem($0) }; top.submenu = sub; return top
-        }
-        func item(_ title: String, _ sel: Selector, _ key: String, _ mods: NSEvent.ModifierFlags = .command, target: AnyObject? = nil) -> NSMenuItem {
-            let it = NSMenuItem(title: title, action: sel, keyEquivalent: key); it.keyEquivalentModifierMask = mods; it.target = target; return it
-        }
-        // App menu
-        main.addItem(menu("DynAgent", [
-            item("Hide DynAgent", #selector(NSApplication.hide(_:)), "h"),
-            .separator(),
-            item("Quit DynAgent", #selector(NSApplication.terminate(_:)), "q"),
-        ]))
-        // File
-        main.addItem(menu("File", [
-            item("New Chat", #selector(newChat), "n", target: self),
-            item("Search Chats", #selector(showSearchFromMenu), "k", target: self),
-            item("Reload UI", Selector(("dynagentReloadUI:")), "r"),
-            item("Close Window", #selector(NSWindow.performClose(_:)), "w"),
-        ]))
-        // Edit (standard responder-chain selectors enable copy/paste/select-all everywhere)
-        main.addItem(menu("Edit", [
-            item("Undo", Selector(("undo:")), "z"),
-            item("Redo", Selector(("redo:")), "z", [.command, .shift]),
-            .separator(),
-            item("Cut", #selector(NSText.cut(_:)), "x"),
-            item("Copy", #selector(NSText.copy(_:)), "c"),
-            item("Paste", #selector(NSText.paste(_:)), "v"),
-            item("Select All", #selector(NSText.selectAll(_:)), "a"),
-        ]))
-        // Window
-        main.addItem(menu("Window", [
-            item("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),
-        ]))
-        return main
+        AppMenuChrome.makeMainMenu(
+            target: self,
+            selectors: AppMenuSelectors(
+                newChat: #selector(newChat),
+                searchChats: #selector(showSearchFromMenu)
+            )
+        )
     }
 
     // MARK: Toolbar

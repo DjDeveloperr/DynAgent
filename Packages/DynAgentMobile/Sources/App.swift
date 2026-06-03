@@ -232,14 +232,13 @@ private struct ToolMessageRow: View {
     let message: ChatMessage
 
     var body: some View {
-        let summary = ShellToolModel.summary(from: message.toolDetail ?? message.text)
-        let title = ShellToolModel.title(command: summary.command.nilIfEmpty ?? message.text, done: message.toolDone)
+        let presentation = MobilePresentationModel.tool(message: message)
         VStack(alignment: .leading, spacing: 4) {
-            Text(toolTitle(title))
+            Text(presentation.title)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-            if !summary.output.isEmpty {
-                Text(summary.output)
+            if presentation.showsOutput {
+                Text(presentation.output)
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
                     .lineLimit(4)
@@ -248,19 +247,18 @@ private struct ToolMessageRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-
-    private func toolTitle(_ title: ShellToolTitle) -> String {
-        if let detail = title.detail, !detail.isEmpty {
-            return "\(title.action) \(detail)"
-        }
-        return title.action
-    }
 }
 
 private struct ComposerBar: View {
     @Bindable var store: MobileChatStore
 
     var body: some View {
+        let presentation = MobilePresentationModel.composer(
+            model: store.conversation.model,
+            harness: store.conversation.harness,
+            input: store.input,
+            sending: store.sending
+        )
         HStack(spacing: 10) {
             Menu {
                 ForEach(store.models, id: \.self) { id in
@@ -269,26 +267,22 @@ private struct ComposerBar: View {
                     }
                 }
             } label: {
-                Text(ComposerModel.shortCodexModelName(store.conversation.model))
+                Text(presentation.modelTitle)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
             }
-            TextField(ComposerModel.placeholder(agent: store.conversation.harness), text: $store.input, axis: .vertical)
+            TextField(presentation.placeholder, text: $store.input, axis: .vertical)
                 .lineLimit(1...5)
                 .textFieldStyle(.plain)
                 .padding(.vertical, 8)
             Button {
                 Task { await store.send() }
             } label: {
-                Image(systemName: ComposerModel.sendState(
-                    streaming: store.sending,
-                    trimmedText: store.input.trimmingCharacters(in: .whitespacesAndNewlines),
-                    hasAttachments: false
-                ).symbol)
+                Image(systemName: presentation.sendSymbol)
                 .font(.title2)
             }
-            .disabled(store.sending || store.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityLabel("Send")
+            .disabled(!presentation.canSend)
+            .accessibilityLabel(presentation.sendAccessibilityLabel)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
