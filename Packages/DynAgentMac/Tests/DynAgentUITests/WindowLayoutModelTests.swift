@@ -197,6 +197,30 @@ final class WindowLayoutModelTests: XCTestCase {
         XCTAssertEqual(plan.gitWidth, 312)
     }
 
+    func testSplitPlanUsesRightSideRemainderForExpandedGitPanel() throws {
+        let plan = WindowLayoutModel.splitPlan(WindowSplitConfiguration(
+            totalWidth: 1472,
+            sidebarCurrentWidth: 284,
+            sidebarMinimumWidth: 260,
+            sidebarMaximumWidth: 380,
+            sidebarCollapsed: false,
+            gitCurrentWidth: 420,
+            gitMinimumWidth: 300,
+            gitMaximumWidth: 520,
+            gitCollapsed: false,
+            preferredMainWidth: 900
+        ))
+
+        let sidebarWidth = try XCTUnwrap(plan.firstDividerPosition)
+        let secondDivider = try XCTUnwrap(plan.secondDividerPosition)
+        let mainWidth = secondDivider - sidebarWidth
+
+        XCTAssertEqual(sidebarWidth, 284)
+        XCTAssertEqual(mainWidth, 888)
+        XCTAssertEqual(plan.gitWidth, 300)
+        XCTAssertEqual(sidebarWidth + mainWidth + plan.gitWidth, 1472)
+    }
+
     func testMetricsPayloadPreservesWidthInvariantFields() throws {
         let payload = WindowLayoutModel.metricsPayload(from: WindowLayoutMetricsSnapshot(
             reason: "codex-history-render",
