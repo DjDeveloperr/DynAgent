@@ -53,7 +53,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var activityThrottle = ChatActivityThrottleState()
     private var pendingToolRefreshByConversationId: [String: DispatchWorkItem] = [:]
     private var renderSession = TranscriptRenderSessionState()
-    private var scrollState = TranscriptScrollState()
+    private let transcriptScrollCoordinator = TranscriptScrollCoordinator()
 
     private var streaming: Bool {
         guard let conversation else { return false }
@@ -1035,30 +1035,10 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func scrollToBottom() {
-        let plan = TranscriptLiveUpdateModel.scrollPlan(
+        transcriptScrollCoordinator.scrollToBottom(
             streaming: streaming,
-            now: Date().timeIntervalSince1970,
-            state: scrollState
+            root: view,
+            scroll: scroll
         )
-        scrollState = plan.state
-        switch plan.action {
-        case .ignorePending:
-            return
-        case .schedule(let delay):
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self else { return }
-                self.scrollState = TranscriptLiveUpdateModel.pendingScrollFired(state: self.scrollState)
-                self.scrollToBottom()
-            }
-            return
-        case .perform(let layoutBeforeScroll):
-            if layoutBeforeScroll {
-                view.layoutSubtreeIfNeeded()
-            }
-        }
-        guard let doc = scroll.documentView else { return }
-        let y = max(0, doc.bounds.height + scroll.contentInsets.bottom - scroll.contentView.bounds.height)
-        scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
-        scroll.reflectScrolledClipView(scroll.contentView)
     }
 }

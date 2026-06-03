@@ -29,6 +29,7 @@
 - `TranscriptRenderModel.swift`: tested row data-source model for render-cache fingerprints, turn batching, shell tool grouping, and completed edit grouping.
 - `TranscriptRenderSessionModel.swift`: tested render-session state for transcript cache reuse, generation invalidation, shell loading, async batch guards, and bulk-loading completion.
 - `TranscriptLiveUpdateModel.swift`: tested streaming update policy for markdown render throttling and stateful autoscroll scheduling.
+- `TranscriptScrollCoordinator.swift`: tested AppKit bridge for throttled transcript autoscroll, pending-scroll scheduling, layout-before-idle-scroll, and bottom-offset math.
 - `ConversationTurnMutationModel.swift`: tested pure mutation model for completing the latest prompt turn, closing open tool rows, and reconciling pending/completed steer notices.
 - `ChatStreamMutationModel.swift`: tested streaming prompt, assistant, error, tool, and final-response mutations used by chat event handling.
 - `ChatStreamStartModel.swift`: tested turn-start mutation model for harness/model locking, prompt insertion, thinking status, timestamps, and title-generation decisions.
