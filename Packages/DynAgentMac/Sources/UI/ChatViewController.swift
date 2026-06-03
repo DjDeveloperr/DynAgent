@@ -539,20 +539,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         transcriptRegistry.reset()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
         transcript.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        let loading = NSTextField(labelWithString: ChatPresentationModel.loadingText(needsLoad: c.needsLoad))
-        loading.font = .systemFont(ofSize: 12.5, weight: .medium)
-        loading.textColor = .tertiaryLabelColor
-        loading.translatesAutoresizingMaskIntoConstraints = false
-        let container = NSView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(loading)
-        NSLayoutConstraint.activate([
-            loading.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            loading.topAnchor.constraint(equalTo: container.topAnchor, constant: 14),
-            loading.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -14),
-        ])
+        let container = TranscriptLoadingShellChrome.makeRow(text: ChatPresentationModel.loadingText(needsLoad: c.needsLoad))
         transcript.addArrangedSubview(container)
-        container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
+        TranscriptLoadingShellChrome.pinRowToTranscriptWidth(container, transcript: transcript)
         emptyStack.isHidden = true
         cardBottomConstraint?.isActive = true
         cardCenterYConstraint?.isActive = false

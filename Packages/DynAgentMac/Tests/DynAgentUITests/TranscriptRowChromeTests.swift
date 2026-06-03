@@ -76,6 +76,35 @@ final class TranscriptRowChromeTests: XCTestCase {
         XCTAssertEqual(label.textColor, .tertiaryLabelColor)
     }
 
+    func testLoadingShellRowCentersLabelAndTracksTranscriptWidth() throws {
+        let transcript = NSStackView()
+        transcript.translatesAutoresizingMaskIntoConstraints = false
+        let row = TranscriptLoadingShellChrome.makeRow(text: "Loading latest thread...")
+
+        transcript.addArrangedSubview(row)
+        let widthConstraint = TranscriptLoadingShellChrome.pinRowToTranscriptWidth(row, transcript: transcript)
+
+        let label = try XCTUnwrap(findSubviews(of: NSTextField.self, in: row).first)
+        XCTAssertEqual(label.stringValue, "Loading latest thread...")
+        XCTAssertEqual(label.textColor, .tertiaryLabelColor)
+        XCTAssertFalse(row.translatesAutoresizingMaskIntoConstraints)
+        XCTAssertTrue(row.constraints.contains {
+            $0.firstAnchor == label.centerXAnchor && $0.secondAnchor == row.centerXAnchor
+        })
+        XCTAssertTrue(row.constraints.contains {
+            $0.firstAnchor == label.topAnchor && $0.constant == TranscriptLoadingShellChrome.verticalPadding
+        })
+        XCTAssertTrue(row.constraints.contains {
+            $0.firstAnchor == label.bottomAnchor && $0.constant == -TranscriptLoadingShellChrome.verticalPadding
+        })
+        XCTAssertEqual(widthConstraint.firstAnchor, row.widthAnchor)
+        XCTAssertEqual(widthConstraint.secondAnchor, transcript.widthAnchor)
+        XCTAssertTrue(widthConstraint.isActive)
+        XCTAssertFalse(row.constraints.contains {
+            $0.firstAttribute == .width && $0.relation == .equal && $0.secondItem == nil
+        })
+    }
+
     private func findSubviews<T: NSView>(of type: T.Type, in root: NSView) -> [T] {
         var result: [T] = []
         if let match = root as? T {

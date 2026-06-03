@@ -203,6 +203,34 @@ final class WorkDivider: NSView {
     }
 }
 
+enum TranscriptLoadingShellChrome {
+    static let verticalPadding: CGFloat = 14
+
+    static func makeRow(text: String) -> NSView {
+        let loading = NSTextField(labelWithString: text)
+        loading.font = .systemFont(ofSize: 12.5, weight: .medium)
+        loading.textColor = .tertiaryLabelColor
+        loading.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(loading)
+        NSLayoutConstraint.activate([
+            loading.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            loading.topAnchor.constraint(equalTo: container.topAnchor, constant: verticalPadding),
+            loading.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -verticalPadding),
+        ])
+        return container
+    }
+
+    @discardableResult
+    static func pinRowToTranscriptWidth(_ row: NSView, transcript: NSStackView) -> NSLayoutConstraint {
+        let constraint = row.widthAnchor.constraint(equalTo: transcript.widthAnchor)
+        constraint.isActive = true
+        return constraint
+    }
+}
+
 final class EditStatsView: NSView {
     private let addLabel = NSTextField(labelWithString: "+0")
     private let delLabel = NSTextField(labelWithString: "-0")
