@@ -140,3 +140,46 @@ enum ComposerAttachmentChip {
         return (stack, close)
     }
 }
+
+enum ComposerAttachmentStripChrome {
+    static let visibleHeight: CGFloat = 66
+
+    static func render(
+        attachments: [ComposerAttachment],
+        into stack: NSStackView,
+        inside scroll: NSScrollView,
+        heightConstraint: NSLayoutConstraint?,
+        target: AnyObject,
+        removeAction: Selector
+    ) -> [ObjectIdentifier: UUID] {
+        stack.arrangedSubviews.forEach { view in
+            stack.removeArrangedSubview(view)
+            view.removeFromSuperview()
+        }
+
+        stack.isHidden = attachments.isEmpty
+        scroll.isHidden = attachments.isEmpty
+        heightConstraint?.constant = attachments.isEmpty ? 0 : visibleHeight
+
+        var removeIds: [ObjectIdentifier: UUID] = [:]
+        for attachment in attachments {
+            let chip = ComposerAttachmentChip.make(
+                attachment: attachment,
+                target: target,
+                removeAction: removeAction
+            )
+            removeIds[ObjectIdentifier(chip.removeButton)] = attachment.id
+            stack.addArrangedSubview(chip.view)
+        }
+
+        stack.layoutSubtreeIfNeeded()
+        let size = stack.fittingSize
+        stack.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: max(size.width, scroll.contentView.bounds.width),
+            height: max(visibleHeight, size.height)
+        )
+        return removeIds
+    }
+}

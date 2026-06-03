@@ -633,22 +633,14 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func renderAttachments() {
-        attachmentStack.arrangedSubviews.forEach { view in
-            attachmentStack.removeArrangedSubview(view)
-            view.removeFromSuperview()
-        }
-        attachmentRemoveIds.removeAll()
-        attachmentStack.isHidden = attachments.isEmpty
-        attachmentScroll.isHidden = attachments.isEmpty
-        attachmentHeightConstraint?.constant = attachments.isEmpty ? 0 : 66
-        for attachment in attachments {
-            let chip = ComposerAttachmentChip.make(attachment: attachment, target: self, removeAction: #selector(removeAttachment(_:)))
-            attachmentRemoveIds[ObjectIdentifier(chip.removeButton)] = attachment.id
-            attachmentStack.addArrangedSubview(chip.view)
-        }
-        attachmentStack.layoutSubtreeIfNeeded()
-        let size = attachmentStack.fittingSize
-        attachmentStack.frame = NSRect(x: 0, y: 0, width: max(size.width, attachmentScroll.contentView.bounds.width), height: max(66, size.height))
+        attachmentRemoveIds = ComposerAttachmentStripChrome.render(
+            attachments: attachments,
+            into: attachmentStack,
+            inside: attachmentScroll,
+            heightConstraint: attachmentHeightConstraint,
+            target: self,
+            removeAction: #selector(removeAttachment(_:))
+        )
     }
 
     @objc private func removeAttachment(_ sender: NSButton) {
@@ -896,10 +888,10 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     @discardableResult
     private func addShellGroupRow(_ messages: [ChatMessage]) -> NSView {
         let items = messages.map { m -> ShellGroupItem in
-            let summary = shellSummary(m)
-            return ShellGroupItem(title: shellToolTitle(m, summary: summary), output: summary.output, done: m.toolDone)
+            let summary = TranscriptToolFormatter.shellSummary(m)
+            return ShellGroupItem(title: TranscriptToolFormatter.shellTitle(m, summary: summary), output: summary.output, done: m.toolDone)
         }
-        let title = shellGroupTitle(messages.map(shellSummary))
+        let title = TranscriptToolFormatter.shellGroupTitle(messages.map(TranscriptToolFormatter.shellSummary))
         let group = ShellGroupView(title: title, items: items)
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
@@ -914,38 +906,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
         if !bulkLoading { pinShimmerToBottom() }
         return container
-    }
-
-    private func shellGroupTitle(_ summaries: [ShellSummary]) -> NSAttributedString {
-        let parts = summaries.map { shellTitleParts(command: $0.command, done: true) }
-        let commonCategory = parts.first?.category
-        let sameCategory = commonCategory != nil && parts.allSatisfy { $0.category == commonCategory }
-        let text: String
-        switch sameCategory ? commonCategory : nil {
-        case "read": text = summaries.count == 1 ? "Read file" : "Read \(summaries.count) files"
-        case "search": text = summaries.count == 1 ? "Searched files" : "Searched \(summaries.count) times"
-        case "list": text = "Listed files"
-        case "diff": text = summaries.count == 1 ? "Read diff" : "Read diffs"
-        case "git": text = summaries.count == 1 ? "Ran git" : "Ran \(summaries.count) git commands"
-        default: text = summaries.count == 1 ? "Ran command" : "Ran \(summaries.count) commands"
-        }
-        let title = NSMutableAttributedString(string: text, attributes: [
-            .font: NSFont.systemFont(ofSize: 13.5, weight: .medium),
-            .foregroundColor: NSColor.secondaryLabelColor,
-        ])
-        let details = parts.compactMap(\.detail)
-        if summaries.count == 1, let detail = details.first, !detail.isEmpty {
-            title.append(NSAttributedString(string: "  \(detail)", attributes: [
-                .font: NSFont.systemFont(ofSize: 13.5, weight: .regular),
-                .foregroundColor: NSColor.secondaryLabelColor,
-            ]))
-        } else if summaries.count > 1, let first = details.first, !first.isEmpty {
-            title.append(NSAttributedString(string: "  \(first) +\(summaries.count - 1)", attributes: [
-                .font: NSFont.systemFont(ofSize: 13.5, weight: .regular),
-                .foregroundColor: NSColor.secondaryLabelColor,
-            ]))
-        }
-        return title
     }
 
     @discardableResult
@@ -1185,9 +1145,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                     t.turnStatus = "completed"
                     if let d, !d.isEmpty { t.toolDetail = (t.toolDetail.map { $0 + "\n\n" } ?? "") + d }
                     if isVisible {
-                        self.labels[ObjectIdentifier(t)]?.setRich(self.toolString(t))
+                        self.labels[ObjectIdentifier(t)]?.setRich(TranscriptToolFormatter.toolString(t))
                         if t.toolName == "edit", let stats = self.editStatsByMessage[ObjectIdentifier(t)] {
-                            let summary = self.editSummary(t)
+                            let summary = TranscriptToolFormatter.editSummary(t)
                             stats.isHidden = summary.added == 0 && summary.deleted == 0
                             stats.setValues(added: summary.added, deleted: summary.deleted)
                         }
@@ -1515,8 +1475,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                 break
             }
             if m.toolName == "shell" {
-                let summary = shellSummary(m)
-                let row = ShellToolView(title: shellToolTitle(m, summary: summary), output: summary.output, done: m.toolDone)
+                let summary = TranscriptToolFormatter.shellSummary(m)
+                let row = ShellToolView(title: TranscriptToolFormatter.shellTitle(m, summary: summary), output: summary.output, done: m.toolDone)
                 container.addSubview(row)
                 NSLayoutConstraint.activate([
                     row.topAnchor.constraint(equalTo: container.topAnchor),
@@ -1527,7 +1487,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                 break
             }
             content.isSelectable = false
-            content.setRich(toolString(m))
+            content.setRich(TranscriptToolFormatter.toolString(m))
             let row = toolInlineRow(content, for: m)
             toolByView[ObjectIdentifier(row)] = m
             row.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(toolClicked(_:))))
@@ -1599,117 +1559,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         transcript.addArrangedSubview(sc)
     }
 
-    private typealias EditSummary = EditToolSummary
-    private typealias ShellSummary = ShellToolSummary
-    private typealias ShellTitleParts = ShellToolTitle
-
-    private func shellSummary(_ m: ChatMessage) -> ShellSummary {
-        ShellToolModel.summary(from: m.toolDetail)
-    }
-
-    private func shellToolTitle(_ m: ChatMessage, summary: ShellSummary) -> NSAttributedString {
-        let command = summary.command.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parts = shellTitleParts(command: command, done: m.toolDone)
-        let title = NSMutableAttributedString(string: parts.action, attributes: [
-            .font: NSFont.systemFont(ofSize: 13.5, weight: .medium),
-            .foregroundColor: NSColor.secondaryLabelColor,
-        ])
-        if let detail = parts.detail, !detail.isEmpty {
-            title.append(NSAttributedString(string: "  \(detail)", attributes: [
-                .font: parts.monospacedDetail ? NSFont.monospacedSystemFont(ofSize: 12.5, weight: .regular) : NSFont.systemFont(ofSize: 13.5, weight: .regular),
-                .foregroundColor: NSColor.secondaryLabelColor,
-            ]))
-        }
-        return title
-    }
-
-    private func shellTitleParts(command: String, done: Bool) -> ShellTitleParts {
-        ShellToolModel.title(command: command, done: done)
-    }
-
-    private func editSummary(_ m: ChatMessage) -> EditSummary {
-        EditToolModel.summary(from: m.toolDetail, done: m.toolDone)
-    }
-
-    private func toolString(_ m: ChatMessage) -> NSAttributedString {
-        if m.toolName == "edit" { return editToolString(m) }
-        let out = NSMutableAttributedString(
-            string: toolTitle(m),
-            attributes: [.font: NSFont.systemFont(ofSize: 13.5, weight: .semibold),
-                         .foregroundColor: NSColor.secondaryLabelColor])
-        let preview = toolPreview(m)
-        if !preview.isEmpty {
-            out.append(NSAttributedString(string: "\n\(preview)",
-                attributes: [.font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
-                             .foregroundColor: NSColor.secondaryLabelColor]))
-        }
-        return out
-    }
-
-    private func editToolString(_ m: ChatMessage) -> NSAttributedString {
-        return NSMutableAttributedString(string: editTitle(m), attributes: [
-            .font: NSFont.systemFont(ofSize: 13.5, weight: .medium),
-            .foregroundColor: NSColor.secondaryLabelColor,
-        ])
-    }
-
-    private func fileName(_ path: String) -> String {
-        (path as NSString).lastPathComponent
-    }
-
-    private func toolTitle(_ m: ChatMessage) -> String {
-        switch m.toolName {
-        case "shell": return m.toolDone ? "Ran command" : "Running command"
-        case "edit": return editTitle(m)
-        case "web_search": return m.toolDone ? "Searched web" : "Searching web"
-        default:
-            let name = (m.toolName ?? "tool").replacingOccurrences(of: "_", with: " ")
-            return (m.toolDone ? "Completed " : "Running ") + name
-        }
-    }
-
-    private func toolIcon(_ name: String?) -> String {
-        switch name {
-        case "shell": return "terminal"
-        case "edit": return "pencil"
-        case "web_search": return "magnifyingglass"
-        default: return "hammer"
-        }
-    }
-
-    private func editTitle(_ m: ChatMessage) -> String {
-        let count = editSummary(m).changes.count
-        return EditToolModel.title(done: m.toolDone, changeCount: count)
-    }
-
-    private func toolPreview(_ m: ChatMessage) -> String {
-        guard let detail = m.toolDetail, !detail.isEmpty else {
-            return m.toolDone ? "Finished" : "In progress"
-        }
-        if m.toolName == "shell" {
-            let lines = detail.components(separatedBy: .newlines)
-            let command = lines.first?.replacingOccurrences(of: "$ ", with: "") ?? detail
-            let exit = lines.dropFirst().first(where: { $0.hasPrefix("exit ") })
-            let output = lines.dropFirst().dropFirst().filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.prefix(2).joined(separator: "\n")
-            return ([command, exit, output].compactMap { value in
-                guard let value, !value.isEmpty else { return nil }
-                return value
-            }).joined(separator: "\n")
-        }
-        if m.toolName == "edit" {
-            let paths = editSummary(m).changes.map(\.path)
-            if !paths.isEmpty {
-                let names = paths.prefix(3).map { fileName($0) }
-                return names.joined(separator: ", ")
-            }
-        }
-        let clean = detail.replacingOccurrences(of: "\n\n", with: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return clean.count > 260 ? String(clean.prefix(260)) + "..." : clean
-    }
-
     private func toolInlineRow(_ label: MessageTextView, for m: ChatMessage) -> NSView {
         let isEdit = m.toolName == "edit"
-        let icon = NSImageView(image: NSImage(systemSymbolName: toolIcon(m.toolName), accessibilityDescription: nil) ?? NSImage())
+        let icon = NSImageView(image: NSImage(systemSymbolName: TranscriptToolFormatter.toolIconName(m.toolName), accessibilityDescription: nil) ?? NSImage())
         icon.contentTintColor = .secondaryLabelColor
         icon.translatesAutoresizingMaskIntoConstraints = false
 
@@ -1731,11 +1583,11 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         textStack.translatesAutoresizingMaskIntoConstraints = false
         if isEdit && !m.toolDone {
             label.isHidden = true
-            let summary = editSummary(m)
-            let name = summary.changes.first.map { fileName($0.path) }
+            let summary = TranscriptToolFormatter.editSummary(m)
+            let name = summary.changes.first.map { TranscriptToolFormatter.fileName($0.path) }
             textStack.addArrangedSubview(ShimmerLabel(text: name.map { "Editing \($0)" } ?? "Editing"))
         }
-        let summary = isEdit ? editSummary(m) : nil
+        let summary = isEdit ? TranscriptToolFormatter.editSummary(m) : nil
         let editStats = isEdit ? EditStatsView(added: summary?.added ?? 0, deleted: summary?.deleted ?? 0) : nil
         if let editStats {
             editStats.isHidden = (summary?.added ?? 0) == 0 && (summary?.deleted ?? 0) == 0
@@ -1793,7 +1645,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     @objc private func toolClicked(_ g: NSClickGestureRecognizer) {
         guard let view = g.view, let m = toolByView[ObjectIdentifier(view)] else { return }
         if m.toolName == "edit" {
-            showEditPopover(changes: editSummary(m).changes, anchor: view)
+            showEditPopover(changes: TranscriptToolFormatter.editSummary(m).changes, anchor: view)
             return
         }
         let content = TranscriptPopoverChrome.toolDetail(name: m.toolName, done: m.toolDone, detail: m.toolDetail)

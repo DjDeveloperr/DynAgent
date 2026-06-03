@@ -15,12 +15,13 @@
 - `WorkDividerModel.swift`: tested label/duration model for active and completed Codex-style work dividers.
 - `TranscriptChrome.swift`: reusable AppKit transcript text, shimmer, work-divider, and edit-stat views.
 - `TranscriptToolChrome.swift`: reusable AppKit shell/edit tool rows, grouped tool collapse controls, and inline edit diff popover blocks.
+- `TranscriptToolFormatter.swift`: tested attributed title, preview, grouping, and icon-name formatting for transcript tool rows.
 - `TranscriptPopoverChrome.swift`: reusable AppKit popover content and presenter for tool details, shell output, and edit diffs.
 - `SidebarModel.swift`: tested pure grouping model for pinned chats, projectless chats, project workspaces, archived filtering, and recency ordering.
 - `SidebarRowModel.swift`: tested pure row-presentation model for short relative timestamps, workspace/chat tooltip content, worktree indicators, and working/pinned/unread state.
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
 - `ComposerModel.swift`: tested composer behavior model for model/reasoning labels, draft keys, attachment message text, draft snapshots, attachment normalization, context state, and send/stop state.
-- `ComposerChrome.swift`: reusable AppKit composer text input, context ring, and attachment chip views.
+- `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips, and attachment strip rendering.
 - `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, wide fallback sizing, split divider planning, and post-load width invariants.
 - `WindowHosting.swift`: full-window host and split-view pinning used by the hot-reloadable macOS UI.
 
