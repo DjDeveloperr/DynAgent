@@ -37,6 +37,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private let emptyActions = NSStackView()
     private var cardBottomConstraint: NSLayoutConstraint?
     private var cardCenterYConstraint: NSLayoutConstraint?
+    private var cardWidthConstraint: NSLayoutConstraint?
+    private var transcriptWidthConstraint: NSLayoutConstraint?
     private var attachmentHeightConstraint: NSLayoutConstraint?
     private let streamRegistry = ChatStreamRegistry<URLSessionDataTask>()
     private var turnStart = Date()
@@ -224,15 +226,18 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             topBorder: topBorder
         )
         let composerLayout = ChatViewChrome.composerConstraints(root: root, card: card)
-        cardBottomConstraint = composerLayout.bottom
-        cardCenterYConstraint = composerLayout.centerY
-
-        NSLayoutConstraint.activate(composerSurface.constraints + TranscriptViewportChrome.constraints(
+        let transcriptLayout = TranscriptViewportChrome.constraints(
             scroll: scroll,
             root: root,
             document: doc,
             transcript: transcript
-        ) + ComposerChrome.footerControlConstraints(
+        )
+        cardBottomConstraint = composerLayout.bottom
+        cardCenterYConstraint = composerLayout.centerY
+        cardWidthConstraint = composerLayout.width
+        transcriptWidthConstraint = transcriptLayout.transcriptWidth
+
+        NSLayoutConstraint.activate(composerSurface.constraints + transcriptLayout.all + ComposerChrome.footerControlConstraints(
             addAttachmentButton: addAttachmentButton,
             sendContainer: composerFooter.sendContainer,
             sendButton: sendButton,
@@ -256,6 +261,13 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     /// Keep the transcript clear of the floating composer: bottom inset tracks the composer height.
     override func viewDidLayout() {
         super.viewDidLayout()
+        let readableWidth = ChatLayoutModel.readableWidth(for: view.bounds.width)
+        if abs((cardWidthConstraint?.constant ?? 0) - readableWidth) > 0.5 {
+            cardWidthConstraint?.constant = readableWidth
+        }
+        if abs((transcriptWidthConstraint?.constant ?? 0) - readableWidth) > 0.5 {
+            transcriptWidthConstraint?.constant = readableWidth
+        }
         bottomInsetCache = ChatViewportLayoutChrome.apply(
             root: view,
             scroll: scroll,

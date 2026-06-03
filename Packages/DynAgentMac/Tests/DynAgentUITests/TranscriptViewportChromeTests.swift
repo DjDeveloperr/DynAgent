@@ -51,13 +51,14 @@ final class TranscriptViewportChromeTests: XCTestCase {
         let document = NSView()
         let transcript = NSStackView()
 
-        let constraints = TranscriptViewportChrome.constraints(
+        let layout = TranscriptViewportChrome.constraints(
             scroll: scroll,
             root: root,
             document: document,
             transcript: transcript,
             horizontalInset: 17
         )
+        let constraints = layout.all
 
         XCTAssertTrue(constraints.contains {
             $0.firstAnchor == scroll.leadingAnchor && $0.secondAnchor == root.leadingAnchor
@@ -86,15 +87,10 @@ final class TranscriptViewportChromeTests: XCTestCase {
         XCTAssertTrue(constraints.contains {
             $0.firstAnchor == transcript.centerXAnchor && $0.secondAnchor == document.centerXAnchor
         })
-        let maxWidth = constraints.first {
-            $0.firstAnchor == transcript.widthAnchor && $0.secondAnchor == nil && $0.relation == .lessThanOrEqual
-        }
-        XCTAssertEqual(maxWidth?.constant, ChatLayoutModel.maxReadableWidth)
-
-        let fillWidth = constraints.first {
-            $0.firstAnchor == transcript.widthAnchor && $0.secondAnchor == document.widthAnchor && $0.constant == -34
-        }
-        XCTAssertEqual(fillWidth?.priority, .defaultHigh)
+        XCTAssertTrue(constraints.contains(layout.transcriptWidth))
+        XCTAssertEqual(layout.transcriptWidth.firstAnchor, transcript.widthAnchor)
+        XCTAssertNil(layout.transcriptWidth.secondAnchor)
+        XCTAssertEqual(layout.transcriptWidth.constant, ChatLayoutModel.maxReadableWidth)
 
         XCTAssertTrue(constraints.contains {
             $0.firstAnchor == transcript.topAnchor && $0.constant == TranscriptViewportChrome.topPadding

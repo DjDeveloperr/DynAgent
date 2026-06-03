@@ -60,18 +60,15 @@ final class ChatViewChromeTests: XCTestCase {
         })
         XCTAssertTrue(layout.all.contains {
             $0.firstItem === card
-                && $0.firstAttribute == .width
-                && $0.relation == .lessThanOrEqual
-                && $0.constant == ChatLayoutModel.maxReadableWidth
-        })
-        let fillWidth = try XCTUnwrap(layout.all.first {
-            $0.firstItem === card
-                && $0.firstAttribute == .width
+                && $0.firstAttribute == .centerX
                 && $0.secondItem === root
-                && $0.secondAttribute == .width
+                && $0.secondAttribute == .centerX
         })
-        XCTAssertEqual(fillWidth.constant, -(ChatLayoutModel.horizontalInset * 2))
-        XCTAssertEqual(fillWidth.priority, .defaultHigh)
+        XCTAssertTrue(layout.all.contains(layout.width))
+        XCTAssertEqual(layout.width.firstItem as? NSView, card)
+        XCTAssertEqual(layout.width.firstAttribute, .width)
+        XCTAssertNil(layout.width.secondItem)
+        XCTAssertEqual(layout.width.constant, ChatLayoutModel.maxReadableWidth)
     }
 
     func testEmptyStateAndTopBorderConstraintsUseSharedConstants() {

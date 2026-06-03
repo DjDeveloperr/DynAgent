@@ -6,6 +6,11 @@ enum TranscriptViewportChrome {
     static let topPadding: CGFloat = 20
     static let bottomPadding: CGFloat = 12
 
+    struct LayoutConstraints {
+        var transcriptWidth: NSLayoutConstraint
+        var all: [NSLayoutConstraint]
+    }
+
     static func configureTranscript(_ transcript: NSStackView) {
         transcript.orientation = .vertical
         transcript.alignment = .leading
@@ -42,10 +47,9 @@ enum TranscriptViewportChrome {
         transcript: NSStackView,
         horizontalInset: CGFloat = ChatLayoutModel.horizontalInset,
         maxReadableWidth: CGFloat = ChatLayoutModel.maxReadableWidth
-    ) -> [NSLayoutConstraint] {
-        let fillWidth = transcript.widthAnchor.constraint(equalTo: document.widthAnchor, constant: -(horizontalInset * 2))
-        fillWidth.priority = .defaultHigh
-        return [
+    ) -> LayoutConstraints {
+        let transcriptWidth = transcript.widthAnchor.constraint(equalToConstant: maxReadableWidth)
+        return LayoutConstraints(transcriptWidth: transcriptWidth, all: [
             scroll.topAnchor.constraint(equalTo: root.topAnchor),
             scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
@@ -61,8 +65,7 @@ enum TranscriptViewportChrome {
             transcript.leadingAnchor.constraint(greaterThanOrEqualTo: document.leadingAnchor, constant: horizontalInset),
             transcript.trailingAnchor.constraint(lessThanOrEqualTo: document.trailingAnchor, constant: -horizontalInset),
             transcript.centerXAnchor.constraint(equalTo: document.centerXAnchor),
-            transcript.widthAnchor.constraint(lessThanOrEqualToConstant: maxReadableWidth),
-            fillWidth,
-        ]
+            transcriptWidth,
+        ])
     }
 }

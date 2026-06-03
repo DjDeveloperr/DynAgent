@@ -3,6 +3,7 @@ import AppKit
 struct ChatComposerLayoutConstraints {
     var bottom: NSLayoutConstraint
     var centerY: NSLayoutConstraint
+    var width: NSLayoutConstraint
     var all: [NSLayoutConstraint]
 }
 
@@ -40,17 +41,16 @@ enum ChatViewChrome {
         let bottom = card.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -composerBottomInset)
         let centerY = card.centerYAnchor.constraint(equalTo: root.centerYAnchor, constant: composerEmptyStateCenterYOffset)
         centerY.isActive = false
-        let fillWidth = card.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -(ChatLayoutModel.horizontalInset * 2))
-        fillWidth.priority = .defaultHigh
+        let width = card.widthAnchor.constraint(equalToConstant: ChatLayoutModel.maxReadableWidth)
         return ChatComposerLayoutConstraints(
             bottom: bottom,
             centerY: centerY,
+            width: width,
             all: [
                 card.leadingAnchor.constraint(greaterThanOrEqualTo: root.leadingAnchor, constant: ChatLayoutModel.horizontalInset),
                 card.trailingAnchor.constraint(lessThanOrEqualTo: root.trailingAnchor, constant: -ChatLayoutModel.horizontalInset),
                 card.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-                card.widthAnchor.constraint(lessThanOrEqualToConstant: ChatLayoutModel.maxReadableWidth),
-                fillWidth,
+                width,
                 bottom,
             ]
         )
