@@ -2604,18 +2604,10 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func editToolString(_ m: ChatMessage) -> NSAttributedString {
-        let summary = editSummary(m)
-        let out = NSMutableAttributedString(string: editTitle(m), attributes: [
+        return NSMutableAttributedString(string: editTitle(m), attributes: [
             .font: NSFont.systemFont(ofSize: 13.5, weight: .medium),
             .foregroundColor: NSColor.secondaryLabelColor,
         ])
-        if let file = summary.changes.first?.path {
-            out.append(NSAttributedString(string: "  \(fileName(file))", attributes: [
-                .font: NSFont.systemFont(ofSize: 13, weight: .regular),
-                .foregroundColor: NSColor(calibratedRed: 0.36, green: 0.58, blue: 0.86, alpha: 1),
-            ]))
-        }
-        return out
     }
 
     private func fileName(_ path: String) -> String {
@@ -2696,7 +2688,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         textStack.translatesAutoresizingMaskIntoConstraints = false
         if isEdit && !m.toolDone {
             label.isHidden = true
-            textStack.addArrangedSubview(ShimmerLabel(text: "Editing"))
+            let summary = editSummary(m)
+            let name = summary.changes.first.map { fileName($0.path) }
+            textStack.addArrangedSubview(ShimmerLabel(text: name.map { "Editing \($0)" } ?? "Editing"))
         }
         let summary = isEdit ? editSummary(m) : nil
         let editStats = isEdit ? EditStatsView(added: summary?.added ?? 0, deleted: summary?.deleted ?? 0) : nil
@@ -2759,6 +2753,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     @objc private func toolClicked(_ g: NSClickGestureRecognizer) {
         guard let view = g.view, let m = toolByView[ObjectIdentifier(view)] else { return }
         if m.toolName == "edit" {
+            showEditPopover(changes: editSummary(m).changes, anchor: view)
             return
         }
         let text = NSTextView()

@@ -69,8 +69,16 @@ enum EditToolModel {
             guard let start = chunk.firstIndex(of: "{") else { continue }
             let candidate = String(chunk[start...])
             if let json = decodeObject(candidate) { return json }
+            if let end = candidate.lastIndex(of: "}"),
+               let json = decodeObject(String(candidate[...end])) {
+                return json
+            }
         }
-        return decodeObject(detail)
+        if let json = decodeObject(detail) { return json }
+        guard let start = detail.firstIndex(of: "{"),
+              let end = detail.lastIndex(of: "}"),
+              start <= end else { return nil }
+        return decodeObject(String(detail[start...end]))
     }
 
     private static func change(from item: [String: Any]) -> EditToolChange? {
