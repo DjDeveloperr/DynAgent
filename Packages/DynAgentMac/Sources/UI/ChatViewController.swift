@@ -642,6 +642,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             let divider = ensureLiveWorkDivider(for: c)
             let row = addRow(for: tool)
             row.isHidden = true
+            divider.messages.append(tool)
             divider.rows.append(row)
             divider.refresh()
         }
@@ -652,7 +653,12 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             scheduleToolRefresh(for: c, trigger: trigger)
         }
         if let final = outcome.finalAssistant {
-            transcriptCoordinator.finishLiveDivider(for: c.id, duration: final.turnDuration)
+            transcriptCoordinator.finishAndRegroupLiveDivider(
+                for: c.id,
+                duration: final.turnDuration,
+                transcript: transcript,
+                markdown: Self.markdown
+            )
             transcriptCoordinator.appendFinalFooter(for: final, to: transcript)
         }
         if outcome.shouldFinishConversation {
@@ -680,6 +686,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         guard conversation === c else { return }
         let divider = ensureLiveWorkDivider(for: c)
         let row = addRow(for: c.messages.last!)
+        divider.messages.append(c.messages.last!)
         divider.rows.append(row)
         divider.refresh()
     }

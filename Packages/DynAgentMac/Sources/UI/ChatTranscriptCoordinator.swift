@@ -118,6 +118,50 @@ final class ChatTranscriptCoordinator {
         thinking.finishLiveDivider(for: conversationId, duration: duration)
     }
 
+    @discardableResult
+    func finishAndRegroupLiveDivider(
+        for conversationId: String,
+        duration: Double?,
+        transcript: NSStackView,
+        markdown: (String) -> NSAttributedString
+    ) -> WorkDivider? {
+        guard let divider = thinking.finishLiveDivider(for: conversationId, duration: duration) else {
+            return nil
+        }
+        regroupRows(ownedBy: divider, in: transcript, markdown: markdown)
+        return divider
+    }
+
+    private func regroupRows(
+        ownedBy divider: WorkDivider,
+        in transcript: NSStackView,
+        markdown: (String) -> NSAttributedString
+    ) {
+        guard !divider.messages.isEmpty,
+              let dividerIndex = transcript.arrangedSubviews.firstIndex(of: divider) else {
+            divider.refresh()
+            return
+        }
+
+        for row in divider.rows {
+            row.removeFromSuperview()
+        }
+        let groupedRows = interactions.insertRowsGrouped(
+            divider.messages,
+            collapseCompletedTools: true,
+            at: dividerIndex + 1,
+            in: transcript,
+            markdown: markdown,
+            bulkLoading: true,
+            pinAfterAppend: {}
+        )
+        divider.rows = groupedRows.map { row in
+            row.isHidden = true
+            return row
+        }
+        divider.refresh()
+    }
+
     func showThinking(in transcript: NSStackView) {
         thinking.showThinking(in: transcript)
     }

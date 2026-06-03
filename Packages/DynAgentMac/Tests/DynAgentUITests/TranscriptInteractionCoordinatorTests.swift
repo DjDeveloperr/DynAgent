@@ -68,6 +68,35 @@ final class TranscriptInteractionCoordinatorTests: XCTestCase {
         XCTAssertTrue(labels.contains("Read 2 files  A.swift +1"))
     }
 
+    func testInsertGroupedRowsPlacesGroupAtRequestedIndex() throws {
+        let coordinator = TranscriptInteractionCoordinator()
+        let transcript = NSStackView()
+        let prefix = NSView()
+        prefix.translatesAutoresizingMaskIntoConstraints = false
+        let suffix = NSView()
+        suffix.translatesAutoresizingMaskIntoConstraints = false
+        TranscriptStackChrome.appendFullWidthRow(prefix, to: transcript)
+        TranscriptStackChrome.appendFullWidthRow(suffix, to: transcript)
+        let first = ChatMessage(role: .tool, text: "", toolName: "shell", toolDetail: #"$ sed -n '1p' A.swift"#)
+        let second = ChatMessage(role: .tool, text: "", toolName: "shell", toolDetail: #"$ sed -n '1p' B.swift"#)
+        first.toolDone = true
+        second.toolDone = true
+
+        let rows = coordinator.insertRowsGrouped(
+            [first, second],
+            at: 1,
+            in: transcript,
+            markdown: { NSAttributedString(string: $0) },
+            bulkLoading: true,
+            pinAfterAppend: {}
+        )
+
+        let inserted = try XCTUnwrap(rows.first)
+        XCTAssertEqual(transcript.arrangedSubviews, [prefix, inserted, suffix])
+        let labels = findSubviews(of: NSTextField.self, in: inserted).map(\.stringValue)
+        XCTAssertTrue(labels.contains("Read 2 files  A.swift +1"))
+    }
+
     func testAppendFinalFooterRegistersCopyTextAndOwnsCopyAction() throws {
         let coordinator = TranscriptInteractionCoordinator()
         let transcript = NSStackView()

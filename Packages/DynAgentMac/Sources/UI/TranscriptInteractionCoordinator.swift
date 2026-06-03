@@ -36,13 +36,32 @@ final class TranscriptInteractionCoordinator: NSObject {
         bulkLoading: Bool,
         pinAfterAppend: () -> Void
     ) -> NSView {
+        insertRow(
+            for: message,
+            at: transcript.arrangedSubviews.count,
+            in: transcript,
+            markdown: markdown,
+            bulkLoading: bulkLoading,
+            pinAfterAppend: pinAfterAppend
+        )
+    }
+
+    @discardableResult
+    func insertRow(
+        for message: ChatMessage,
+        at index: Int,
+        in transcript: NSStackView,
+        markdown: (String) -> NSAttributedString,
+        bulkLoading: Bool,
+        pinAfterAppend: () -> Void
+    ) -> NSView {
         let built = TranscriptRowFactory.makeRow(for: message, markdown: markdown)
         let container = built.container
         registry.register(built, for: message)
         if let row = built.clickableToolView {
             row.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(toolClicked(_:))))
         }
-        TranscriptStackChrome.appendFullWidthRow(container, to: transcript, customSpacingAfter: built.customSpacingAfter)
+        TranscriptStackChrome.insertFullWidthRow(container, at: index, in: transcript, customSpacingAfter: built.customSpacingAfter)
         if !bulkLoading { pinAfterAppend() }
         return container
     }
@@ -55,20 +74,43 @@ final class TranscriptInteractionCoordinator: NSObject {
         bulkLoading: Bool,
         pinAfterAppend: () -> Void
     ) -> [NSView] {
-        TranscriptRenderModel.groupedItems(messages: messages, collapseCompletedTools: collapseCompletedTools).map { item in
+        insertRowsGrouped(
+            messages,
+            collapseCompletedTools: collapseCompletedTools,
+            at: transcript.arrangedSubviews.count,
+            in: transcript,
+            markdown: markdown,
+            bulkLoading: bulkLoading,
+            pinAfterAppend: pinAfterAppend
+        )
+    }
+
+    func insertRowsGrouped(
+        _ messages: [ChatMessage],
+        collapseCompletedTools: Bool = true,
+        at index: Int,
+        in transcript: NSStackView,
+        markdown: (String) -> NSAttributedString,
+        bulkLoading: Bool,
+        pinAfterAppend: () -> Void
+    ) -> [NSView] {
+        var insertionIndex = min(max(0, index), transcript.arrangedSubviews.count)
+        return TranscriptRenderModel.groupedItems(messages: messages, collapseCompletedTools: collapseCompletedTools).map { item in
+            defer { insertionIndex += 1 }
             switch item {
             case .message(let message):
-                return appendRow(
+                return insertRow(
                     for: message,
-                    to: transcript,
+                    at: insertionIndex,
+                    in: transcript,
                     markdown: markdown,
                     bulkLoading: bulkLoading,
                     pinAfterAppend: pinAfterAppend
                 )
             case .editGroup(let changes):
-                return appendEditGroup(changes, to: transcript, bulkLoading: bulkLoading, pinAfterAppend: pinAfterAppend)
+                return insertEditGroup(changes, at: insertionIndex, in: transcript, bulkLoading: bulkLoading, pinAfterAppend: pinAfterAppend)
             case .shellGroup(let shellMessages):
-                return appendShellGroup(shellMessages, to: transcript, bulkLoading: bulkLoading, pinAfterAppend: pinAfterAppend)
+                return insertShellGroup(shellMessages, at: insertionIndex, in: transcript, bulkLoading: bulkLoading, pinAfterAppend: pinAfterAppend)
             }
         }
     }
@@ -80,7 +122,24 @@ final class TranscriptInteractionCoordinator: NSObject {
         bulkLoading: Bool,
         pinAfterAppend: () -> Void
     ) -> NSView {
-        let row = TranscriptGroupedToolRowChrome.appendShellGroup(messages: messages, to: transcript)
+        insertShellGroup(
+            messages,
+            at: transcript.arrangedSubviews.count,
+            in: transcript,
+            bulkLoading: bulkLoading,
+            pinAfterAppend: pinAfterAppend
+        )
+    }
+
+    @discardableResult
+    func insertShellGroup(
+        _ messages: [ChatMessage],
+        at index: Int,
+        in transcript: NSStackView,
+        bulkLoading: Bool,
+        pinAfterAppend: () -> Void
+    ) -> NSView {
+        let row = TranscriptGroupedToolRowChrome.insertShellGroup(messages: messages, at: index, in: transcript)
         if !bulkLoading { pinAfterAppend() }
         return row.container
     }
@@ -92,7 +151,24 @@ final class TranscriptInteractionCoordinator: NSObject {
         bulkLoading: Bool,
         pinAfterAppend: () -> Void
     ) -> NSView {
-        let row = TranscriptGroupedToolRowChrome.appendEditGroup(changes: changes, to: transcript) { [weak self] change, anchor in
+        insertEditGroup(
+            changes,
+            at: transcript.arrangedSubviews.count,
+            in: transcript,
+            bulkLoading: bulkLoading,
+            pinAfterAppend: pinAfterAppend
+        )
+    }
+
+    @discardableResult
+    func insertEditGroup(
+        _ changes: [EditToolChange],
+        at index: Int,
+        in transcript: NSStackView,
+        bulkLoading: Bool,
+        pinAfterAppend: () -> Void
+    ) -> NSView {
+        let row = TranscriptGroupedToolRowChrome.insertEditGroup(changes: changes, at: index, in: transcript) { [weak self] change, anchor in
             self?.toolPopoverCoordinator.presentEditChanges([change], from: anchor)
         }
         if !bulkLoading { pinAfterAppend() }

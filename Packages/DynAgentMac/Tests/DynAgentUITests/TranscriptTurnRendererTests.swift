@@ -37,6 +37,7 @@ final class TranscriptTurnRendererTests: XCTestCase {
         var groupedMessages: [ChatMessage] = []
         var collapseCompletedTools: Bool?
         var dividerArgs: (duration: Double?, collapsed: Bool, active: Bool)?
+        var divider: WorkDivider?
         var footer: ChatMessage?
 
         TranscriptTurnRenderer.render(
@@ -51,7 +52,9 @@ final class TranscriptTurnRendererTests: XCTestCase {
                 },
                 addDivider: { duration, collapsed, active in
                     dividerArgs = (duration, collapsed, active)
-                    return WorkDivider(duration: duration, collapsed: collapsed, active: active)
+                    let created = WorkDivider(duration: duration, collapsed: collapsed, active: active)
+                    divider = created
+                    return created
                 },
                 addFooter: { footer = $0 }
             ).hooks
@@ -64,6 +67,7 @@ final class TranscriptTurnRendererTests: XCTestCase {
         XCTAssertEqual(dividerArgs?.duration, 12)
         XCTAssertEqual(dividerArgs?.collapsed, true)
         XCTAssertEqual(dividerArgs?.active, false)
+        XCTAssertTrue(divider?.messages.first === tool)
         XCTAssertTrue(groupedRows.allSatisfy(\.isHidden))
         XCTAssertTrue(footer === final)
     }
@@ -77,6 +81,7 @@ final class TranscriptTurnRendererTests: XCTestCase {
         var collapseCompletedTools: Bool?
         var dividerArgs: (duration: Double?, collapsed: Bool, active: Bool)?
         var liveDivider: WorkDivider?
+        var createdDivider: WorkDivider?
 
         TranscriptTurnRenderer.render(
             plan: .active(startedAt: 90, userMessages: [user], middleMessages: [tool]),
@@ -90,7 +95,9 @@ final class TranscriptTurnRendererTests: XCTestCase {
                 },
                 addDivider: { duration, collapsed, active in
                     dividerArgs = (duration, collapsed, active)
-                    return WorkDivider(duration: duration, collapsed: collapsed, active: active)
+                    let created = WorkDivider(duration: duration, collapsed: collapsed, active: active)
+                    createdDivider = created
+                    return created
                 },
                 setLiveDivider: { liveDivider = $0 }
             ).hooks
@@ -103,6 +110,8 @@ final class TranscriptTurnRendererTests: XCTestCase {
         XCTAssertEqual(dividerArgs?.collapsed, false)
         XCTAssertEqual(dividerArgs?.active, true)
         XCTAssertNotNil(liveDivider)
+        XCTAssertTrue(liveDivider === createdDivider)
+        XCTAssertTrue(liveDivider?.messages.first === tool)
         XCTAssertTrue(groupedRows.allSatisfy { !$0.isHidden })
     }
 

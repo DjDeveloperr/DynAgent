@@ -189,12 +189,13 @@ final class MainLayoutStabilizerTests: XCTestCase {
         XCTAssertEqual(fixture.chat.frame.width, repairedWrapper.width, accuracy: 0.5)
     }
 
-    func testStabilizeRaisesMainMinimumWhileGitIsCollapsed() throws {
+    func testStabilizeKeepsMainMinimumFlexibleWhileGitIsCollapsed() throws {
         let fixture = makeFixture(windowWidth: 1_472, windowHeight: 780)
         fixture.root.splitView.setPosition(328, ofDividerAt: 0)
         let mainItem = fixture.root.splitViewItems[1]
         XCTAssertEqual(mainItem.minimumThickness, AppSplitLayoutChrome.mainMinimumWidth)
 
+        fixture.gitItem.isCollapsed = true
         _ = try XCTUnwrap(MainLayoutStabilizer.stabilize(
             window: fixture.window,
             rootContentController: fixture.root,
@@ -206,7 +207,7 @@ final class MainLayoutStabilizerTests: XCTestCase {
             preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
         ))
 
-        XCTAssertEqual(mainItem.minimumThickness, ChatLayoutModel.preferredMainWidthWithInspector)
+        XCTAssertEqual(mainItem.minimumThickness, AppSplitLayoutChrome.mainMinimumWidth)
         fixture.gitItem.isCollapsed = false
         _ = try XCTUnwrap(MainLayoutStabilizer.stabilize(
             window: fixture.window,

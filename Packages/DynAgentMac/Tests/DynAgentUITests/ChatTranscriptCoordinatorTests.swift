@@ -81,6 +81,54 @@ final class ChatTranscriptCoordinatorTests: XCTestCase {
         })
     }
 
+    func testFinishAndRegroupLiveDividerReplacesOnlyOwnedRowsInPlace() throws {
+        let coordinator = ChatTranscriptCoordinator()
+        let transcript = makeTranscript()
+        let first = ChatMessage(role: .tool, text: "", toolName: "shell", toolDetail: #"$ sed -n '1p' A.swift"#)
+        let second = ChatMessage(role: .tool, text: "", toolName: "shell", toolDetail: #"$ sed -n '1p' B.swift"#)
+        first.toolDone = true
+        second.toolDone = true
+
+        let before = NSView()
+        before.translatesAutoresizingMaskIntoConstraints = false
+        TranscriptStackChrome.appendFullWidthRow(before, to: transcript)
+        let divider = coordinator.ensureLiveDivider(
+            for: "thread-1",
+            startedAt: 10,
+            now: 12,
+            transcript: transcript
+        )
+        let rawFirst = NSView()
+        rawFirst.translatesAutoresizingMaskIntoConstraints = false
+        let rawSecond = NSView()
+        rawSecond.translatesAutoresizingMaskIntoConstraints = false
+        TranscriptStackChrome.appendFullWidthRow(rawFirst, to: transcript)
+        TranscriptStackChrome.appendFullWidthRow(rawSecond, to: transcript)
+        let after = NSView()
+        after.translatesAutoresizingMaskIntoConstraints = false
+        TranscriptStackChrome.appendFullWidthRow(after, to: transcript)
+        divider.rows = [rawFirst, rawSecond]
+        divider.messages = [first, second]
+
+        let finished = try XCTUnwrap(coordinator.finishAndRegroupLiveDivider(
+            for: "thread-1",
+            duration: 3,
+            transcript: transcript,
+            markdown: { NSAttributedString(string: $0) }
+        ))
+
+        XCTAssertTrue(finished === divider)
+        XCTAssertFalse(transcript.arrangedSubviews.contains(rawFirst))
+        XCTAssertFalse(transcript.arrangedSubviews.contains(rawSecond))
+        XCTAssertEqual(transcript.arrangedSubviews.first, before)
+        XCTAssertEqual(transcript.arrangedSubviews[1], divider)
+        XCTAssertEqual(transcript.arrangedSubviews.last, after)
+        XCTAssertEqual(divider.rows.count, 1)
+        XCTAssertTrue(divider.rows[0].isHidden)
+        XCTAssertEqual(transcript.arrangedSubviews.firstIndex(of: divider.rows[0]), 2)
+        XCTAssertTrue(findLabels(in: divider.rows[0]).contains("Read 2 files  A.swift +1"))
+    }
+
     private func makeTranscript() -> NSStackView {
         let transcript = NSStackView()
         transcript.orientation = .vertical

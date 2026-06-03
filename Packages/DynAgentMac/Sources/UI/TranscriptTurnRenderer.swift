@@ -36,6 +36,7 @@ enum TranscriptTurnRenderer {
         case .collapsed(let userMessages, let middleMessages, let finalMessage):
             userMessages.forEach(hooks.addMessageRow)
             let divider = hooks.addWorkDivider(finalMessage.turnDuration, true, false)
+            divider.messages = middleMessages
             divider.rows = hooks.addGroupedRows(middleMessages, true).map { row in
                 row.isHidden = true
                 return row
@@ -47,6 +48,7 @@ enum TranscriptTurnRenderer {
             userMessages.forEach(hooks.addMessageRow)
             let divider = hooks.addWorkDivider(max(0, now - startedAt), false, true)
             hooks.setLiveDivider(divider)
+            divider.messages = middleMessages
             divider.rows = hooks.addGroupedRows(middleMessages, false)
             divider.refresh()
         }

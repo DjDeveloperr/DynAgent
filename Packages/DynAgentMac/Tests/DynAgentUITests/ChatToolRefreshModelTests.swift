@@ -46,8 +46,8 @@ final class ChatToolRefreshModelTests: XCTestCase {
         ))
     }
 
-    func testStreamDoneSchedulesFinalRefreshOnlyWhenVisibleAndInactive() {
-        XCTAssertTrue(ChatToolRefreshModel.shouldScheduleRefresh(
+    func testStreamDoneDoesNotScheduleTranscriptRebuild() {
+        XCTAssertFalse(ChatToolRefreshModel.shouldScheduleRefresh(
             trigger: .streamDone,
             isVisible: true,
             isActive: false

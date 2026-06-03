@@ -18,7 +18,7 @@ enum ChatToolRefreshModel {
         case .completedTool(let name):
             return name == "edit" || name == "shell"
         case .streamDone:
-            return true
+            return false
         }
     }
 }

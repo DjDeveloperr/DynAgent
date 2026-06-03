@@ -157,6 +157,7 @@ final class ShimmerLabel: NSView {
 /// Codex-style work divider that can expand/collapse intermediate steps.
 final class WorkDivider: NSView {
     var rows: [NSView] = []
+    var messages: [ChatMessage] = []
     private var collapsed: Bool
     private var active: Bool
     private let label = NSTextField(labelWithString: "")
@@ -266,6 +267,21 @@ enum TranscriptStackChrome {
     }
 
     @discardableResult
+    static func insertFullWidthRow(
+        _ row: NSView,
+        at index: Int,
+        in transcript: NSStackView,
+        customSpacingAfter: CGFloat? = nil
+    ) -> NSLayoutConstraint {
+        let clamped = min(max(0, index), transcript.arrangedSubviews.count)
+        transcript.insertArrangedSubview(row, at: clamped)
+        if let customSpacingAfter {
+            transcript.setCustomSpacing(customSpacingAfter, after: row)
+        }
+        return pinRowToTranscriptWidth(row, transcript: transcript)
+    }
+
+    @discardableResult
     static func appendFullWidthContainer(
         containing content: NSView,
         to transcript: NSStackView,
@@ -273,6 +289,18 @@ enum TranscriptStackChrome {
     ) -> NSView {
         let container = makeFullWidthContainer(containing: content)
         appendFullWidthRow(container, to: transcript, customSpacingAfter: customSpacingAfter)
+        return container
+    }
+
+    @discardableResult
+    static func insertFullWidthContainer(
+        containing content: NSView,
+        at index: Int,
+        in transcript: NSStackView,
+        customSpacingAfter: CGFloat? = nil
+    ) -> NSView {
+        let container = makeFullWidthContainer(containing: content)
+        insertFullWidthRow(container, at: index, in: transcript, customSpacingAfter: customSpacingAfter)
         return container
     }
 

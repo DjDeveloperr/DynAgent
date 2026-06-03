@@ -185,6 +185,54 @@ final class TranscriptRowChromeTests: XCTestCase {
         XCTAssertTrue(constraint.isActive)
     }
 
+    func testTranscriptStackInsertClampsIndexAndPinsWidth() {
+        let transcript = NSStackView()
+        transcript.translatesAutoresizingMaskIntoConstraints = false
+        let first = NSView()
+        first.translatesAutoresizingMaskIntoConstraints = false
+        let second = NSView()
+        second.translatesAutoresizingMaskIntoConstraints = false
+        let inserted = NSView()
+        inserted.translatesAutoresizingMaskIntoConstraints = false
+        transcript.addArrangedSubview(first)
+        transcript.addArrangedSubview(second)
+
+        let constraint = TranscriptStackChrome.insertFullWidthRow(
+            inserted,
+            at: 1,
+            in: transcript,
+            customSpacingAfter: TranscriptStackChrome.toolSpacingAfter
+        )
+
+        XCTAssertEqual(transcript.arrangedSubviews, [first, inserted, second])
+        XCTAssertEqual(transcript.customSpacing(after: inserted), TranscriptStackChrome.toolSpacingAfter)
+        XCTAssertEqual(constraint.firstAnchor, inserted.widthAnchor)
+        XCTAssertEqual(constraint.secondAnchor, transcript.widthAnchor)
+        XCTAssertTrue(constraint.isActive)
+    }
+
+    func testTranscriptStackInsertContainerAddsPinnedWrappedContent() {
+        let transcript = NSStackView()
+        transcript.translatesAutoresizingMaskIntoConstraints = false
+        let before = NSView()
+        let after = NSView()
+        let content = NSTextField(labelWithString: "group")
+        transcript.addArrangedSubview(before)
+        transcript.addArrangedSubview(after)
+
+        let container = TranscriptStackChrome.insertFullWidthContainer(
+            containing: content,
+            at: 1,
+            in: transcript
+        )
+
+        XCTAssertEqual(transcript.arrangedSubviews, [before, container, after])
+        XCTAssertTrue(content.superview === container)
+        XCTAssertTrue(transcript.constraints.contains {
+            $0.firstAnchor == container.widthAnchor && $0.secondAnchor == transcript.widthAnchor
+        })
+    }
+
     func testTranscriptStackAppendContainerAddsPinnedWrappedContent() throws {
         let transcript = NSStackView()
         transcript.translatesAutoresizingMaskIntoConstraints = false

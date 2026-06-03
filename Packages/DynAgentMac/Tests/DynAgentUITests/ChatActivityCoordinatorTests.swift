@@ -99,7 +99,7 @@ final class ChatActivityCoordinatorTests: XCTestCase {
         )
         coordinator.scheduleToolRefresh(
             for: conversation,
-            trigger: .streamDone,
+            trigger: .completedTool(name: "edit"),
             isVisible: true,
             isActive: false,
             shouldRefresh: { true },
@@ -113,6 +113,25 @@ final class ChatActivityCoordinatorTests: XCTestCase {
         XCTAssertEqual(refreshCount, 1)
     }
 
+    func testStreamDoneDoesNotScheduleWholeTranscriptRefresh() {
+        var scheduleCount = 0
+        let coordinator = ChatActivityCoordinator(
+            scheduler: { _, _ in scheduleCount += 1 }
+        )
+        let conversation = Conversation(model: "gpt-5.5")
+
+        coordinator.scheduleToolRefresh(
+            for: conversation,
+            trigger: .streamDone,
+            isVisible: true,
+            isActive: false,
+            shouldRefresh: { true },
+            refresh: { _ in }
+        )
+
+        XCTAssertEqual(scheduleCount, 0)
+    }
+
     func testToolRefreshRechecksVisibilityBeforeRefreshing() {
         var scheduledItem: DispatchWorkItem?
         let coordinator = ChatActivityCoordinator(
@@ -123,7 +142,7 @@ final class ChatActivityCoordinatorTests: XCTestCase {
 
         coordinator.scheduleToolRefresh(
             for: conversation,
-            trigger: .streamDone,
+            trigger: .completedTool(name: "shell"),
             isVisible: true,
             isActive: false,
             shouldRefresh: { false },
