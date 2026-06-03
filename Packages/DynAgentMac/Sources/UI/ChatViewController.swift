@@ -448,12 +448,12 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             doc.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
             transcript.topAnchor.constraint(equalTo: doc.topAnchor, constant: 20),
             transcript.bottomAnchor.constraint(equalTo: doc.bottomAnchor, constant: -12),
-            transcript.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: 14),
-            transcript.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -14),
+            transcript.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: ChatLayoutModel.horizontalInset),
+            transcript.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -ChatLayoutModel.horizontalInset),
 
             // Composer matches the full transcript width.
-            card.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14),
-            card.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -14),
+            card.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: ChatLayoutModel.horizontalInset),
+            card.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -ChatLayoutModel.horizontalInset),
             cardBottomConstraint!,
 
             attachmentScroll.topAnchor.constraint(equalTo: cardContent.topAnchor, constant: 10),

@@ -24,6 +24,14 @@ final class RootSplitViewController: NSSplitViewController {
     func deactivateInternalSplitSizingConstraints() {
         splitView.translatesAutoresizingMaskIntoConstraints = true
         splitView.autoresizingMask = [.width, .height]
+        if let superview = splitView.superview {
+            let managedConstraints = superview.constraints.filter {
+                ($0.firstItem as AnyObject?) === splitView || ($0.secondItem as AnyObject?) === splitView
+            }
+            if !managedConstraints.isEmpty {
+                NSLayoutConstraint.deactivate(managedConstraints)
+            }
+        }
     }
 
     func pinSplitViewToRoot() {

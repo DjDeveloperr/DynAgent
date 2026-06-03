@@ -22,6 +22,24 @@ final class WindowLayoutModelTests: XCTestCase {
         XCTAssertEqual(WindowLayoutModel.restoredFrame(good, minSize: minSize, visibleFrame: visible), good)
     }
 
+    func testRestoredFrameCanRejectStaleNarrowSavedFrames() {
+        let visible = CGRect(x: 0, y: 0, width: 1512, height: 949)
+        let minSize = CGSize(width: 820, height: 480)
+
+        XCTAssertNil(WindowLayoutModel.restoredFrame(
+            CGRect(x: 30, y: 75, width: 1291, height: 798),
+            minSize: minSize,
+            visibleFrame: visible,
+            minimumRestoredWidth: 1335
+        ))
+        XCTAssertNotNil(WindowLayoutModel.restoredFrame(
+            CGRect(x: 30, y: 75, width: 1400, height: 798),
+            minSize: minSize,
+            visibleFrame: visible,
+            minimumRestoredWidth: 1335
+        ))
+    }
+
     func testShouldRestoreAppliedFrameOnlyWhenWindowShrank() {
         let applied = CGRect(x: 0, y: 0, width: 1452, height: 798)
 
@@ -79,6 +97,25 @@ final class WindowLayoutModelTests: XCTestCase {
         XCTAssertNil(plan.secondDividerPosition)
     }
 
+    func testSplitPlanDoesNotPreserveMaxSidebarWhenGitIsCollapsed() {
+        let plan = WindowLayoutModel.splitPlan(WindowSplitConfiguration(
+            totalWidth: 1472,
+            sidebarCurrentWidth: 380,
+            sidebarMinimumWidth: 260,
+            sidebarMaximumWidth: 380,
+            sidebarCollapsed: false,
+            gitCurrentWidth: 0,
+            gitMinimumWidth: 300,
+            gitMaximumWidth: 520,
+            gitCollapsed: true,
+            fallbackSidebarWidth: 260
+        ))
+
+        XCTAssertEqual(plan.sidebarWidth, 260)
+        XCTAssertEqual(plan.firstDividerPosition, 260)
+        XCTAssertNil(plan.secondDividerPosition)
+    }
+
     func testSplitPlanClampsSidebarAndGitWidths() {
         let plan = WindowLayoutModel.splitPlan(WindowSplitConfiguration(
             totalWidth: 1452,
@@ -93,9 +130,9 @@ final class WindowLayoutModelTests: XCTestCase {
         ))
 
         XCTAssertEqual(plan.sidebarWidth, 380)
-        XCTAssertEqual(plan.gitWidth, 520)
+        XCTAssertEqual(plan.gitWidth, 300)
         XCTAssertEqual(plan.firstDividerPosition, 380)
-        XCTAssertEqual(plan.secondDividerPosition, 932)
+        XCTAssertEqual(plan.secondDividerPosition, 1152)
     }
 
     func testSplitPlanPreservesMinimumMainWidthWhenWindowIsTight() {
@@ -112,6 +149,25 @@ final class WindowLayoutModelTests: XCTestCase {
         ))
 
         XCTAssertEqual(plan.secondDividerPosition, 660)
+    }
+
+    func testSplitPlanPreservesReadableMainWidthBeforeExpandingGit() {
+        let plan = WindowLayoutModel.splitPlan(WindowSplitConfiguration(
+            totalWidth: 1472,
+            sidebarCurrentWidth: 260,
+            sidebarMinimumWidth: 260,
+            sidebarMaximumWidth: 380,
+            sidebarCollapsed: false,
+            gitCurrentWidth: 520,
+            gitMinimumWidth: 300,
+            gitMaximumWidth: 520,
+            gitCollapsed: false,
+            preferredMainWidth: 900
+        ))
+
+        XCTAssertEqual(plan.firstDividerPosition, 260)
+        XCTAssertEqual(plan.secondDividerPosition, 1160)
+        XCTAssertEqual(plan.gitWidth, 312)
     }
 
     func testMetricsPayloadPreservesWidthInvariantFields() throws {

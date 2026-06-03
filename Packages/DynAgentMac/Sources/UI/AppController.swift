@@ -1,24 +1,10 @@
 import AppKit
 
 final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
-    private struct HotState: Codable {
-        var conversations: [Conversation]
-        var draft: Conversation?
-        var codexStubs: [String: [Conversation]]
-        var workspaceRefs: [WorkspaceRef]
-        var worktreesByPath: [String: [String]]
-        var modelCache: [String: [String]]
-        var primaryPath: String
-        var active: WorkspaceRef
-        var archivedCodexIds: [String]
-        var selectedConversationId: String?
-        var savedAt: Double
-    }
-
     private let client = AgentClient()
     private let window: NSWindow
     private let hotState: NSMutableDictionary?
-    private let hotStateKey = "DynAgentUIHotState"
+    private let hotStateKey = AppHotStateModel.stateKey
 
     private let sidebar = SidebarViewController()
     private let chat = ChatViewController()
@@ -280,22 +266,23 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         }
     }
 
-    private func processTerminalActions() async {
+    @MainActor private func processTerminalActions() async {
         let actions = await client.pollTerminalActions()
         for action in actions {
             guard let terminal = PanelRegistry.shared.terminal(action.id) else { continue }
             terminal.write(action.text)
             // Report output back after a short delay
             let termId = action.id ?? terminal.panelId
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-                guard let self else { return }
+            let client = client
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak terminal, client] in
+                guard let terminal else { return }
                 let output = terminal.readBuffer(last: 8000)
-                Task { await self.client.reportTerminalOutput(id: termId, output: output) }
+                Task { await client.reportTerminalOutput(id: termId, output: output) }
             }
         }
     }
 
-    private func processBrowserActions() async {
+    @MainActor private func processBrowserActions() async {
         let actions = await client.pollBrowserActions()
         for action in actions {
             guard let browser = PanelRegistry.shared.browser(action.id) else { continue }
@@ -304,10 +291,11 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
                 if let url = action.url {
                     browser.load(url)
                     // Report state after navigation settles
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                        guard let self else { return }
+                    let client = client
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak browser, client] in
+                        guard let browser else { return }
                         let id = action.id ?? browser.panelId
-                        Task { await self.client.reportBrowserState(id: id, url: browser.currentURL, title: browser.pageTitle()) }
+                        Task { await client.reportBrowserState(id: id, url: browser.currentURL, title: browser.pageTitle()) }
                     }
                 }
             case "eval":
@@ -565,8 +553,18 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             gitCurrentWidth: splitView.subviews.count >= 3 ? splitView.subviews[2].frame.width : 0,
             gitMinimumWidth: gitItem.minimumThickness,
             gitMaximumWidth: gitItem.maximumThickness,
-            gitCollapsed: gitItem.isCollapsed
+            gitCollapsed: gitItem.isCollapsed,
+            fallbackSidebarWidth: sidebarItem.minimumThickness,
+            preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
         ))
+        if let first = plan.firstDividerPosition {
+            splitView.setPosition(first, ofDividerAt: 0)
+        }
+        if splitView.subviews.count >= 3, let second = plan.secondDividerPosition {
+            splitView.setPosition(second, ofDividerAt: 1)
+        }
+        splitView.adjustSubviews()
+        (rootSplitController as? RootSplitViewController)?.pinSplitViewToRoot()
         if let first = plan.firstDividerPosition {
             splitView.setPosition(first, ofDividerAt: 0)
         }
@@ -924,29 +922,18 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     private func restoreHotState() -> Bool {
         guard let data = hotState?[hotStateKey] as? Data,
-              let state = try? JSONDecoder().decode(HotState.self, from: data) else { return false }
-        conversations = state.conversations
-        draft = state.draft
-        codexStubs = state.codexStubs
-        for c in conversations + codexStubs.values.flatMap({ $0 }) where c.harness == .codex {
-            if TranscriptTurnModel.latestTurnLooksActive(conversation: c) {
-                c.status = .running
-                c.needsLoad = true
-            } else if c.status == .thinking || c.status == .running {
-                c.status = .idle
-                c.needsLoad = false
-            }
-        }
-        workspaceRefs = state.workspaceRefs.filter { !$0.path.contains("/worktrees/") }
-        worktreesByPath = state.worktreesByPath
-        modelCache = Dictionary(uniqueKeysWithValues: state.modelCache.compactMap { key, value in
-            guard let harness = Harness(rawValue: key) else { return nil }
-            return (harness, value)
-        })
-        primaryPath = state.primaryPath
-        active = state.active
-        archivedCodexIds = Set(state.archivedCodexIds)
-        if let selected = state.selectedConversationId {
+              let state = AppHotStateModel.decode(data) else { return false }
+        let restored = AppHotStateModel.restored(from: state)
+        conversations = restored.conversations
+        draft = restored.draft
+        codexStubs = restored.codexStubs
+        workspaceRefs = restored.workspaceRefs
+        worktreesByPath = restored.worktreesByPath
+        modelCache = restored.modelCache
+        primaryPath = restored.primaryPath
+        active = restored.active
+        archivedCodexIds = restored.archivedCodexIds
+        if let selected = restored.selectedConversationId {
             UserDefaults.standard.set(selected, forKey: selectedConversationKey)
         }
         return true
@@ -957,21 +944,19 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         pendingHotStateSave?.cancel()
         pendingHotStateSave = nil
         let selected = chat.conversation?.id ?? UserDefaults.standard.string(forKey: selectedConversationKey)
-        let cache = Dictionary(uniqueKeysWithValues: modelCache.map { ($0.key.rawValue, $0.value) })
-        let state = HotState(
+        let state = AppHotStateModel.snapshot(
             conversations: conversations,
             draft: draft,
             codexStubs: codexStubs,
             workspaceRefs: workspaceRefs,
             worktreesByPath: worktreesByPath,
-            modelCache: cache,
+            modelCache: modelCache,
             primaryPath: primaryPath,
             active: active,
-            archivedCodexIds: Array(archivedCodexIds),
-            selectedConversationId: selected,
-            savedAt: Date().timeIntervalSince1970
+            archivedCodexIds: archivedCodexIds,
+            selectedConversationId: selected
         )
-        if let data = try? JSONEncoder().encode(state) {
+        if let data = AppHotStateModel.encode(state) {
             hotState[hotStateKey] = data
         }
     }
@@ -1185,14 +1170,16 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         guard let value = UserDefaults.standard.string(forKey: mainWindowFrameKey) else { return nil }
         let rect = NSRectFromString(value)
         let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
-        return WindowLayoutModel.restoredFrame(rect, minSize: window.minSize, visibleFrame: visible)
+        let wide = wideWindowFrame()
+        return WindowLayoutModel.restoredFrame(
+            rect,
+            minSize: window.minSize,
+            visibleFrame: visible,
+            minimumRestoredWidth: wide.width * 0.92
+        )
     }
 
     private func initialMainWindowFrame() -> NSRect {
-        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
-        if let current = WindowLayoutModel.restoredFrame(window.frame, minSize: window.minSize, visibleFrame: visible) {
-            return current
-        }
         return restoredMainWindowFrame() ?? wideWindowFrame()
     }
 

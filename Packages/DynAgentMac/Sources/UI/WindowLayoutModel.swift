@@ -14,6 +14,7 @@ struct WindowSplitConfiguration: Equatable {
     var fallbackSidebarWidth: CGFloat = 300
     var fallbackGitWidth: CGFloat = 360
     var minimumMainWidth: CGFloat = 360
+    var preferredMainWidth: CGFloat = 900
 }
 
 struct WindowSplitPlan: Equatable {
@@ -91,9 +92,15 @@ enum WindowLayoutModel {
         )
     }
 
-    static func restoredFrame(_ rect: CGRect?, minSize: CGSize, visibleFrame: CGRect) -> CGRect? {
+    static func restoredFrame(
+        _ rect: CGRect?,
+        minSize: CGSize,
+        visibleFrame: CGRect,
+        minimumRestoredWidth: CGFloat? = nil
+    ) -> CGRect? {
+        let minimumWidth = max(minSize.width, minimumRestoredWidth ?? minSize.width)
         guard let rect,
-              rect.width >= minSize.width,
+              rect.width >= minimumWidth,
               rect.height >= minSize.height else { return nil }
         guard visibleFrame.isEmpty || visibleFrame.intersects(rect) else { return nil }
         return rect
@@ -118,7 +125,10 @@ enum WindowLayoutModel {
             sidebarWidth = 0
         } else {
             let current = config.sidebarCurrentWidth > 0 ? config.sidebarCurrentWidth : config.fallbackSidebarWidth
-            sidebarWidth = clamp(current, min: config.sidebarMinimumWidth, max: config.sidebarMaximumWidth)
+            let effectiveCurrent = config.gitCollapsed
+                ? min(current, max(config.sidebarMinimumWidth, config.fallbackSidebarWidth))
+                : current
+            sidebarWidth = clamp(effectiveCurrent, min: config.sidebarMinimumWidth, max: config.sidebarMaximumWidth)
         }
 
         guard !config.gitCollapsed else {
@@ -130,13 +140,23 @@ enum WindowLayoutModel {
             )
         }
 
+        let availableForMainAndGit = max(0, config.totalWidth - sidebarWidth)
+        let reserveGitWidth = min(config.gitMinimumWidth, max(0, availableForMainAndGit - config.minimumMainWidth))
+        let maxMainWidthWhileKeepingGitUsable = max(config.minimumMainWidth, availableForMainAndGit - reserveGitWidth)
+        let preferredMainWidth = clamp(
+            config.preferredMainWidth,
+            min: config.minimumMainWidth,
+            max: maxMainWidthWhileKeepingGitUsable
+        )
+
         let currentGitWidth = config.gitCurrentWidth > 0 ? config.gitCurrentWidth : config.fallbackGitWidth
         let gitWidth = clamp(currentGitWidth, min: config.gitMinimumWidth, max: config.gitMaximumWidth)
-        let rawSecondDivider = max(sidebarWidth + config.minimumMainWidth, config.totalWidth - gitWidth)
+        let mainWidth = max(preferredMainWidth, availableForMainAndGit - gitWidth)
+        let rawSecondDivider = sidebarWidth + mainWidth
         let secondDivider = min(max(rawSecondDivider, sidebarWidth), config.totalWidth)
         return WindowSplitPlan(
             sidebarWidth: sidebarWidth,
-            gitWidth: gitWidth,
+            gitWidth: max(0, config.totalWidth - secondDivider),
             firstDividerPosition: config.sidebarCollapsed ? nil : sidebarWidth,
             secondDividerPosition: secondDivider
         )
