@@ -26,6 +26,7 @@
 - `EditToolModel.swift`: tested edit-tool parser and title model for grouped editing rows and popout diff data.
 - `TranscriptTurnModel.swift`: tested turn-planning model for prompt/steer boundaries, active-turn detection, active-turn expansion, final-response collapse, timestamps, and large-thread trimming.
 - `TranscriptTurnRenderModel.swift`: tested turn-render decision model for active, collapsed, and expanded transcript turn row plans.
+- `TranscriptTurnRenderer.swift`: tested AppKit bridge that applies turn-render plans to transcript rows, grouped tool rows, work dividers, and final footers.
 - `TranscriptRenderModel.swift`: tested row data-source model for render-cache fingerprints, turn batching, shell tool grouping, and completed edit grouping.
 - `TranscriptRenderSessionModel.swift`: tested render-session state for transcript cache reuse, generation invalidation, shell loading, async batch guards, and bulk-loading completion.
 - `TranscriptLiveUpdateModel.swift`: tested streaming update policy for markdown render throttling and stateful autoscroll scheduling.

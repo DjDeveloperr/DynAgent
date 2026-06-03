@@ -526,31 +526,32 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     /// Render one turn with its work divider above the final assistant response.
     private func renderTurn(_ turn: [ChatMessage], conversation c: Conversation, allowCollapse: Bool, forceActive: Bool = false) {
-        let plan = TranscriptTurnRenderModel.plan(
+        TranscriptTurnRenderer.render(
             turn: turn,
             allowCollapse: allowCollapse,
             isConversationActive: isActiveConversation(c),
             forceActive: forceActive,
             fallbackActiveStartedAt: activeTurnStartedAt(for: c),
-            now: Date().timeIntervalSince1970
+            now: Date().timeIntervalSince1970,
+            hooks: TranscriptTurnRenderer.Hooks(
+                addMessageRow: { [unowned self] message in
+                    _ = addRow(for: message)
+                },
+                addGroupedRows: { [unowned self] messages, collapseCompletedTools in
+                    addRowsGrouped(messages, collapseCompletedTools: collapseCompletedTools)
+                },
+                addWorkDivider: { [unowned self] duration, collapsed, active in
+                    addWorkDivider(duration: duration, collapsed: collapsed, active: active)
+                },
+                setLiveDivider: { [unowned self, weak c] divider in
+                    guard let c else { return }
+                    liveWorkDividerByConversationId[c.id] = divider
+                },
+                addFinalFooter: { [unowned self] message in
+                    addFinalFooter(for: message)
+                }
+            )
         )
-        switch plan {
-        case .expanded(let messages):
-            for message in messages { addRow(for: message) }
-        case .collapsed(let userMessages, let middleMessages, let finalMessage):
-            for message in userMessages { addRow(for: message) }
-            let divider = addWorkDivider(duration: finalMessage.turnDuration)
-            divider.rows = addRowsGrouped(middleMessages).map { row in row.isHidden = true; return row }
-            divider.refresh()
-            addRow(for: finalMessage)
-            addFinalFooter(for: finalMessage)
-        case .active(let startedAt, let userMessages, let middleMessages):
-            for message in userMessages { addRow(for: message) }
-            let divider = addWorkDivider(duration: Date().timeIntervalSince1970 - startedAt, collapsed: false, active: true)
-            liveWorkDividerByConversationId[c.id] = divider
-            divider.rows = addRowsGrouped(middleMessages, collapseCompletedTools: false)
-            divider.refresh()
-        }
     }
 
     private func addRowsGrouped(_ messages: [ChatMessage], collapseCompletedTools: Bool = true) -> [NSView] {
