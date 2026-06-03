@@ -67,8 +67,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private var pendingHotStateSave: DispatchWorkItem?
     private var detachedChatWindows: [DetachedChatWindowController] = []
     private let projectlessCodexKey = "__codex_projectless__"
-    private var navigationBackStack: [Conversation] = []
-    private var navigationForwardStack: [Conversation] = []
+    private var navigationHistory = NavigationHistoryModel<Conversation>()
     private let maximumWindowSize = NSSize(width: 20_000, height: 20_000)
     private var lastRequestedMainFrame: NSRect = .zero
     private var lastAppliedMainFrame: NSRect = .zero
@@ -473,36 +472,26 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func recordNavigationAwayFromCurrent(to next: Conversation?) {
-        guard let current = currentNavigableConversation(), current !== next else { return }
-        navigationBackStack.removeAll { $0 === current }
-        navigationBackStack.append(current)
-        if navigationBackStack.count > 50 { navigationBackStack.removeFirst(navigationBackStack.count - 50) }
-        navigationForwardStack.removeAll()
+        navigationHistory.recordLeaving(current: currentNavigableConversation(), to: next)
         updateNavigationControls()
     }
 
     private func updateNavigationControls() {
-        navBackButton.isEnabled = !navigationBackStack.isEmpty
-        navForwardButton.isEnabled = !navigationForwardStack.isEmpty
+        navBackButton.isEnabled = navigationHistory.canGoBack
+        navForwardButton.isEnabled = navigationHistory.canGoForward
         navBackButton.contentTintColor = navBackButton.isEnabled ? .secondaryLabelColor : .tertiaryLabelColor
         navForwardButton.contentTintColor = navForwardButton.isEnabled ? .secondaryLabelColor : .tertiaryLabelColor
     }
 
     @objc private func goBack() {
-        guard let target = navigationBackStack.popLast() else { return }
-        if let current = currentNavigableConversation(), current !== target {
-            navigationForwardStack.append(current)
-        }
+        guard let target = navigationHistory.goBack(from: currentNavigableConversation()) else { return }
         selectConversation(target, recordHistory: false)
         rebuildGroups(select: target)
         updateNavigationControls()
     }
 
     @objc private func goForward() {
-        guard let target = navigationForwardStack.popLast() else { return }
-        if let current = currentNavigableConversation(), current !== target {
-            navigationBackStack.append(current)
-        }
+        guard let target = navigationHistory.goForward(from: currentNavigableConversation()) else { return }
         selectConversation(target, recordHistory: false)
         rebuildGroups(select: target)
         updateNavigationControls()

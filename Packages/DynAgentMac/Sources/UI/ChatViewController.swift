@@ -69,7 +69,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var pendingScrollToBottom = false
     private var restoringComposerDraft = false
     private var draftSaveWorkItem: DispatchWorkItem?
-    private let composerDraftPrefix = ComposerModel.defaultDraftPrefix
+    private let composerDraftStore = ComposerDraftStore()
 
     private var streaming: Bool {
         guard let conversation else { return false }
@@ -655,13 +655,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         guard !restoringComposerDraft, let c = conversation else { return }
         draftSaveWorkItem?.cancel()
         draftSaveWorkItem = nil
-        let snapshot = ComposerModel.draftSnapshot(text: composer.string, attachments: attachments)
-        let key = composerDraftKey(for: c)
-        if snapshot.isEmpty {
-            UserDefaults.standard.removeObject(forKey: key)
-        } else if let data = ComposerModel.encodeDraftSnapshot(snapshot) {
-            UserDefaults.standard.set(data, forKey: key)
-        }
+        composerDraftStore.save(text: composer.string, attachments: attachments, for: c)
     }
 
     private func scheduleComposerDraftSave() {
@@ -673,23 +667,17 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func restoreComposerDraft(for c: Conversation) {
-        let key = composerDraftKey(for: c)
-        let data = UserDefaults.standard.data(forKey: key)
-        let snapshot = ComposerModel.decodeDraftSnapshot(from: data)
+        let snapshot = composerDraftStore.snapshot(for: c)
         restoringComposerDraft = true
         composer.string = snapshot?.text ?? ""
-        attachments = ComposerModel.restoredAttachments(from: snapshot) { FileManager.default.fileExists(atPath: $0) }
+        attachments = composerDraftStore.restoredAttachments(for: c) { FileManager.default.fileExists(atPath: $0) }
         renderAttachments()
         restoringComposerDraft = false
         placeholder.isHidden = !composer.string.isEmpty
     }
 
     private func clearComposerDraft(for c: Conversation) {
-        UserDefaults.standard.removeObject(forKey: composerDraftKey(for: c))
-    }
-
-    private func composerDraftKey(for c: Conversation) -> String {
-        ComposerModel.draftKey(for: c, prefix: composerDraftPrefix)
+        composerDraftStore.clear(for: c)
     }
 
     func show(_ c: Conversation) {
