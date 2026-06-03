@@ -905,34 +905,18 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func allVisibleConversations() -> [Conversation] {
-        var seen = Set<String>()
-        var out: [Conversation] = []
-        for c in conversations + codexStubs.values.flatMap({ $0 }) {
-            guard !seen.contains(c.id) else { continue }
-            seen.insert(c.id)
-            out.append(c)
-        }
-        return out
+        AppConversationIndexModel.visibleConversations(local: conversations, codexStubs: codexStubs)
     }
 
     private func updateDockState() {
-        let recent = allVisibleConversations()
-            .sorted { $0.updatedAt > $1.updatedAt }
-            .prefix(12)
-            .map { c in
-                [
-                    "id": c.id,
-                    "title": c.title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "New Chat",
-                    "workspace": c.workspace,
-                    "updatedAt": c.updatedAt,
-                ] as [String: Any]
-            }
+        let visible = allVisibleConversations()
+        let recent = AppConversationIndexModel.dockRecent(conversations: visible).map(\.dictionary)
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".dynagent")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         if let data = try? JSONSerialization.data(withJSONObject: Array(recent), options: []) {
             try? data.write(to: dir.appendingPathComponent("dock-recent.json"))
         }
-        let unread = allVisibleConversations().filter { $0.unread && $0.status != .thinking && $0.status != .running }.count
+        let unread = AppConversationIndexModel.unreadFinishedCount(visible)
         NSApp.dockTile.badgeLabel = unread > 0 ? "\(unread)" : nil
     }
 
@@ -960,12 +944,12 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func restoredConversation() -> Conversation? {
-        let candidates = conversations + codexStubs.values.flatMap { $0 } + (draft.map { [$0] } ?? [])
-        if let id = UserDefaults.standard.string(forKey: selectedConversationKey),
-           let selected = candidates.first(where: { $0.id == id }) {
-            return selected
-        }
-        return candidates.sorted { $0.updatedAt > $1.updatedAt }.first
+        AppConversationIndexModel.restoredConversation(
+            selectedId: UserDefaults.standard.string(forKey: selectedConversationKey),
+            conversations: conversations,
+            codexStubs: codexStubs,
+            draft: draft
+        )
     }
 
     // MARK: Workspaces & worktrees
