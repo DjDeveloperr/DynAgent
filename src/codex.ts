@@ -98,9 +98,9 @@ function diffStats(diff?: string): { added: number; deleted: number } {
   return { added, deleted }
 }
 
-function fileChangeDetail(it: any): string {
+function fileChangeDetail(it: any, status?: string): string {
   return JSON.stringify({
-    status: it.status || "completed",
+    status: status || it.status || "completed",
     changes: (it.changes || []).map((c: any) => ({
       path: c.path,
       kind: c.kind?.type || c.kind || "update",
@@ -456,7 +456,7 @@ export class CodexClient {
           case "item/started": {
             const it = p.item
             if (it?.type === "commandExecution") opts.onEvent({ type: "tool", name: "shell", detail: it.command })
-            else if (it?.type === "fileChange") opts.onEvent({ type: "tool", name: "edit", detail: (it.changes || []).map((c: any) => c.path).join(", ") })
+            else if (it?.type === "fileChange") opts.onEvent({ type: "tool", name: "edit", detail: fileChangeDetail(it, "running") })
             else if (it?.type === "mcpToolCall") opts.onEvent({ type: "tool", name: it.tool, detail: it.server })
             else if (it?.type === "webSearch") opts.onEvent({ type: "tool", name: "web_search", detail: it.query })
             break

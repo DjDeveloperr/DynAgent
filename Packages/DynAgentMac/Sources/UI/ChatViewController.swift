@@ -945,7 +945,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var bulkLoading = false
     private var turnStart = Date()
     private var copyText: [ObjectIdentifier: String] = [:]
-    private let maxColumn: CGFloat = 1240
     private var shimmerView: ShimmerLabel?
     private var liveWorkDividerByConversationId: [String: WorkDivider] = [:]
     /// The current assistant message being streamed into (for proper interleaving).
@@ -1317,22 +1316,18 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor),
 
-            // Centered, max-width transcript column.
+            // Transcript fills the available chat panel width with side padding.
             doc.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
             doc.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
             doc.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
             transcript.topAnchor.constraint(equalTo: doc.topAnchor, constant: 20),
             transcript.bottomAnchor.constraint(equalTo: doc.bottomAnchor, constant: -12),
-            transcript.centerXAnchor.constraint(equalTo: doc.centerXAnchor),
-            transcript.widthAnchor.constraint(lessThanOrEqualToConstant: maxColumn),
-            transcript.leadingAnchor.constraint(greaterThanOrEqualTo: doc.leadingAnchor, constant: 14),
-            column(transcript.widthAnchor.constraint(equalTo: doc.widthAnchor, constant: -28)),
+            transcript.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: 14),
+            transcript.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -14),
 
-            // Composer column (matches transcript width).
-            card.centerXAnchor.constraint(equalTo: root.centerXAnchor),
-            card.widthAnchor.constraint(lessThanOrEqualToConstant: maxColumn),
-            card.leadingAnchor.constraint(greaterThanOrEqualTo: root.leadingAnchor, constant: 14),
-            column(card.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -28)),
+            // Composer matches the full transcript width.
+            card.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 14),
+            card.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -14),
             cardBottomConstraint!,
 
             attachmentScroll.topAnchor.constraint(equalTo: cardContent.topAnchor, constant: 10),
@@ -1742,7 +1737,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     /// Render one turn with its work divider above the final assistant response.
     private func renderTurn(_ turn: [ChatMessage], conversation c: Conversation, allowCollapse: Bool, forceActive: Bool = false) {
-        let activeTurn = forceActive || (!allowCollapse && turn.contains { $0.turnStatus != nil && $0.turnStatus != "completed" })
+        let activeTurn = forceActive || (isActiveConversation(c) && !allowCollapse && turn.contains { $0.turnStatus != nil && $0.turnStatus != "completed" })
         if activeTurn {
             renderActiveTurn(turn, conversation: c)
             return
@@ -2079,6 +2074,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             case .thread(let id):
                 c.codexThreadId = id
             case .text(let t):
+                self.markOpenToolsCompleted(in: c)
                 let assistant: ChatMessage
                 if let existing = self.assistantByConversationId[c.id] {
                     assistant = existing
@@ -2102,6 +2098,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             case .steer:
                 self.addSteerNotice(to: c)
             case .tool(let n, let d):
+                self.markOpenToolsCompleted(in: c)
                 c.status = .running
                 c.updatedAt = Date().timeIntervalSince1970
                 self.emitActivity(c)
@@ -2219,6 +2216,13 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             let joined = c.steerQueue.joined(separator: "\n\n")
             c.steerQueue.removeAll()
             startTurn(joined, on: c, appendUser: false)
+        }
+    }
+
+    private func markOpenToolsCompleted(in c: Conversation) {
+        for msg in c.messages where msg.role == .tool && !msg.toolDone {
+            msg.toolDone = true
+            if msg.turnStatus != nil { msg.turnStatus = "completed" }
         }
     }
 
