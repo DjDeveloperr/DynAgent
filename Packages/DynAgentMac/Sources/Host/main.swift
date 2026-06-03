@@ -58,7 +58,6 @@ private final class HotReloadLoader {
     }
 
     private func load(dylib: URL, reason: String) {
-        let preservedFrame = window.frame
         guard let handle = dlopen(dylib.path, RTLD_NOW | RTLD_LOCAL) else {
             handleFailure(HotReloadError.load(dlerrorMessage()), title: "DynAgent UI Load Failed")
             try? FileManager.default.removeItem(at: dylib)
@@ -100,28 +99,39 @@ private final class HotReloadLoader {
         }
 
         current = LoadedUI(handle: handle, controller: controller, detach: detach, copiedDylib: dylib)
-        restoreUsableFrame(from: preservedFrame)
+        applyWideUsableFrame()
+        enforceWideFrameAfterLayout()
         window.subtitle = ""
         NSLog("DynAgent hot reload attached: \(dylib.path)")
     }
 
-    private func restoreUsableFrame(from preservedFrame: NSRect) {
+    private func applyWideUsableFrame() {
         window.styleMask.insert(.resizable)
         window.minSize = NSSize(width: 820, height: 480)
         window.maxSize = NSSize(width: 20_000, height: 20_000)
         window.contentMinSize = NSSize(width: 820, height: 480)
         window.contentMaxSize = NSSize(width: 20_000, height: 20_000)
 
-        var frame = preservedFrame
         let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1512, height: 900)
         let targetWidth = min(visible.width - 16, max(1240, visible.width * 0.96))
-        if frame.width < targetWidth {
-            frame.size.width = targetWidth
-            frame.origin.x = visible.midX - targetWidth / 2
-        }
-        if frame.height < 720 { frame.size.height = 720 }
-        if window.frame != frame {
-            window.setFrame(frame, display: true)
+        let targetHeight = min(visible.height - 24, max(720, visible.height * 0.84))
+        let frame = NSRect(
+            x: visible.midX - targetWidth / 2,
+            y: visible.midY - targetHeight / 2,
+            width: targetWidth,
+            height: targetHeight
+        )
+        window.setFrame(frame, display: true)
+        window.contentView?.autoresizingMask = [.width, .height]
+        window.contentViewController?.view.frame = window.contentView?.bounds ?? .zero
+        window.contentViewController?.view.autoresizingMask = [.width, .height]
+    }
+
+    private func enforceWideFrameAfterLayout() {
+        for delay in [0.15, 0.5, 1.2, 2.5] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.applyWideUsableFrame()
+            }
         }
     }
 
@@ -140,7 +150,8 @@ private final class HotReloadLoader {
     }
 
     private func showHostMessage(title: String, detail: String) {
-        let root = NSView()
+        let root = NSView(frame: window.contentView?.bounds ?? window.frame)
+        root.autoresizingMask = [.width, .height]
         root.wantsLayer = true
         root.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
@@ -166,10 +177,8 @@ private final class HotReloadLoader {
             stack.trailingAnchor.constraint(lessThanOrEqualTo: root.trailingAnchor, constant: -40),
             detailLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 760),
         ])
-
-        let controller = NSViewController()
-        controller.view = root
-        window.contentViewController = controller
+        window.contentViewController = nil
+        window.contentView = root
     }
 
     private static func buildAndCopyDylib(packageDirectory: URL) throws -> URL {
@@ -302,12 +311,25 @@ private final class HostDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         loader.reload(reason: "Loaded")
+        enforceWideFrameAfterLaunch()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             self?.showMainWindow()
         }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        true
+    }
+
+    func application(_ app: NSApplication, shouldSaveApplicationState coder: NSCoder) -> Bool {
+        false
+    }
+
+    func application(_ app: NSApplication, shouldRestoreApplicationState coder: NSCoder) -> Bool {
         false
     }
 
@@ -374,8 +396,8 @@ private final class HostDelegate: NSObject, NSApplicationDelegate {
         window.contentMinSize = NSSize(width: 820, height: 480)
         window.contentMaxSize = NSSize(width: 20_000, height: 20_000)
         window.isReleasedWhenClosed = false
-        window.isOpaque = false
-        window.backgroundColor = .clear
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
     }
 
     private func setWideInitialFrame() {
@@ -389,6 +411,14 @@ private final class HostDelegate: NSObject, NSApplicationDelegate {
             height: targetHeight
         )
         window.setFrame(frame, display: true)
+    }
+
+    private func enforceWideFrameAfterLaunch() {
+        for delay in [0.2, 0.8, 1.6, 3.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.setWideInitialFrame()
+            }
+        }
     }
 
     private func installReloadMonitor() {
@@ -457,6 +487,9 @@ private func dlerrorMessage() -> String {
 }
 
 let app = NSApplication.shared
+UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
+UserDefaults.standard.set(false, forKey: "NSWindowRestoresWorkspaceAtLaunch")
+UserDefaults.standard.set(true, forKey: "ApplePersistenceIgnoreState")
 private let delegate = HostDelegate()
 app.delegate = delegate
 app.setActivationPolicy(.regular)

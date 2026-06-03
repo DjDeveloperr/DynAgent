@@ -1,5 +1,39 @@
 import AppKit
 
+private final class FullWindowHostView: NSView {
+    weak var pinnedView: NSView?
+
+    override func layout() {
+        super.layout()
+        guard let pinnedView else { return }
+        pinnedView.frame = bounds
+        pinnedView.subviews.forEach { subview in
+            if subview is NSSplitView {
+                subview.frame = pinnedView.bounds
+            }
+        }
+    }
+}
+
+private final class RootSplitViewController: NSSplitViewController {
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        pinSplitViewToRoot()
+    }
+
+    func deactivateInternalSplitSizingConstraints() {
+        splitView.translatesAutoresizingMaskIntoConstraints = true
+        splitView.autoresizingMask = [.width, .height]
+    }
+
+    func pinSplitViewToRoot() {
+        deactivateInternalSplitSizingConstraints()
+        let bounds = view.bounds
+        guard splitView.frame.size != bounds.size || splitView.frame.origin != bounds.origin else { return }
+        splitView.frame = bounds
+    }
+}
+
 final class AppController: NSObject, NSToolbarDelegate {
     private struct HotState: Codable {
         var conversations: [Conversation]
@@ -27,6 +61,8 @@ final class AppController: NSObject, NSToolbarDelegate {
     /// Always-available offscreen browser so the agent can navigate/eval without an open panel.
     private let headlessBrowser = BrowserPanel()
     private weak var splitView: NSSplitView?
+    private var rootContentController: NSViewController?
+    private var rootSplitController: NSSplitViewController?
     private var sidebarItem: NSSplitViewItem!
     private var gitItem: NSSplitViewItem!
     private let settingsPill = NSVisualEffectView()
@@ -67,6 +103,8 @@ final class AppController: NSObject, NSToolbarDelegate {
     private var navigationBackStack: [Conversation] = []
     private var navigationForwardStack: [Conversation] = []
     private let maximumWindowSize = NSSize(width: 20_000, height: 20_000)
+    private var lastRequestedMainFrame: NSRect = .zero
+    private var lastAppliedMainFrame: NSRect = .zero
 
     init(window: NSWindow, hotState: NSMutableDictionary? = nil) {
         self.window = window
@@ -77,6 +115,9 @@ final class AppController: NSObject, NSToolbarDelegate {
     func attach() {
         guard !attached else { return }
         attached = true
+        UserDefaults.standard.removeObject(forKey: "NSSplitView Subview Frames dynagent.split")
+        UserDefaults.standard.removeObject(forKey: "NSWindow Frame main")
+        let desiredFrame = wideWindowFrame()
         NSApp.mainMenu = buildMenu()
         chat.client = client
         chat.onActivity = { [weak self] c in self?.refreshActivity(c) }
@@ -120,16 +161,17 @@ final class AppController: NSObject, NSToolbarDelegate {
             self?.openConversationFromDock(id: id)
         }
 
-        let split = NSSplitViewController()
+        let split = RootSplitViewController()
+        rootSplitController = split
         splitView = split.splitView
         split.splitView.dividerStyle = .thin
         split.splitView.autosaveName = nil
         splitResizeObserver = NotificationCenter.default.addObserver(forName: NSSplitView.didResizeSubviewsNotification, object: split.splitView, queue: .main) { [weak self] note in
             self?.splitViewDidResizeSubviews(note)
         }
-        let side = NSSplitViewItem(sidebarWithViewController: sidebar)
+        let side = NSSplitViewItem(viewController: sidebar)
         sidebarItem = side
-        side.minimumThickness = 240; side.maximumThickness = 360; side.canCollapse = true
+        side.minimumThickness = 260; side.maximumThickness = 380; side.canCollapse = true
         side.holdingPriority = NSLayoutConstraint.Priority(251)
         side.preferredThicknessFraction = 0
         split.addSplitViewItem(side)
@@ -141,33 +183,52 @@ final class AppController: NSObject, NSToolbarDelegate {
         mainItem.holdingPriority = NSLayoutConstraint.Priority(1)
         split.addSplitViewItem(mainItem)
         gitItem = NSSplitViewItem(viewController: gitPanel)
-        gitItem.minimumThickness = 320; gitItem.maximumThickness = 800; gitItem.canCollapse = true
-        gitItem.holdingPriority = NSLayoutConstraint.Priority(252)
+        gitItem.minimumThickness = 300; gitItem.maximumThickness = 520; gitItem.canCollapse = true
+        gitItem.preferredThicknessFraction = 0.30
+        gitItem.holdingPriority = NSLayoutConstraint.Priority(249)
         split.addSplitViewItem(gitItem)
+        gitItem.isCollapsed = true
 
         window.title = "DynAgent"
         DispatchQueue.main.async { [weak self] in self?.window.subtitle = "" }
+        window.styleMask.insert(.fullSizeContentView)
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.toolbarStyle = .unified
         unlockWindowSizing()
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.contentViewController = split
-        // Whole-window translucency/blur behind the panes.
-        let blur = NSVisualEffectView()
-        blur.material = .hudWindow
-        blur.blendingMode = .behindWindow
-        blur.state = .active
-        blur.frame = split.view.bounds
-        blur.autoresizingMask = [.width, .height]
-        split.view.addSubview(blur, positioned: .below, relativeTo: nil)
-        window.setFrameAutosaveName("main")
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
+        setMainWindowFrame(desiredFrame)
+        let root = NSViewController()
+        let rootView = FullWindowHostView(frame: NSRect(origin: .zero, size: desiredFrame.size))
+        rootView.autoresizingMask = [.width, .height]
+        root.view = rootView
+        root.addChild(split)
+        split.splitView.translatesAutoresizingMaskIntoConstraints = true
+        split.splitView.frame = rootView.bounds
+        split.splitView.autoresizingMask = [.width, .height]
+        split.splitView.removeFromSuperview()
+        rootView.pinnedView = split.splitView
+        rootView.addSubview(split.splitView)
+        rootContentController = root
+        window.contentViewController = nil
+        window.contentView = rootView
+        split.deactivateInternalSplitSizingConstraints()
         window.toolbar = makeToolbar()
         updateNavigationControls()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         installSettingsOverlay(over: sidebar.view)
+        for delay in [0.0, 0.75, 1.6, 3.0, 4.5] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self else { return }
+                let frame = self.wideWindowFrame()
+                self.setMainWindowFrame(frame)
+                self.forceRootSplitToContentSize()
+                self.applyInitialSplitWidths()
+                self.writeLayoutMetrics()
+            }
+        }
 
         if let firstWorkspace = workspaceRefs.first {
             primaryPath = firstWorkspace.path
@@ -227,7 +288,9 @@ final class AppController: NSObject, NSToolbarDelegate {
         PanelRegistry.shared.removeAll()
         NSApp.mainMenu = nil
         window.toolbar = nil
-        window.contentViewController = nil
+        window.contentView?.subviews.forEach { $0.removeFromSuperview() }
+        rootContentController = nil
+        rootSplitController = nil
     }
 
     deinit {
@@ -518,6 +581,84 @@ final class AppController: NSObject, NSToolbarDelegate {
         lastSyncedSidebarWidth = capped
         Task { [client] in
             await client.codexSetSidebarState(["sidebarWidth": Double(capped)])
+        }
+    }
+
+    private func applyInitialSplitWidths() {
+        guard let splitView, splitView.subviews.count >= 2 else { return }
+        let restoredWidth = lastSyncedSidebarWidth > sidebarItem.minimumThickness + 4 ? lastSyncedSidebarWidth : 300
+        let sidebarWidth = min(max(restoredWidth, sidebarItem.minimumThickness), sidebarItem.maximumThickness)
+        splitView.setPosition(sidebarWidth, ofDividerAt: 0)
+        if splitView.subviews.count >= 3, !gitItem.isCollapsed {
+            let gitWidth = min(max(gitPanel.view.frame.width, gitItem.minimumThickness), gitItem.maximumThickness)
+            splitView.setPosition(splitView.bounds.width - gitWidth, ofDividerAt: 1)
+        }
+    }
+
+    private func forceRootSplitToContentSize() {
+        let contentBounds = window.contentView?.bounds ?? .zero
+        let width = max(contentBounds.width, window.frame.width, window.contentLayoutRect.width)
+        let height = max(contentBounds.height, window.contentLayoutRect.height)
+        let bounds = NSRect(origin: .zero, size: NSSize(width: width, height: height))
+        if rootContentController?.view.frame != bounds {
+            rootContentController?.view.frame = bounds
+        }
+        if splitView?.frame != bounds {
+            splitView?.frame = bounds
+        }
+    }
+
+    private func writeLayoutMetrics() {
+        let splitFrames = splitView?.subviews.enumerated().map { index, view in
+            [
+                "index": index,
+                "class": String(describing: type(of: view)),
+                "x": Double(view.frame.minX),
+                "width": Double(view.frame.width),
+                "height": Double(view.frame.height),
+            ] as [String: Any]
+        } ?? []
+        let rootSubviews = window.contentView?.subviews.enumerated().map { index, view in
+            [
+                "index": index,
+                "class": String(describing: type(of: view)),
+                "x": Double(view.frame.minX),
+                "width": Double(view.frame.width),
+                "height": Double(view.frame.height),
+            ] as [String: Any]
+        } ?? []
+        let payload: [String: Any] = [
+            "windowWidth": Double(window.frame.width),
+            "windowHeight": Double(window.frame.height),
+            "contentViewWidth": Double(window.contentView?.bounds.width ?? -1),
+            "contentViewHeight": Double(window.contentView?.bounds.height ?? -1),
+            "contentControllerWidth": Double(rootContentController?.view.frame.width ?? -1),
+            "contentControllerHeight": Double(rootContentController?.view.frame.height ?? -1),
+            "contentLayoutWidth": Double(window.contentLayoutRect.width),
+            "contentLayoutHeight": Double(window.contentLayoutRect.height),
+            "rootSplitViewWidth": Double(rootSplitController?.view.frame.width ?? -1),
+            "rootSplitViewHeight": Double(rootSplitController?.view.frame.height ?? -1),
+            "splitViewWidth": Double(splitView?.frame.width ?? -1),
+            "splitViewHeight": Double(splitView?.frame.height ?? -1),
+            "splitViewX": Double(splitView?.frame.minX ?? -1),
+            "splitViewClass": String(describing: type(of: splitView ?? NSSplitView())),
+            "rootSubviews": rootSubviews,
+            "requestedFrameWidth": Double(lastRequestedMainFrame.width),
+            "requestedFrameHeight": Double(lastRequestedMainFrame.height),
+            "appliedFrameWidth": Double(lastAppliedMainFrame.width),
+            "appliedFrameHeight": Double(lastAppliedMainFrame.height),
+            "screenVisibleWidth": Double((window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero).width),
+            "screenVisibleHeight": Double((window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero).height),
+            "sidebarCollapsed": sidebarItem.isCollapsed,
+            "gitCollapsed": gitItem.isCollapsed,
+            "splitFrames": splitFrames,
+            "chatViewWidth": Double(chat.view.frame.width),
+            "workspaceWidth": Double(workspaceArea.view.frame.width),
+        ]
+        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".dynagent")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: dir.appendingPathComponent("ui-layout-metrics.json"))
         }
     }
 
@@ -1044,6 +1185,24 @@ final class AppController: NSObject, NSToolbarDelegate {
         window.maxSize = maximumWindowSize
         window.contentMinSize = NSSize(width: 820, height: 480)
         window.contentMaxSize = maximumWindowSize
+    }
+
+    private func wideWindowFrame() -> NSRect {
+        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1512, height: 900)
+        let width = min(visible.width - 16, max(1240, visible.width * 0.96))
+        let height = min(visible.height - 24, max(720, visible.height * 0.84))
+        return NSRect(
+            x: visible.midX - width / 2,
+            y: visible.midY - height / 2,
+            width: width,
+            height: height
+        )
+    }
+
+    private func setMainWindowFrame(_ frame: NSRect) {
+        lastRequestedMainFrame = frame
+        window.setFrame(frame, display: true)
+        lastAppliedMainFrame = window.frame
     }
 
     @objc private func toggleGit() {

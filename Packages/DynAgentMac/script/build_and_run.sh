@@ -20,6 +20,9 @@ APP_ICON="$APP_RESOURCES/AppIcon.icns"
 SWIFT_ENV=(CLANG_MODULE_CACHE_PATH=/private/tmp/dynagent-clang-cache)
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+rm -rf "$HOME/Library/Saved Application State/$BUNDLE_ID.savedState"
+defaults write "$BUNDLE_ID" NSQuitAlwaysKeepsWindows -bool false >/dev/null 2>&1 || true
+defaults write "$BUNDLE_ID" ApplePersistenceIgnoreState -bool true >/dev/null 2>&1 || true
 
 env "${SWIFT_ENV[@]}" swift build --disable-sandbox --product DynAgentUI
 env "${SWIFT_ENV[@]}" swift build --disable-sandbox --product DynAgent
@@ -79,7 +82,7 @@ printf 'APPL????' >"$APP_CONTENTS/PkgInfo"
 codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1 || true
 
 open_app() {
-  /usr/bin/open -n "$APP_BUNDLE"
+  /usr/bin/open -n "$APP_BUNDLE" --args -ApplePersistenceIgnoreState YES
 }
 
 case "$MODE" in
