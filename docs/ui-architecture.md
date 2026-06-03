@@ -23,6 +23,7 @@
 - `EditToolModel.swift`: tested edit-tool parser and title model for grouped editing rows and popout diff data.
 - `TranscriptTurnModel.swift`: tested turn-planning model for prompt/steer boundaries, active-turn detection, active-turn expansion, final-response collapse, timestamps, and large-thread trimming.
 - `TranscriptRenderModel.swift`: tested row data-source model for render-cache fingerprints, turn batching, shell tool grouping, and completed edit grouping.
+- `TranscriptRenderSessionModel.swift`: tested render-session state for transcript cache reuse, generation invalidation, shell loading, async batch guards, and bulk-loading completion.
 - `TranscriptLiveUpdateModel.swift`: tested streaming update policy for markdown render throttling and autoscroll throttling.
 - `ConversationTurnMutationModel.swift`: tested pure mutation model for completing the latest prompt turn, closing open tool rows, and reconciling pending/completed steer notices.
 - `ChatStreamMutationModel.swift`: tested streaming prompt, assistant, error, tool, and final-response mutations used by chat event handling.
@@ -30,6 +31,7 @@
 - `TranscriptChrome.swift`: reusable AppKit transcript text, shimmer/thinking rows, work-divider, edit-stat, and transcript row views.
 - `TranscriptViewportChrome.swift`: tested AppKit transcript scroll/document/stack setup and width-tracking constraints for the loaded-thread layout invariant.
 - `TranscriptRowFactory.swift`: tested row factory that maps chat messages to AppKit row chrome and returns controller metadata for labels, clickable tool views, and edit stats.
+- `TranscriptRowRegistry.swift`: tested transcript interaction registry for message labels, clickable tool rows, edit stats, copy text, and live markdown render throttling.
 - `TranscriptToolChrome.swift`: reusable AppKit shell/edit/inline tool rows, grouped tool collapse controls, and inline edit diff popover blocks.
 - `TranscriptToolFormatter.swift`: tested attributed title, preview, grouping, and icon-name formatting for transcript tool rows.
 - `TranscriptPopoverChrome.swift`: reusable AppKit popover content and presenter for tool details, shell output, and edit diffs.
@@ -79,7 +81,7 @@ The iOS app should share behavior and visual language, but not copy the desktop 
 - Settings/search/commit overlays -> native SwiftUI sheets or presentation detents, using the same labels and action order as macOS.
 - Composer -> same model/reasoning/context/send ordering, with attachments previewed above the text field and keyboard-safe bottom padding.
 
-Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `GitActionModel`, `GitPanelModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `TranscriptLiveUpdateModel`, `ConversationTurnMutationModel`, `ChatStreamMutationModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `SearchOverlayModel`, `ComposerModel`, `ComposerSessionModel`, `ChatSendModel`, `ComposerDraftStore`, `MobilePresentationModel`, `NavigationHistoryModel`, `AppConversationIndexModel`, `AppActivityRefreshModel`, `AppCodexHistoryModel`, `AppCodexThreadStubModel`, `AppWorkspaceIndexModel`, `AppSidebarSyncModel`, `AppHotStateModel`, `ChatLayoutModel`, `ChatTitleModel`, `ChatPresentationModel`, `WindowLayoutModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
+Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `GitActionModel`, `GitPanelModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `TranscriptRenderSessionModel`, `TranscriptLiveUpdateModel`, `ConversationTurnMutationModel`, `ChatStreamMutationModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `SearchOverlayModel`, `ComposerModel`, `ComposerSessionModel`, `ChatSendModel`, `ComposerDraftStore`, `MobilePresentationModel`, `NavigationHistoryModel`, `AppConversationIndexModel`, `AppActivityRefreshModel`, `AppCodexHistoryModel`, `AppCodexThreadStubModel`, `AppWorkspaceIndexModel`, `AppSidebarSyncModel`, `AppHotStateModel`, `ChatLayoutModel`, `ChatTitleModel`, `ChatPresentationModel`, `WindowLayoutModel`). AppKit-only controls such as `TranscriptRowRegistry` remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
 
 ## Verification Gates
 

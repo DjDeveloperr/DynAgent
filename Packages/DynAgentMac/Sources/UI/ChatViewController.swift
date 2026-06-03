@@ -38,16 +38,12 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var cardBottomConstraint: NSLayoutConstraint?
     private var cardCenterYConstraint: NSLayoutConstraint?
     private var attachmentHeightConstraint: NSLayoutConstraint?
-    private var labels: [ObjectIdentifier: MessageTextView] = [:]
-    private var toolByView: [ObjectIdentifier: ChatMessage] = [:]
-    private var editStatsByMessage: [ObjectIdentifier: EditStatsView] = [:]
+    private let transcriptRegistry = TranscriptRowRegistry()
     private let toolPopover = NSPopover()
     private var streamingConversationIds = Set<String>()
     private var streamTasks: [String: URLSessionDataTask] = [:]
     private var stopping = false
-    private var bulkLoading = false
     private var turnStart = Date()
-    private var copyText: [ObjectIdentifier: String] = [:]
     private var shimmerView: ShimmerLabel?
     private var liveWorkDividerByConversationId: [String: WorkDivider] = [:]
     /// The current assistant message being streamed into (for proper interleaving).
@@ -59,12 +55,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var selectedCodexEffort = "high"
     private var attachments: [ComposerAttachment] = []
     private var attachmentRemoveIds: [ObjectIdentifier: UUID] = [:]
-    private var lastLiveMarkdownRender: [ObjectIdentifier: TimeInterval] = [:]
     private var lastActivityEmit: [String: TimeInterval] = [:]
     private var pendingToolRefreshByConversationId: [String: DispatchWorkItem] = [:]
-    private var transcriptRenderGeneration = 0
-    private var renderedTranscriptConversationId: String?
-    private var renderedTranscriptFingerprint: Int?
+    private var renderSession = TranscriptRenderSessionState()
     private var lastScrollToBottomAt: TimeInterval = 0
     private var pendingScrollToBottom = false
     private var restoringComposerDraft = false
@@ -497,8 +490,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     func show(_ c: Conversation) {
         saveComposerDraft()
-        transcriptRenderGeneration += 1
-        let generation = transcriptRenderGeneration
         let wasShowingSameConversation = conversation === c
         conversation = c
         desiredModel = c.model
@@ -509,31 +500,26 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             modelPopup.selectItem(withTitle: c.model)
         }
         syncComposerMenus()
-        let fingerprint = TranscriptRenderModel.fingerprint(for: c, maxRenderedMessages: maxRenderedMessages)
-        if ChatPresentationModel.shouldReuseRenderedTranscript(
+        let renderStart = TranscriptRenderSessionModel.beginShow(
+            state: renderSession,
+            conversation: c,
             wasShowingSameConversation: wasShowingSameConversation,
             isActive: isActiveConversation(c),
-            renderedConversationId: renderedTranscriptConversationId,
-            renderedFingerprint: renderedTranscriptFingerprint,
-            conversationId: c.id,
-            fingerprint: fingerprint
-        ) {
+            maxRenderedMessages: maxRenderedMessages
+        )
+        renderSession = renderStart.state
+        if renderStart.shouldReuse {
             restoreComposerDraft(for: c)
             updateEmptyState()
             updateSendButton()
             view.window?.makeFirstResponder(composer)
             return
         }
-        renderedTranscriptConversationId = c.id
-        renderedTranscriptFingerprint = fingerprint
         shimmerView = nil
         currentAssistant = assistantByConversationId[c.id]
-        labels.removeAll()
-        toolByView.removeAll()
-        editStatsByMessage.removeAll()
+        transcriptRegistry.reset()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
         transcript.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        bulkLoading = true
         // Render each turn: prompt + work divider + final answer.
         let plan = TranscriptTurnModel.plan(
             messages: c.messages,
@@ -546,12 +532,12 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         updateEmptyState()
         updateSendButton()
         view.window?.makeFirstResponder(composer)
-        renderTurnsAsync(plan.turns, conversation: c, generation: generation)
+        renderTurnsAsync(plan.turns, conversation: c, generation: renderStart.generation)
     }
 
     func showShell(_ c: Conversation) {
         saveComposerDraft()
-        transcriptRenderGeneration += 1
+        renderSession = TranscriptRenderSessionModel.beginLoadingShell(state: renderSession)
         conversation = c
         desiredModel = c.model
         if c.harness == .codex {
@@ -562,12 +548,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         }
         shimmerView = nil
         currentAssistant = assistantByConversationId[c.id]
-        labels.removeAll()
-        toolByView.removeAll()
-        editStatsByMessage.removeAll()
+        transcriptRegistry.reset()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
-        renderedTranscriptConversationId = nil
-        renderedTranscriptFingerprint = nil
         transcript.arrangedSubviews.forEach { $0.removeFromSuperview() }
         let loading = NSTextField(labelWithString: ChatPresentationModel.loadingText(needsLoad: c.needsLoad))
         loading.font = .systemFont(ofSize: 12.5, weight: .medium)
@@ -593,8 +575,13 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func renderTurnsAsync(_ turns: [TranscriptRenderTurn], conversation c: Conversation, generation: Int, startIndex: Int = 0) {
-        guard generation == transcriptRenderGeneration, self.conversation === c else { return }
-        if let range = TranscriptRenderModel.batchRange(totalCount: turns.count, startIndex: startIndex) {
+        guard TranscriptRenderSessionModel.shouldContinue(
+            state: renderSession,
+            generation: generation,
+            visibleConversation: conversation,
+            expectedConversation: c
+        ) else { return }
+        if let range = TranscriptRenderSessionModel.batchRange(totalCount: turns.count, startIndex: startIndex) {
             for index in range {
                 let turn = turns[index]
                 renderTurn(turn.messages, conversation: c, allowCollapse: turn.allowCollapse, forceActive: turn.forceActive)
@@ -609,7 +596,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             }
         }
 
-        bulkLoading = false
+        renderSession = TranscriptRenderSessionModel.finishBulkLoading(state: renderSession)
         if isActiveConversation(c) { showThinking() }
         updateEmptyState()
         scrollToBottom()
@@ -686,7 +673,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         ])
         transcript.addArrangedSubview(container)
         container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
-        if !bulkLoading { pinShimmerToBottom() }
+        if !renderSession.bulkLoading { pinShimmerToBottom() }
         return container
     }
 
@@ -708,7 +695,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         ])
         transcript.addArrangedSubview(container)
         container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
-        if !bulkLoading { pinShimmerToBottom() }
+        if !renderSession.bulkLoading { pinShimmerToBottom() }
         return container
     }
 
@@ -746,14 +733,14 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             copyAction: #selector(copyFinal(_:))
         )
         let copy = footer.copyButton
-        copyText[ObjectIdentifier(copy)] = m.text
+        transcriptRegistry.registerCopyText(m.text, for: copy)
         let container = footer.view
         transcript.addArrangedSubview(container)
         container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
     }
 
     @objc private func copyFinal(_ sender: NSButton) {
-        guard let t = copyText[ObjectIdentifier(sender)] else { return }
+        guard let t = transcriptRegistry.copyText(for: sender) else { return }
         NSPasteboard.general.clearContents(); NSPasteboard.general.setString(t, forType: .string)
     }
 
@@ -899,8 +886,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             case .toolResult(let n, let d):
                 if let t = ChatStreamMutationModel.completeToolResult(name: n, detail: d, in: c) {
                     if isVisible {
-                        self.labels[ObjectIdentifier(t)]?.setRich(TranscriptToolFormatter.toolString(t))
-                        if t.toolName == "edit", let stats = self.editStatsByMessage[ObjectIdentifier(t)] {
+                        self.transcriptRegistry.label(for: t)?.setRich(TranscriptToolFormatter.toolString(t))
+                        if t.toolName == "edit", let stats = self.transcriptRegistry.editStats(for: t) {
                             let summary = TranscriptToolFormatter.editSummary(t)
                             stats.isHidden = summary.added == 0 && summary.deleted == 0
                             stats.setValues(added: summary.added, deleted: summary.deleted)
@@ -1016,7 +1003,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     /// Re-render the active assistant message as markdown once its text is final.
     private func finalizeAssistant(for c: Conversation) {
         guard let a = assistantByConversationId[c.id] ?? (conversation === c ? currentAssistant : nil),
-              let label = labels[ObjectIdentifier(a)] else { return }
+              let label = transcriptRegistry.label(for: a) else { return }
         label.setRich(Self.markdown(a.text))
     }
 
@@ -1119,14 +1106,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private func addRow(for m: ChatMessage) -> NSView {
         let built = TranscriptRowFactory.makeRow(for: m, markdown: Self.markdown)
         let container = built.container
-        if let content = built.label {
-            labels[ObjectIdentifier(m)] = content
-        }
-        if let editStats = built.editStats {
-            editStatsByMessage[ObjectIdentifier(m)] = editStats
-        }
+        transcriptRegistry.register(built, for: m)
         if let row = built.clickableToolView {
-            toolByView[ObjectIdentifier(row)] = m
             row.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(toolClicked(_:))))
         }
         transcript.addArrangedSubview(container)
@@ -1135,9 +1116,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         }
         container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
         // Keep the "Thinking" shimmer pinned to the bottom while streaming.
-        if !bulkLoading { pinShimmerToBottom() }
+        if !renderSession.bulkLoading { pinShimmerToBottom() }
         // Smooth fade-in for live (streamed) rows.
-        if !bulkLoading {
+        if !renderSession.bulkLoading {
             container.alphaValue = 0
             NSAnimationContext.runAnimationGroup { ctx in ctx.duration = 0.22; container.animator().alphaValue = 1 }
         }
@@ -1154,15 +1135,13 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func renderLiveAssistant(_ assistant: ChatMessage, force: Bool = false) {
-        let key = ObjectIdentifier(assistant)
-        guard let label = labels[key] else { return }
+        guard let label = transcriptRegistry.label(for: assistant) else { return }
         let now = Date().timeIntervalSince1970
-        guard TranscriptLiveUpdateModel.shouldRenderMarkdown(
+        guard transcriptRegistry.consumeLiveMarkdownRenderSlot(
+            for: assistant,
             force: force,
-            now: now,
-            lastRenderAt: lastLiveMarkdownRender[key]
+            now: now
         ) else { return }
-        lastLiveMarkdownRender[key] = now
         label.setRich(Self.markdown(assistant.text))
     }
 
@@ -1174,7 +1153,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     /// Show a popover with the full tool name + detail when a tool pill is clicked.
     @objc private func toolClicked(_ g: NSClickGestureRecognizer) {
-        guard let view = g.view, let m = toolByView[ObjectIdentifier(view)] else { return }
+        guard let view = g.view, let m = transcriptRegistry.toolMessage(for: view) else { return }
         TranscriptToolPopoverPresenter.present(
             message: m,
             in: toolPopover,
