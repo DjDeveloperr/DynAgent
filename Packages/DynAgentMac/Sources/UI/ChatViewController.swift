@@ -1796,21 +1796,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             showEditPopover(changes: editSummary(m).changes, anchor: view)
             return
         }
-        let text = NSTextView()
-        text.isEditable = false
-        text.drawsBackground = false
-        text.textContainerInset = NSSize(width: 12, height: 12)
-        text.string = "\(m.toolName ?? "tool")\(m.toolDone ? "  ✓" : "")\n\n\(m.toolDetail ?? "(no details)")"
-        text.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 440, height: 220))
-        scroll.hasVerticalScroller = true
-        scroll.documentView = text
-        text.frame = scroll.bounds
-        text.autoresizingMask = [.width]
-        let vc = NSViewController()
-        vc.view = scroll
-        toolPopover.contentViewController = vc
-        toolPopover.contentSize = NSSize(width: 440, height: 220)
+        let content = TranscriptPopoverChrome.toolDetail(name: m.toolName, done: m.toolDone, detail: m.toolDetail)
+        toolPopover.contentViewController = content.controller
+        toolPopover.contentSize = content.size
         toolPopover.behavior = .transient
         // Anchor a small rect at the click point so the popover appears next to the tool label.
         let p = g.location(in: view)
@@ -1818,39 +1806,10 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func showEditPopover(changes: [EditToolChange], anchor: NSView) {
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.spacing = 10
-        stack.edgeInsets = NSEdgeInsets(top: 10, left: 12, bottom: 12, right: 12)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        for change in changes {
-            stack.addArrangedSubview(DiffFileBlock(path: change.path, diff: change.diff, added: change.added, deleted: change.deleted, initiallyCollapsed: false))
-        }
-        if changes.isEmpty {
-            let empty = NSTextField(labelWithString: "No diff details available.")
-            empty.textColor = .secondaryLabelColor
-            stack.addArrangedSubview(empty)
-        }
-        let doc = FlippedView()
-        doc.translatesAutoresizingMaskIntoConstraints = false
-        doc.addSubview(stack)
-        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 760, height: 520))
-        scroll.hasVerticalScroller = true
-        scroll.hasHorizontalScroller = true
-        scroll.drawsBackground = false
-        scroll.documentView = doc
-        NSLayoutConstraint.activate([
-            doc.widthAnchor.constraint(greaterThanOrEqualTo: scroll.contentView.widthAnchor),
-            stack.leadingAnchor.constraint(equalTo: doc.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: doc.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: doc.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: doc.bottomAnchor),
-        ])
-        let vc = NSViewController()
-        vc.view = scroll
         toolPopover.close()
-        toolPopover.contentViewController = vc
-        toolPopover.contentSize = NSSize(width: 760, height: 520)
+        let content = TranscriptPopoverChrome.editDiff(changes: changes)
+        toolPopover.contentViewController = content.controller
+        toolPopover.contentSize = content.size
         toolPopover.behavior = .transient
         toolPopover.show(relativeTo: anchor.bounds.isEmpty ? NSRect(x: 0, y: 0, width: 1, height: 1) : anchor.bounds, of: anchor, preferredEdge: .maxY)
     }

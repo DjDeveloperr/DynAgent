@@ -400,25 +400,10 @@ final class ShellToolView: NSView {
 
     @objc private func toggle() {
         guard !output.isEmpty else { return }
-        let text = NSTextView()
-        text.isEditable = false
-        text.isSelectable = true
-        text.drawsBackground = false
-        text.textContainerInset = NSSize(width: 12, height: 12)
-        text.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        text.string = output.isEmpty ? "No output" : output
-        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 620, height: 360))
-        scroll.hasVerticalScroller = true
-        scroll.hasHorizontalScroller = true
-        scroll.drawsBackground = false
-        scroll.documentView = text
-        text.frame = scroll.bounds
-        text.autoresizingMask = [.width]
-        let vc = NSViewController()
-        vc.view = scroll
         outputPopover.close()
-        outputPopover.contentViewController = vc
-        outputPopover.contentSize = NSSize(width: 620, height: 360)
+        let content = TranscriptPopoverChrome.shellOutput(output)
+        outputPopover.contentViewController = content.controller
+        outputPopover.contentSize = content.size
         outputPopover.behavior = .transient
         outputPopover.show(relativeTo: bounds, of: self, preferredEdge: .maxY)
     }
