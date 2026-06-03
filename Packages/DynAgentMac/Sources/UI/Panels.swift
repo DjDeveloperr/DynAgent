@@ -197,6 +197,8 @@ final class WorkspaceAreaViewController: NSViewController {
         let p = TilePanel(title: title, content: content, closable: closable, showsHeader: showsHeader)
         // NOTE: arranged subviews of an NSSplitView must stay frame-managed (autoresizing),
         // otherwise the divider snaps back to the intrinsic/min width on every layout pass.
+        p.translatesAutoresizingMaskIntoConstraints = true
+        p.autoresizingMask = [.width, .height]
         p.splitHandler = { [weak self] panel, side, kind in self?.split(panel, sideBySide: side, kind: kind) }
         p.closeHandler = { [weak self] panel in self?.close(panel) }
         return p
