@@ -27,6 +27,9 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private lazy var modelCatalog = AppModelCatalogCoordinator(client: client)
     private lazy var codexHistoryRefreshCoordinator = AppCodexHistoryRefreshCoordinator(client: client)
     private lazy var codexThreadListCoordinator = AppCodexThreadListCoordinator(client: client)
+    private lazy var chatActionCoordinator = AppChatActionCoordinator(client: client) { ids in
+        UserDefaults.standard.set(Array(ids), forKey: "archivedCodexIds")
+    }
 
     private var conversations: [Conversation] = []
     private var draft: Conversation?
@@ -614,15 +617,11 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func renameConversation(_ c: Conversation) {
+        chatActionCoordinator.rename(c)
         rebuildGroups(select: c)
         updateWindowTitle(c)
         refreshDetachedWindows(for: c, rerender: true)
         persist()
-        if let tid = c.codexThreadId {
-            Task { [client] in
-                try? await client.codexRename(threadId: tid, name: c.title)
-            }
-        }
     }
 
     private func promptRename(_ c: Conversation) {
@@ -641,27 +640,21 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func togglePin(_ c: Conversation) {
-        c.pinned.toggle()
-        if let tid = c.codexThreadId {
-            let pinned = c.pinned
-            Task { [client] in
-                try? await client.codexPin(threadId: tid, pinned: pinned)
-            }
-        }
+        chatActionCoordinator.togglePin(c)
         rebuildGroups(select: chat.conversation ?? c)
         persist()
         Store.saveCodexStubs(codexStubs)
     }
 
     private func archiveConversation(_ c: Conversation) {
-        conversations.removeAll { $0 === c }
-        // Codex thread stubs aren't in `conversations`; archive them so they don't reappear on reload.
-        if let tid = c.codexThreadId {
-            archivedCodexIds.insert(tid)
-            UserDefaults.standard.set(Array(archivedCodexIds), forKey: "archivedCodexIds")
-            for k in codexStubs.keys { codexStubs[k]?.removeAll { $0.codexThreadId == tid } }
+        let archivePlan = chatActionCoordinator.archive(
+            c,
+            conversations: &conversations,
+            codexStubs: &codexStubs,
+            archivedCodexIds: &archivedCodexIds
+        )
+        if archivePlan.threadId != nil {
             Store.saveCodexStubs(codexStubs)
-            Task { try? await client.codexArchive(threadId: tid) }
         }
         if chat.conversation === c { newChat() }
         detachedChatCoordinator.removeWindows(for: c)
