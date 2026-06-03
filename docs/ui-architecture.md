@@ -48,6 +48,7 @@
 - `ChatViewportLayoutChrome.swift`: tested AppKit bridge that applies width-critical scroll frame, document width, and composer bottom-inset corrections during chat layout.
 - `TranscriptRowFactory.swift`: tested row factory that maps chat messages to AppKit row chrome and returns controller metadata for labels, clickable tool views, and edit stats.
 - `TranscriptRowRegistry.swift`: tested transcript interaction registry for message labels, clickable tool rows, edit stats, copy text, and live markdown render throttling.
+- `TranscriptInteractionCoordinator.swift`: tested AppKit bridge for transcript row registration, clickable tool popovers, grouped edit popovers, final-footer copy actions, and shimmer pin callbacks.
 - `TranscriptToolChrome.swift`: reusable AppKit shell/edit/inline tool rows, grouped tool collapse controls, and inline edit diff popover blocks.
 - `TranscriptGroupedToolRowChrome.swift`: tested AppKit helper for appending grouped shell and edit tool rows into the transcript while preserving edit-file popover callbacks.
 - `TranscriptToolFormatter.swift`: tested attributed title, preview, grouping, and icon-name formatting for transcript tool rows.
@@ -73,6 +74,7 @@
 - `ChatSendModel.swift`: tested prompt/stop/steer send-action routing, attachment-only sends, native Codex steering, and queued steer prompt joining.
 - `ComposerDraftStore.swift`: tested draft persistence store for preserving composer text and attachments across chat switches and hot reloads.
 - `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips/strip rendering, Codex nested model/reasoning menus, menu label styling/state application, send/attachment buttons, composer card surface layout, send-state application, and stable footer sizing.
+- `ChatComposerChrome.swift`: tested chat-specific composer assembly for text input callbacks, harness/model/reasoning menu wiring, footer controls, and composer surface installation.
 - `MobilePresentationModel.swift`: tested shared iOS presentation bridge for mobile composer labels/send state and mobile tool rows.
 - `NavigationHistoryModel.swift`: tested identity-based back/forward stack behavior for chat navigation.
 - `AppNavigationCoordinator.swift`: tested AppKit-free app navigation bridge for visible-conversation gating, draft/new-chat transitions, and back/forward state.

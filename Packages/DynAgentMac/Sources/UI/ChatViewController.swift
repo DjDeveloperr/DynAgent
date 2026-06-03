@@ -38,8 +38,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var cardBottomConstraint: NSLayoutConstraint?
     private var cardCenterYConstraint: NSLayoutConstraint?
     private var attachmentHeightConstraint: NSLayoutConstraint?
-    private let transcriptRegistry = TranscriptRowRegistry()
-    private let toolPopoverCoordinator = TranscriptToolPopoverCoordinator()
+    private let transcriptInteractions = TranscriptInteractionCoordinator()
     private let streamRegistry = ChatStreamRegistry<URLSessionDataTask>()
     private var turnStart = Date()
     private var shimmerView: ShimmerLabel?
@@ -142,69 +141,56 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         ChatHeaderChrome.configureTitle(headerTitle)
         ChatHeaderChrome.configureMenuButton(headerMenuButton, target: self, action: #selector(showHeaderMenu(_:)))
 
-        // Composer card
-        composer.delegate = self
-        composer.onSend = { [weak self] in self?.send() }
-        composer.onPasteAttachments = { [weak self] urls in self?.addAttachments(urls) }
-        ComposerChrome.configureTextView(composer)
-        let composerScroll = ComposerSurfaceChrome.makeComposerScroll(containing: composer)
+        let composerScroll = ChatComposerChrome.configureInput(
+            composer: composer,
+            delegate: self,
+            onSend: { [weak self] in self?.send() },
+            onPasteAttachments: { [weak self] urls in self?.addAttachments(urls) }
+        )
 
         ComposerChrome.configurePlaceholder(placeholder)
 
         ComposerChrome.configureAttachmentStrip(stack: attachmentStack, scroll: attachmentScroll)
 
-        // Composer footer: harness + model selector + context usage on the left, send on the right.
-        ComposerChrome.configurePopup(harnessPopup)
-        harnessPopup.addItems(withTitles: Harness.allCases.map(\.rawValue))
-        harnessPopup.target = self
-        harnessPopup.action = #selector(harnessDidChange)
-        ComposerChrome.configurePopup(modelPopup)
-        modelPopup.target = self
-        modelPopup.action = #selector(menuDidChange)
-        ComposerChrome.configurePopup(reasoningPopup)
-        reasoningPopup.addItems(withTitles: ["high", "medium", "low", "xhigh"])
-        reasoningPopup.selectItem(withTitle: "high")
-        reasoningPopup.target = self
-        reasoningPopup.action = #selector(menuDidChange)
-
-        ComposerChrome.configureSpinner(spinner)
-        ComposerChrome.configureSendButton(sendButton, target: self, action: #selector(send))
-        ComposerChrome.configureAttachmentButton(addAttachmentButton, target: self, action: #selector(addAttachmentClicked))
-        let sendStack = ComposerChrome.makeSendContainer(button: sendButton, spinner: spinner)
-
-        let harnessMenu = ComposerMenuChrome(popup: harnessPopup, minWidth: 82)
-        let modelMenu = ComposerMenuChrome(popup: modelPopup, minWidth: 58)
-        let reasoningMenu = ComposerMenuChrome(popup: reasoningPopup, minWidth: 70)
-        modelMenu.displayProvider = { [weak self] in
+        let composerMenus = ChatComposerChrome.configureMenus(
+            harnessPopup: harnessPopup,
+            modelPopup: modelPopup,
+            reasoningPopup: reasoningPopup,
+            target: self,
+            harnessAction: #selector(harnessDidChange),
+            menuAction: #selector(menuDidChange)
+        )
+        composerMenus.model.displayProvider = { [weak self] in
             guard let self, self.selectedHarness == .codex else { return nil }
             return ComposerChrome.codexMenuTitle(
                 model: self.composerMenuCoordinator.selectedCodexModel,
                 effort: self.composerMenuCoordinator.selectedCodexEffort
             )
         }
-        self.harnessMenu = harnessMenu
-        self.modelMenu = modelMenu
-        self.reasoningMenu = reasoningMenu
+        harnessMenu = composerMenus.harness
+        modelMenu = composerMenus.model
+        reasoningMenu = composerMenus.reasoning
 
-        let footer = ComposerChrome.makeFooter(
+        let composerFooter = ChatComposerChrome.configureFooter(
+            spinner: spinner,
+            sendButton: sendButton,
             addAttachmentButton: addAttachmentButton,
-            harnessMenu: harnessMenu,
-            modelMenu: modelMenu,
-            reasoningMenu: reasoningMenu,
+            menus: composerMenus,
             contextRing: contextRing,
-            sendContainer: sendStack
+            target: self,
+            sendAction: #selector(send),
+            addAttachmentAction: #selector(addAttachmentClicked)
         )
 
-        attachmentHeightConstraint = attachmentScroll.heightAnchor.constraint(equalToConstant: 0)
-        let composerSurfaceConstraints = ComposerSurfaceChrome.install(
+        let composerSurface = ChatComposerChrome.installSurface(
             card: card,
             content: cardContent,
             composerScroll: composerScroll,
             placeholder: placeholder,
             attachmentScroll: attachmentScroll,
-            footer: footer,
-            attachmentHeightConstraint: attachmentHeightConstraint!
+            footer: composerFooter.footer
         )
+        attachmentHeightConstraint = composerSurface.attachmentHeight
 
         ChatEmptyStateChrome.configureTitle(emptyTitle)
         ChatEmptyStateChrome.configureSubtitle(emptySub)
@@ -236,14 +222,14 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         cardBottomConstraint = composerLayout.bottom
         cardCenterYConstraint = composerLayout.centerY
 
-        NSLayoutConstraint.activate(composerSurfaceConstraints + TranscriptViewportChrome.constraints(
+        NSLayoutConstraint.activate(composerSurface.constraints + TranscriptViewportChrome.constraints(
             scroll: scroll,
             root: root,
             document: doc,
             transcript: transcript
         ) + ComposerChrome.footerControlConstraints(
             addAttachmentButton: addAttachmentButton,
-            sendContainer: sendStack,
+            sendContainer: composerFooter.sendContainer,
             sendButton: sendButton,
             spinner: spinner
         ) + composerLayout.all + ChatViewChrome.emptyStateConstraints(
@@ -365,7 +351,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         }
         shimmerView = nil
         streamEventCoordinator.adoptVisibleAssistant(for: c)
-        transcriptRegistry.reset()
+        transcriptInteractions.reset()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
         TranscriptStackChrome.removeAllRows(from: transcript)
         // Render each turn: prompt + work divider + final answer.
@@ -390,7 +376,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         adoptComposerSelection(for: c)
         shimmerView = nil
         streamEventCoordinator.adoptVisibleAssistant(for: c)
-        transcriptRegistry.reset()
+        transcriptInteractions.reset()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
         TranscriptStackChrome.removeAllRows(from: transcript)
         let container = TranscriptLoadingShellChrome.makeRow(text: ChatPresentationModel.loadingText(needsLoad: c.needsLoad))
@@ -456,40 +442,21 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                     liveWorkDividerByConversationId[c.id] = divider
                 },
                 addFinalFooter: { [unowned self] message in
-                    addFinalFooter(for: message)
+                    transcriptInteractions.appendFinalFooter(for: message, to: transcript)
                 }
             )
         )
     }
 
     private func addRowsGrouped(_ messages: [ChatMessage], collapseCompletedTools: Bool = true) -> [NSView] {
-        TranscriptRenderModel.groupedItems(messages: messages, collapseCompletedTools: collapseCompletedTools).map { item in
-            switch item {
-            case .message(let message):
-                return addRow(for: message)
-            case .editGroup(let changes):
-                return addEditGroupRow(changes)
-            case .shellGroup(let shellMessages):
-                return addShellGroupRow(shellMessages)
-            }
-        }
-    }
-
-    @discardableResult
-    private func addShellGroupRow(_ messages: [ChatMessage]) -> NSView {
-        let row = TranscriptGroupedToolRowChrome.appendShellGroup(messages: messages, to: transcript)
-        if !renderSession.bulkLoading { pinShimmerToBottom() }
-        return row.container
-    }
-
-    @discardableResult
-    private func addEditGroupRow(_ changes: [EditToolChange]) -> NSView {
-        let row = TranscriptGroupedToolRowChrome.appendEditGroup(changes: changes, to: transcript) { [weak self] change, anchor in
-            guard let self else { return }
-            self.toolPopoverCoordinator.presentEditChanges([change], from: anchor)
-        }
-        if !renderSession.bulkLoading { pinShimmerToBottom() }
-        return row.container
+        transcriptInteractions.appendRowsGrouped(
+            messages,
+            collapseCompletedTools: collapseCompletedTools,
+            to: transcript,
+            markdown: Self.markdown,
+            bulkLoading: renderSession.bulkLoading,
+            pinAfterAppend: { [unowned self] in pinShimmerToBottom() }
+        )
     }
 
     @discardableResult
@@ -514,25 +481,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func activeTurnStartedAt(for c: Conversation) -> Double? {
         TranscriptTurnModel.activeStartedAt(messages: c.messages, fallbackUpdatedAt: c.updatedAt)
-    }
-
-    /// Copy button + timestamp under a turn's final assistant message.
-    private func addFinalFooter(for m: ChatMessage) {
-        let footer = TranscriptRowChrome.finalFooter(
-            text: m.text,
-            timestamp: m.timestamp,
-            target: self,
-            copyAction: #selector(copyFinal(_:))
-        )
-        let copy = footer.copyButton
-        transcriptRegistry.registerCopyText(m.text, for: copy)
-        let container = footer.view
-        TranscriptStackChrome.appendFullWidthRow(container, to: transcript)
-    }
-
-    @objc private func copyFinal(_ sender: NSButton) {
-        guard let t = transcriptRegistry.copyText(for: sender) else { return }
-        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(t, forType: .string)
     }
 
     private func updateEmptyState() {
@@ -700,8 +648,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             divider.refresh()
         }
         if let tool = outcome.completedTool {
-            transcriptRegistry.label(for: tool)?.setRich(TranscriptToolFormatter.toolString(tool))
-            if tool.toolName == "edit", let stats = transcriptRegistry.editStats(for: tool) {
+            transcriptInteractions.label(for: tool)?.setRich(TranscriptToolFormatter.toolString(tool))
+            if tool.toolName == "edit", let stats = transcriptInteractions.editStats(for: tool) {
                 let summary = TranscriptToolFormatter.editSummary(tool)
                 stats.isHidden = summary.added == 0 && summary.deleted == 0
                 stats.setValues(added: summary.added, deleted: summary.deleted)
@@ -715,7 +663,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                 divider.finish(duration: final.turnDuration)
                 liveWorkDividerByConversationId[c.id] = nil
             }
-            addFinalFooter(for: final)
+            transcriptInteractions.appendFinalFooter(for: final, to: transcript)
         }
         if outcome.shouldFinishConversation {
             finish(c)
@@ -773,7 +721,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     /// Re-render the active assistant message as markdown once its text is final.
     private func finalizeAssistant(for c: Conversation) {
         guard let a = streamEventCoordinator.finalizableAssistant(for: c, visible: conversation === c),
-              let label = transcriptRegistry.label(for: a) else { return }
+              let label = transcriptInteractions.label(for: a) else { return }
         label.setRich(Self.markdown(a.text))
     }
 
@@ -866,16 +814,13 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     @discardableResult
     private func addRow(for m: ChatMessage) -> NSView {
-        let built = TranscriptRowFactory.makeRow(for: m, markdown: Self.markdown)
-        let container = built.container
-        transcriptRegistry.register(built, for: m)
-        if let row = built.clickableToolView {
-            row.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(toolClicked(_:))))
-        }
-        TranscriptStackChrome.appendFullWidthRow(container, to: transcript, customSpacingAfter: built.customSpacingAfter)
-        // Keep the "Thinking" shimmer pinned to the bottom while streaming.
-        if !renderSession.bulkLoading { pinShimmerToBottom() }
-        return container
+        transcriptInteractions.appendRow(
+            for: m,
+            to: transcript,
+            markdown: Self.markdown,
+            bulkLoading: renderSession.bulkLoading,
+            pinAfterAppend: { [unowned self] in pinShimmerToBottom() }
+        )
     }
 
     private func addLargeThreadNotice(hiddenCount: Int) {
@@ -887,9 +832,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func renderLiveAssistant(_ assistant: ChatMessage, force: Bool = false) {
-        guard let label = transcriptRegistry.label(for: assistant) else { return }
+        guard let label = transcriptInteractions.label(for: assistant) else { return }
         let now = Date().timeIntervalSince1970
-        guard transcriptRegistry.consumeLiveMarkdownRenderSlot(
+        guard transcriptInteractions.consumeLiveMarkdownRenderSlot(
             for: assistant,
             force: force,
             now: now
@@ -900,16 +845,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private func pinShimmerToBottom() {
         guard let s = shimmerView, let sc = s.superview else { return }
         TranscriptStackChrome.moveRowToBottom(sc, in: transcript)
-    }
-
-    /// Show a popover with the full tool name + detail when a tool pill is clicked.
-    @objc private func toolClicked(_ g: NSClickGestureRecognizer) {
-        guard let view = g.view, let m = transcriptRegistry.toolMessage(for: view) else { return }
-        toolPopoverCoordinator.present(
-            message: m,
-            from: view,
-            clickPoint: g.location(in: view)
-        )
     }
 
     private func scrollToBottom() {
