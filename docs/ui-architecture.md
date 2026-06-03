@@ -102,6 +102,7 @@
 - `WindowLayoutChrome.swift`: tested AppKit bridge for applying usable window limits, pinning root/split frames to content bounds, applying split plans, and capturing frame metrics.
 - `MainLayoutStabilizer.swift`: tested AppKit orchestration for the post-load/resize/git-toggle layout pass that keeps the root split, workspace tile, and chat view tracking the real window width.
 - `WindowHosting.swift`: full-window host and split-view pinning used by the hot-reloadable macOS UI.
+- `WorkspaceAreaChrome.swift`: tested workspace root split setup, forced frame layout, and width metrics for center-pane fill invariants.
 - `WorkspacePanelChrome.swift`: reusable AppKit workspace tile chrome and root split pinning for chat, terminal, and browser panels.
 
 Feature controllers should keep behavior and orchestration, not reusable visual/parser logic. When a controller grows a reusable widget, parser, or display model, extract it into a small file and add a focused test before expanding behavior.

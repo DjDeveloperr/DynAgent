@@ -42,34 +42,11 @@ final class WorkspaceAreaViewController: NSViewController {
     private var primaryTitle = "Chat"
 
     override func loadView() {
-        root.isVertical = true
-        root.dividerStyle = .thin
-        root.translatesAutoresizingMaskIntoConstraints = true
-        root.autoresizingMask = [.width, .height]
-        let v = WorkspaceAreaRootView()
-        v.pinnedSplitView = root
-        v.addSubview(root)
-        root.frame = v.bounds
-        view = v
+        view = WorkspaceAreaChrome.makeRootView(pinning: root)
     }
 
     var layoutMetrics: [String: Any] {
-        [
-            "workspaceViewWidth": Double(view.frame.width),
-            "workspaceViewHeight": Double(view.frame.height),
-            "workspaceRootWidth": Double(root.frame.width),
-            "workspaceRootHeight": Double(root.frame.height),
-            "workspaceRootSubviewFrames": root.arrangedSubviews.enumerated().map { index, view in
-                [
-                    "index": index,
-                    "class": String(describing: type(of: view)),
-                    "x": Double(view.frame.minX),
-                    "y": Double(view.frame.minY),
-                    "width": Double(view.frame.width),
-                    "height": Double(view.frame.height),
-                ] as [String: Any]
-            },
-        ]
+        WorkspaceAreaChrome.metrics(view: view, rootSplit: root)
     }
 
     func setPrimary(_ content: NSView, title: String) {
@@ -91,15 +68,7 @@ final class WorkspaceAreaViewController: NSViewController {
 
     func forceLayoutToBounds() {
         guard isViewLoaded else { return }
-        if let superview = view.superview, view.frame != superview.bounds {
-            view.frame = superview.bounds
-        }
-        root.frame = view.bounds
-        root.adjustSubviews()
-        if root.arrangedSubviews.count == 1 {
-            root.arrangedSubviews.first?.frame = root.bounds
-        }
-        view.layoutSubtreeIfNeeded()
+        WorkspaceAreaChrome.forceLayout(view: view, rootSplit: root)
     }
 
     private func teardown(_ v: NSView) {
