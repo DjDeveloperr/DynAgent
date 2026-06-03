@@ -55,7 +55,7 @@ final class ChatViewControllerLayoutTests: XCTestCase {
     func testLoadedThreadCentersReadableColumnInWideContainer() {
         let controller = ChatViewController()
         controller.loadView()
-        let host = host(controller, width: 1_320, height: 780)
+        let host = host(controller, width: 1_400, height: 780)
 
         let conversation = Conversation(model: "gpt-5.5", workspace: "/Users/dj/Developer/dynamic_agent", harness: .codex)
         conversation.messages = [
@@ -69,7 +69,7 @@ final class ChatViewControllerLayoutTests: XCTestCase {
 
         assertLayout(
             in: controller,
-            viewWidth: 1_320,
+            viewWidth: 1_400,
             expectedReadableWidth: Double(ChatLayoutModel.maxReadableWidth),
             file: #filePath,
             line: #line
@@ -104,12 +104,12 @@ final class ChatViewControllerLayoutTests: XCTestCase {
         controller.show(conversation)
         layoutMounted(controller, in: fixture.host)
 
-        fixture.width.constant = 1_320
+        fixture.width.constant = 1_400
         layoutMounted(controller, in: fixture.host)
 
         assertLayout(
             in: controller,
-            viewWidth: 1_320,
+            viewWidth: 1_400,
             expectedReadableWidth: Double(ChatLayoutModel.maxReadableWidth),
             file: #filePath,
             line: #line

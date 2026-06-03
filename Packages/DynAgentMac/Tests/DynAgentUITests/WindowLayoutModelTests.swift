@@ -221,6 +221,29 @@ final class WindowLayoutModelTests: XCTestCase {
         XCTAssertEqual(sidebarWidth + mainWidth + plan.gitWidth, 1472)
     }
 
+    func testSplitPlanKeepsReadableMainWidthOnWideWindowsWhenGitOpens() throws {
+        let plan = WindowLayoutModel.splitPlan(WindowSplitConfiguration(
+            totalWidth: 2_200,
+            sidebarCurrentWidth: 284,
+            sidebarMinimumWidth: 260,
+            sidebarMaximumWidth: 380,
+            sidebarCollapsed: false,
+            gitCurrentWidth: 520,
+            gitMinimumWidth: 300,
+            gitMaximumWidth: 520,
+            gitCollapsed: false,
+            preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
+        ))
+
+        let sidebarWidth = try XCTUnwrap(plan.firstDividerPosition)
+        let secondDivider = try XCTUnwrap(plan.secondDividerPosition)
+        let mainWidth = secondDivider - sidebarWidth
+
+        XCTAssertGreaterThanOrEqual(mainWidth, ChatLayoutModel.preferredMainWidthWithInspector)
+        XCTAssertEqual(plan.gitWidth, 520)
+        XCTAssertEqual(sidebarWidth + mainWidth + plan.gitWidth, 2_200)
+    }
+
     func testMetricsPayloadPreservesWidthInvariantFields() throws {
         let payload = WindowLayoutModel.metricsPayload(from: WindowLayoutMetricsSnapshot(
             reason: "codex-history-render",
