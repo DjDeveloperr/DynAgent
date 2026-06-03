@@ -62,24 +62,6 @@ final class SidebarScrollView: NSScrollView {
     }
 }
 
-final class SidebarActionButton: NSButton {
-    var handler: ((SidebarActionButton) -> Void)?
-    init(symbol: String, tooltip: String? = nil) {
-        super.init(frame: .zero)
-        image = NSImage(systemSymbolName: symbol, accessibilityDescription: tooltip)?
-            .withSymbolConfiguration(.init(pointSize: 12, weight: .semibold))
-        imagePosition = .imageOnly
-        isBordered = false
-        contentTintColor = .tertiaryLabelColor
-        toolTip = tooltip
-        target = self
-        action = #selector(run)
-        translatesAutoresizingMaskIntoConstraints = false
-    }
-    required init?(coder: NSCoder) { fatalError() }
-    @objc private func run() { handler?(self) }
-}
-
 /// A smooth (non-stepped) indeterminate spinner: a rotating accent arc.
 final class Spinner: NSView {
     private let ring = CAShapeLayer()

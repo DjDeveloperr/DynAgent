@@ -4,6 +4,7 @@ enum DesignSystem {
     enum Font {
         static let chatBody = NSFont.systemFont(ofSize: 15)
         static let chatBodyBold = NSFont.systemFont(ofSize: 15, weight: .semibold)
+        static let controlLabel = NSFont.systemFont(ofSize: 15, weight: .medium)
         static let inlineCode = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
         static let codeBlock = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
     }

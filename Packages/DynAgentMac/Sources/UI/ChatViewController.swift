@@ -262,75 +262,6 @@ final class ContextRing: NSView {    var fraction: Double = 0 { didSet { needsDi
     }
 }
 
-final class ComposerMenuChrome: NSView {
-    let popup: NSPopUpButton
-    private let label = NSTextField(labelWithString: "")
-    private let chevron = NSImageView(image: NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
-        .withSymbolConfiguration(.init(pointSize: 10.5, weight: .semibold)) ?? NSImage())
-    private let minWidth: CGFloat
-    var displayProvider: (() -> NSAttributedString?)?
-
-    init(popup: NSPopUpButton, minWidth: CGFloat) {
-        self.popup = popup
-        self.minWidth = minWidth
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        wantsLayer = true
-        setContentHuggingPriority(.required, for: .horizontal)
-        setContentCompressionResistancePriority(.required, for: .horizontal)
-
-        popup.alphaValue = 0.01
-        popup.translatesAutoresizingMaskIntoConstraints = false
-        label.font = .systemFont(ofSize: 15, weight: .medium)
-        label.textColor = .labelColor
-        label.lineBreakMode = .byTruncatingTail
-        label.maximumNumberOfLines = 1
-        label.setContentHuggingPriority(.required, for: .horizontal)
-        label.setContentCompressionResistancePriority(.required, for: .horizontal)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        chevron.contentTintColor = .secondaryLabelColor
-        chevron.setContentHuggingPriority(.required, for: .horizontal)
-        chevron.setContentCompressionResistancePriority(.required, for: .horizontal)
-        chevron.translatesAutoresizingMaskIntoConstraints = false
-
-        addSubview(popup)
-        addSubview(label)
-        chevron.isHidden = true
-        NSLayoutConstraint.activate([
-            heightAnchor.constraint(equalToConstant: 30),
-            widthAnchor.constraint(greaterThanOrEqualToConstant: minWidth),
-            popup.leadingAnchor.constraint(equalTo: leadingAnchor),
-            popup.trailingAnchor.constraint(equalTo: trailingAnchor),
-            popup.topAnchor.constraint(equalTo: topAnchor),
-            popup.bottomAnchor.constraint(equalTo: bottomAnchor),
-            label.leadingAnchor.constraint(equalTo: leadingAnchor),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4),
-        ])
-        refresh()
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    override var intrinsicContentSize: NSSize {
-        let labelWidth = max(label.intrinsicContentSize.width, 1)
-        return NSSize(width: max(minWidth, labelWidth + 4), height: 30)
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        popup.performClick(self)
-    }
-
-    func refresh() {
-        if let display = displayProvider?() {
-            label.attributedStringValue = display
-        } else {
-            label.stringValue = popup.titleOfSelectedItem ?? ""
-        }
-        invalidateIntrinsicContentSize()
-    }
-}
-
 final class EditStatsView: NSView {
     private let addLabel = NSTextField(labelWithString: "+0")
     private let delLabel = NSTextField(labelWithString: "-0")
@@ -2621,38 +2552,11 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         var deleted: Int { changes.reduce(0) { $0 + $1.deleted } }
     }
 
-    private struct ShellSummary {
-        var command: String
-        var exitCode: String?
-        var output: String
-    }
-
-    private struct ShellTitleParts {
-        var action: String
-        var detail: String?
-        var monospacedDetail = false
-        var category = "command"
-    }
+    private typealias ShellSummary = ShellToolSummary
+    private typealias ShellTitleParts = ShellToolTitle
 
     private func shellSummary(_ m: ChatMessage) -> ShellSummary {
-        let detail = m.toolDetail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !detail.isEmpty else { return ShellSummary(command: "command", exitCode: nil, output: "") }
-        let lines = detail.components(separatedBy: .newlines)
-        if let commandIndex = lines.lastIndex(where: { $0.hasPrefix("$ ") }) {
-            let command = String(lines[commandIndex].dropFirst(2))
-            var exitCode: String?
-            var outputStart = commandIndex + 1
-            if lines.indices.contains(outputStart), lines[outputStart].hasPrefix("exit ") {
-                exitCode = String(lines[outputStart].dropFirst(5))
-                outputStart += 1
-            }
-            while lines.indices.contains(outputStart), lines[outputStart].isEmpty { outputStart += 1 }
-            let output = outputStart < lines.count ? lines[outputStart...].joined(separator: "\n") : ""
-            return ShellSummary(command: command, exitCode: exitCode, output: output)
-        }
-        let command = lines.first ?? detail
-        let output = lines.dropFirst().joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return ShellSummary(command: command, exitCode: nil, output: output)
+        ShellToolModel.summary(from: m.toolDetail)
     }
 
     private func shellToolTitle(_ m: ChatMessage, summary: ShellSummary) -> NSAttributedString {
@@ -2672,114 +2576,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func shellTitleParts(command: String, done: Bool) -> ShellTitleParts {
-        guard !command.isEmpty else {
-            return ShellTitleParts(action: done ? "Ran command" : "Running command")
-        }
-        let normalized = innerShellCommand(command) ?? command
-        let words = shellWords(normalized)
-        guard let executable = words.first?.split(separator: "/").last.map(String.init) else {
-            return ShellTitleParts(action: done ? "Ran command" : "Running command")
-        }
-        let args = Array(words.dropFirst())
-        switch executable {
-        case "ls", "tree":
-            return ShellTitleParts(action: done ? "Listed files" : "Listing files", detail: shellPathDetail(args).map { "in \($0)" }, category: "list")
-        case "find", "fd":
-            return ShellTitleParts(action: done ? "Searched files" : "Searching files", detail: shellPathDetail(args).map { "in \($0)" }, category: "search")
-        case "rg", "grep", "ag":
-            return ShellTitleParts(action: done ? "Searched for" : "Searching for", detail: shellSearchQuery(args), category: "search")
-        case "cat", "sed", "head", "tail", "nl":
-            return ShellTitleParts(action: done ? "Read" : "Reading", detail: shellPathDetail(args), category: "read")
-        case "pwd":
-            return ShellTitleParts(action: done ? "Checked working directory" : "Checking working directory")
-        case "git":
-            if args.first == "status" {
-                return ShellTitleParts(action: done ? "Checked git status" : "Checking git status", category: "git")
-            }
-            if args.first == "diff" || args.first == "show" {
-                return ShellTitleParts(action: done ? "Read diff" : "Reading diff", category: "diff")
-            }
-            if args.first == "grep" {
-                return ShellTitleParts(action: done ? "Searched for" : "Searching for", detail: shellSearchQuery(Array(args.dropFirst())), category: "search")
-            }
-            return ShellTitleParts(action: done ? "Ran git" : "Running git", detail: args.first, category: "git")
-        default:
-            return ShellTitleParts(action: done ? "Ran command" : "Running command", detail: normalized, monospacedDetail: true)
-        }
-    }
-
-    private func innerShellCommand(_ command: String) -> String? {
-        let words = shellWords(command)
-        guard let executable = words.first?.split(separator: "/").last.map(String.init),
-              ["zsh", "bash", "sh", "fish"].contains(executable) else { return nil }
-        for i in words.indices {
-            let arg = words[i]
-            guard arg == "-c" || arg == "-lc" || arg == "-lic" else { continue }
-            let next = words.index(after: i)
-            if words.indices.contains(next) { return words[next] }
-        }
-        return nil
-    }
-
-    private func shellWords(_ command: String) -> [String] {
-        var words: [String] = []
-        var current = ""
-        var quote: Character?
-        var escaped = false
-        for ch in command {
-            if escaped {
-                current.append(ch)
-                escaped = false
-                continue
-            }
-            if ch == "\\" {
-                escaped = true
-                continue
-            }
-            if let q = quote {
-                if ch == q { quote = nil }
-                else { current.append(ch) }
-                continue
-            }
-            if ch == "'" || ch == "\"" {
-                quote = ch
-            } else if ch == " " || ch == "\t" {
-                if !current.isEmpty {
-                    words.append(current)
-                    current = ""
-                }
-            } else {
-                current.append(ch)
-            }
-        }
-        if !current.isEmpty { words.append(current) }
-        return words
-    }
-
-    private func shellSearchQuery(_ args: [String]) -> String? {
-        for arg in args where !arg.hasPrefix("-") && arg != "." {
-            return arg
-        }
-        return nil
-    }
-
-    private func shellPathDetail(_ args: [String]) -> String? {
-        let ignoredOptionsWithValues: Set<String> = ["-n", "-m", "-C", "-A", "-B", "--max-count", "--context", "--after-context", "--before-context"]
-        var skipNext = false
-        var candidates: [String] = []
-        for arg in args {
-            if skipNext {
-                skipNext = false
-                continue
-            }
-            if ignoredOptionsWithValues.contains(arg) {
-                skipNext = true
-                continue
-            }
-            if arg.hasPrefix("-") { continue }
-            candidates.append(arg)
-        }
-        return candidates.last
+        ShellToolModel.title(command: command, done: done)
     }
 
     private func editSummary(_ m: ChatMessage) -> EditSummary {
