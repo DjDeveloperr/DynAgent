@@ -17,6 +17,68 @@ final class ComposerChromeTests: XCTestCase {
         XCTAssertFalse(popup.translatesAutoresizingMaskIntoConstraints)
     }
 
+    func testApplyMenuStateRefreshesMenusAndUpdatesVisibility() {
+        let placeholder = NSTextField(labelWithString: "")
+        let harnessMenu = ComposerMenuChrome(popup: NSPopUpButton(), minWidth: 82)
+        let modelMenu = ComposerMenuChrome(popup: NSPopUpButton(), minWidth: 58)
+        let reasoningMenu = ComposerMenuChrome(popup: NSPopUpButton(), minWidth: 70)
+
+        ComposerChrome.applyMenuState(
+            ComposerMenuState(
+                placeholder: "Ask Codex",
+                showsHarnessMenu: false,
+                showsReasoningMenu: false
+            ),
+            placeholder: placeholder,
+            harnessMenu: harnessMenu,
+            modelMenu: modelMenu,
+            reasoningMenu: reasoningMenu
+        )
+
+        XCTAssertEqual(placeholder.stringValue, "Ask Codex")
+        XCTAssertTrue(harnessMenu.isHidden)
+        XCTAssertTrue(reasoningMenu.isHidden)
+
+        ComposerChrome.applyMenuState(
+            ComposerMenuState(
+                placeholder: "Ask DynAgent",
+                showsHarnessMenu: true,
+                showsReasoningMenu: true
+            ),
+            placeholder: placeholder,
+            harnessMenu: harnessMenu,
+            modelMenu: modelMenu,
+            reasoningMenu: reasoningMenu
+        )
+
+        XCTAssertEqual(placeholder.stringValue, "Ask DynAgent")
+        XCTAssertFalse(harnessMenu.isHidden)
+        XCTAssertFalse(modelMenu.isHidden)
+        XCTAssertFalse(reasoningMenu.isHidden)
+    }
+
+    func testApplySendStateUsesComposerSendIconAndTint() {
+        let button = NSButton()
+
+        ComposerChrome.applySendState(
+            ComposerSendState(symbol: "stop.fill", accessibilityDescription: "Stop", isStop: true),
+            to: button
+        )
+
+        XCTAssertNotNil(button.image)
+        XCTAssertEqual(button.image?.accessibilityDescription, "Stop")
+        XCTAssertEqual(button.contentTintColor, .black)
+
+        ComposerChrome.applySendState(
+            ComposerSendState(symbol: "arrow.up", accessibilityDescription: "Send", isStop: false),
+            to: button
+        )
+
+        XCTAssertNotNil(button.image)
+        XCTAssertEqual(button.image?.accessibilityDescription, "Send")
+        XCTAssertEqual(button.contentTintColor, .black)
+    }
+
     func testCodexMenuTitleUsesPrimaryModelAndSecondaryEffortText() {
         let title = ComposerChrome.codexMenuTitle(model: "gpt-5.5-codex", effort: "xhigh")
 

@@ -368,17 +368,18 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func syncComposerMenus() {
-        harnessMenu?.refresh()
-        modelMenu?.refresh()
-        reasoningMenu?.refresh()
         let state = ComposerModel.menuState(
             conversation: conversation,
             selectedHarness: selectedHarness,
             reasoningControlHidden: reasoningPopup.isHidden
         )
-        placeholder.stringValue = state.placeholder
-        harnessMenu?.isHidden = !state.showsHarnessMenu
-        reasoningMenu?.isHidden = !state.showsReasoningMenu
+        ComposerChrome.applyMenuState(
+            state,
+            placeholder: placeholder,
+            harnessMenu: harnessMenu,
+            modelMenu: modelMenu,
+            reasoningMenu: reasoningMenu
+        )
     }
 
     @objc private func addWorkspaceClicked() {
@@ -957,10 +958,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             trimmedText: composer.string.trimmingCharacters(in: .whitespacesAndNewlines),
             hasAttachments: composerDrafts.hasAttachments
         )
-        sendButton.image = NSImage(systemSymbolName: state.symbol,
-                                   accessibilityDescription: state.accessibilityDescription)?
-            .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold))
-        sendButton.contentTintColor = .black
+        ComposerChrome.applySendState(state, to: sendButton)
     }
 
     // MARK: - Thinking shimmer

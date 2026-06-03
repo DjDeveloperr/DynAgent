@@ -59,7 +59,7 @@
 - `ComposerDraftCoordinator.swift`: tested AppKit-free coordinator for composer attachment state, draft save/restore/clear, and debounced draft persistence.
 - `ChatSendModel.swift`: tested prompt/stop/steer send-action routing, attachment-only sends, native Codex steering, and queued steer prompt joining.
 - `ComposerDraftStore.swift`: tested draft persistence store for preserving composer text and attachments across chat switches and hot reloads.
-- `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips/strip rendering, Codex nested model/reasoning menus, menu label styling, send/attachment buttons, and stable footer sizing.
+- `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips/strip rendering, Codex nested model/reasoning menus, menu label styling/state application, send/attachment buttons, send-state application, and stable footer sizing.
 - `MobilePresentationModel.swift`: tested shared iOS presentation bridge for mobile composer labels/send state and mobile tool rows.
 - `NavigationHistoryModel.swift`: tested identity-based back/forward stack behavior for chat navigation.
 - `AppConversationIndexModel.swift`: tested visible-conversation de-duping, restored-selection lookup, dock recent payloads, and unread finished-thread counts.

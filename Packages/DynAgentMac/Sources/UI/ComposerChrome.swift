@@ -115,6 +115,27 @@ enum ComposerChrome {
         popup.translatesAutoresizingMaskIntoConstraints = false
     }
 
+    static func applyMenuState(
+        _ state: ComposerMenuState,
+        placeholder: NSTextField,
+        harnessMenu: ComposerMenuChrome?,
+        modelMenu: ComposerMenuChrome?,
+        reasoningMenu: ComposerMenuChrome?
+    ) {
+        harnessMenu?.refresh()
+        modelMenu?.refresh()
+        reasoningMenu?.refresh()
+        placeholder.stringValue = state.placeholder
+        harnessMenu?.isHidden = !state.showsHarnessMenu
+        reasoningMenu?.isHidden = !state.showsReasoningMenu
+    }
+
+    static func applySendState(_ state: ComposerSendState, to button: NSButton) {
+        button.image = NSImage(systemSymbolName: state.symbol, accessibilityDescription: state.accessibilityDescription)?
+            .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold))
+        button.contentTintColor = .black
+    }
+
     static func codexMenuTitle(model: String, effort: String) -> NSAttributedString {
         let title = NSMutableAttributedString(string: ComposerModel.shortCodexModelName(model), attributes: [
             .font: NSFont.systemFont(ofSize: 15, weight: .medium),
