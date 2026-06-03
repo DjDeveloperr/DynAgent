@@ -30,6 +30,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private lazy var chatActionCoordinator = AppChatActionCoordinator(client: client) { ids in
         UserDefaults.standard.set(Array(ids), forKey: "archivedCodexIds")
     }
+    private lazy var worktreeCoordinator = AppWorktreeCoordinator(client: client)
 
     private var conversations: [Conversation] = []
     private var draft: Conversation?
@@ -891,9 +892,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     /// Map each top-level workspace to its existing git worktrees, then load Codex threads.
     private func detectWorktrees() {
         Task { @MainActor in
-            for ref in workspaceRefs {
-                worktreesByPath[ref.path] = (await client.worktrees(cwd: ref.path)).map(\.path)
-            }
+            worktreesByPath = await worktreeCoordinator.detectWorktrees(for: workspaceRefs)
             loadCodexThreads()
         }
     }
@@ -907,18 +906,17 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         a.accessoryView = tf
         a.addButton(withTitle: "Create"); a.addButton(withTitle: "Cancel")
         guard a.runModal() == .alertFirstButtonReturn else { return }
-        let branch = tf.stringValue.trimmingCharacters(in: .whitespaces)
+        let branch = AppWorktreeCoordinator.normalizedBranch(tf.stringValue)
         guard !branch.isEmpty else { return }
         Task { @MainActor in
-            let r = try? await client.post("worktree", ["cwd": active.path, "branch": branch])
-            if let path = r?["path"] as? String, let name = r?["name"] as? String {
-                let ref = WorkspaceRef(name: name, path: path)
+            switch await worktreeCoordinator.create(cwd: active.path, branch: branch) {
+            case .created(let ref):
                 workspaceRefs.append(ref); Store.saveWorkspaces(workspaceRefs)
                 active = ref
                 newChat()
-            } else {
+            case .failed(let message):
                 let err = NSAlert(); err.messageText = "Worktree failed"
-                err.informativeText = (r?["error"] as? String) ?? "Is this a git repository?"
+                err.informativeText = message
                 err.runModal()
             }
         }
