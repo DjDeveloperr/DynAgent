@@ -1,5 +1,14 @@
 import AppKit
 
+private final class ChatRootView: FlexibleContainerView {
+    override func layout() {
+        if let superview, frame != superview.bounds {
+            frame = superview.bounds
+        }
+        super.layout()
+    }
+}
+
 /// Detail pane: a centered transcript (user / assistant / tool rows) and a composer card.
 final class ChatViewController: NSViewController, NSTextViewDelegate {
     var client: AgentClient!
@@ -294,7 +303,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         ))
         ChatEmptyStateChrome.configureStack(emptyStack, title: emptyTitle, subtitle: emptySub, actions: emptyActions)
 
-        let root = FlexibleContainerView()
+        let root = ChatRootView()
         root.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         root.setContentHuggingPriority(.defaultLow, for: .horizontal)
         root.addSubview(scroll)
@@ -312,11 +321,16 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         cardBottomConstraint = card.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16)
         cardCenterYConstraint = card.centerYAnchor.constraint(equalTo: root.centerYAnchor, constant: 88)
         cardCenterYConstraint?.isActive = false
+        let cardFillWidth = card.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -(ChatLayoutModel.horizontalInset * 2))
+        cardFillWidth.priority = .defaultHigh
 
         NSLayoutConstraint.activate([
-            // Composer matches the full transcript width.
-            card.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: ChatLayoutModel.horizontalInset),
-            card.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -ChatLayoutModel.horizontalInset),
+            // Composer tracks the readable chat column while the root canvas remains full width.
+            card.leadingAnchor.constraint(greaterThanOrEqualTo: root.leadingAnchor, constant: ChatLayoutModel.horizontalInset),
+            card.trailingAnchor.constraint(lessThanOrEqualTo: root.trailingAnchor, constant: -ChatLayoutModel.horizontalInset),
+            card.centerXAnchor.constraint(equalTo: root.centerXAnchor),
+            card.widthAnchor.constraint(lessThanOrEqualToConstant: ChatLayoutModel.maxReadableWidth),
+            cardFillWidth,
             cardBottomConstraint!,
 
             attachmentScroll.topAnchor.constraint(equalTo: cardContent.topAnchor, constant: 10),
@@ -372,6 +386,15 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     /// Keep the transcript clear of the floating composer: bottom inset tracks the composer height.
     override func viewDidLayout() {
         super.viewDidLayout()
+        if scroll.frame != view.bounds {
+            scroll.frame = view.bounds
+        }
+        if let document = scroll.documentView {
+            let targetWidth = view.bounds.width
+            if abs(document.frame.width - targetWidth) > 0.5 {
+                document.setFrameSize(NSSize(width: targetWidth, height: document.frame.height))
+            }
+        }
         let inset = card.frame.height + 28
         if abs(inset - bottomInsetCache) > 1 {
             bottomInsetCache = inset

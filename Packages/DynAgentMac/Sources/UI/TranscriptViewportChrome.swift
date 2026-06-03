@@ -40,9 +40,12 @@ enum TranscriptViewportChrome {
         root: NSView,
         document: NSView,
         transcript: NSStackView,
-        horizontalInset: CGFloat = ChatLayoutModel.horizontalInset
+        horizontalInset: CGFloat = ChatLayoutModel.horizontalInset,
+        maxReadableWidth: CGFloat = ChatLayoutModel.maxReadableWidth
     ) -> [NSLayoutConstraint] {
-        [
+        let fillWidth = transcript.widthAnchor.constraint(equalTo: document.widthAnchor, constant: -(horizontalInset * 2))
+        fillWidth.priority = .defaultHigh
+        return [
             scroll.topAnchor.constraint(equalTo: root.topAnchor),
             scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
@@ -50,12 +53,16 @@ enum TranscriptViewportChrome {
 
             document.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
             document.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
+            document.widthAnchor.constraint(equalTo: root.widthAnchor),
             document.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
 
             transcript.topAnchor.constraint(equalTo: document.topAnchor, constant: topPadding),
             transcript.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -bottomPadding),
-            transcript.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: horizontalInset),
-            transcript.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -horizontalInset),
+            transcript.leadingAnchor.constraint(greaterThanOrEqualTo: document.leadingAnchor, constant: horizontalInset),
+            transcript.trailingAnchor.constraint(lessThanOrEqualTo: document.trailingAnchor, constant: -horizontalInset),
+            transcript.centerXAnchor.constraint(equalTo: document.centerXAnchor),
+            transcript.widthAnchor.constraint(lessThanOrEqualToConstant: maxReadableWidth),
+            fillWidth,
         ]
     }
 }

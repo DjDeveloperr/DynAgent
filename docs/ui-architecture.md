@@ -63,7 +63,7 @@
 - `AppSidebarSyncModel.swift`: tested Codex sidebar-state bridge for width clamping/correction payloads and collapsed section/workspace payloads.
 - `AppHotStateModel.swift`: tested hot-reload state serializer/restorer for conversations, active Codex thread status, workspace refs, model cache, and selection.
 - `MainWindowFrameModel.swift`: tested main-window frame state model for initial saved-frame restoration, requested/applied frame tracking, live-resize state, and unexpected-shrink recovery.
-- `ChatLayoutModel.swift`: shared chat-column constants and inspector-aware split sizing.
+- `ChatLayoutModel.swift`: shared chat-column constants, readable-width cap, and inspector-aware split sizing.
 - `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, root content bounds, wide fallback sizing, split divider planning, metrics payloads, and post-load width invariants.
 - `WindowLayoutChrome.swift`: tested AppKit bridge for applying usable window limits, pinning root/split frames to content bounds, applying split plans, and capturing frame metrics.
 - `MainLayoutStabilizer.swift`: tested AppKit orchestration for the post-load/resize/git-toggle layout pass that keeps the root split, workspace tile, and chat view tracking the real window width.
@@ -75,8 +75,8 @@ Feature controllers should keep behavior and orchestration, not reusable visual/
 ## Mac Layout Contract
 
 - The macOS root is a full-window `NSSplitView` hosted directly by `FullWindowHostView`.
-- The left sidebar is a custom AppKit stack-based surface with a fixed practical width band.
-- The center chat/workspace surface owns transcript rendering, composer state, and panel layout. Transcript and composer content fill the center split item without advertising a fitted width back to the window.
+- The left sidebar is a custom AppKit stack-based surface with a fixed practical width band capped tightly enough that restored Codex sidebar state cannot steal the readable chat column.
+- The center chat/workspace surface owns transcript rendering, composer state, and panel layout. The workspace canvas fills the split item; transcript and composer use a centered readable column without advertising a fitted width back to the window.
 - The right git panel is a collapsible split item; opening it preserves a readable center width before growing the inspector. The git diff document uses `GitDiffModel` for all parsing.
 - Hot reload must preserve the window size and keep the content split filling the visible window. Current verified invariant: content width, split width, and visible window width match after reload.
 

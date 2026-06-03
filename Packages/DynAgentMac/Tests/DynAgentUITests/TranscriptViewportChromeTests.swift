@@ -45,7 +45,7 @@ final class TranscriptViewportChromeTests: XCTestCase {
         XCTAssertEqual(scroll.contentHuggingPriority(for: .horizontal), .defaultLow)
     }
 
-    func testViewportConstraintsKeepDocumentAndTranscriptTrackingRootWidth() {
+    func testViewportConstraintsKeepDocumentFullWidthAndTranscriptReadable() {
         let root = NSView()
         let scroll = NSScrollView()
         let document = NSView()
@@ -71,12 +71,31 @@ final class TranscriptViewportChromeTests: XCTestCase {
         XCTAssertTrue(constraints.contains {
             $0.firstAnchor == document.trailingAnchor && $0.secondAnchor == scroll.contentView.trailingAnchor
         })
+        let leading = constraints.first {
+            $0.firstAnchor == transcript.leadingAnchor && $0.secondAnchor == document.leadingAnchor
+        }
+        XCTAssertEqual(leading?.relation, .greaterThanOrEqual)
+        XCTAssertEqual(leading?.constant, 17)
+
+        let trailing = constraints.first {
+            $0.firstAnchor == transcript.trailingAnchor && $0.secondAnchor == document.trailingAnchor
+        }
+        XCTAssertEqual(trailing?.relation, .lessThanOrEqual)
+        XCTAssertEqual(trailing?.constant, -17)
+
         XCTAssertTrue(constraints.contains {
-            $0.firstAnchor == transcript.leadingAnchor && $0.secondAnchor == document.leadingAnchor && $0.constant == 17
+            $0.firstAnchor == transcript.centerXAnchor && $0.secondAnchor == document.centerXAnchor
         })
-        XCTAssertTrue(constraints.contains {
-            $0.firstAnchor == transcript.trailingAnchor && $0.secondAnchor == document.trailingAnchor && $0.constant == -17
-        })
+        let maxWidth = constraints.first {
+            $0.firstAnchor == transcript.widthAnchor && $0.secondAnchor == nil && $0.relation == .lessThanOrEqual
+        }
+        XCTAssertEqual(maxWidth?.constant, ChatLayoutModel.maxReadableWidth)
+
+        let fillWidth = constraints.first {
+            $0.firstAnchor == transcript.widthAnchor && $0.secondAnchor == document.widthAnchor && $0.constant == -34
+        }
+        XCTAssertEqual(fillWidth?.priority, .defaultHigh)
+
         XCTAssertTrue(constraints.contains {
             $0.firstAnchor == transcript.topAnchor && $0.constant == TranscriptViewportChrome.topPadding
         })

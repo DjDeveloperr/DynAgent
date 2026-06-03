@@ -55,6 +55,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private let projectlessCodexKey = "__codex_projectless__"
     private var navigationHistory = NavigationHistoryModel<Conversation>()
     private var mainWindowFrameState = MainWindowFrameState()
+    private var pendingWindowFrameRestore = false
 
     init(window: NSWindow, hotState: NSMutableDictionary? = nil) {
         self.window = window
@@ -123,7 +124,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         }
         let side = NSSplitViewItem(viewController: sidebar)
         sidebarItem = side
-        side.minimumThickness = 260; side.maximumThickness = 380; side.canCollapse = true
+        side.minimumThickness = 260; side.maximumThickness = 320; side.canCollapse = true
         side.holdingPriority = NSLayoutConstraint.Priority(251)
         side.preferredThicknessFraction = 0
         split.addSplitViewItem(side)
@@ -445,19 +446,31 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private func stabilizeMainLayout(reason: String) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.restoreUnexpectedMainWindowShrinkIfNeeded()
+            self.scheduleUnexpectedMainWindowRestoreIfNeeded(reason: "restored-unexpected-shrink")
             self.applyMainLayoutStabilization()
             self.writeLayoutMetrics(reason: reason)
         }
     }
 
-    private func restoreUnexpectedMainWindowShrinkIfNeeded() {
-        guard case .restore(let frame) = MainWindowFrameModel.resizeDecision(
+    private func scheduleUnexpectedMainWindowRestoreIfNeeded(reason: String) {
+        guard !pendingWindowFrameRestore else { return }
+        guard case .restore = MainWindowFrameModel.resizeDecision(
             current: window.frame,
             state: mainWindowFrameState
         ) else { return }
-        window.setFrame(frame, display: true)
-        mainWindowFrameState = MainWindowFrameModel.recordingApplied(window.frame, in: mainWindowFrameState)
+        pendingWindowFrameRestore = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self else { return }
+            self.pendingWindowFrameRestore = false
+            guard case .restore(let frame) = MainWindowFrameModel.resizeDecision(
+                current: self.window.frame,
+                state: self.mainWindowFrameState
+            ) else { return }
+            self.window.setFrame(frame, display: true)
+            self.mainWindowFrameState = MainWindowFrameModel.recordingApplied(self.window.frame, in: self.mainWindowFrameState)
+            self.applyMainLayoutStabilization()
+            self.writeLayoutMetrics(reason: reason)
+        }
     }
 
     private func applyMainLayoutStabilization() {
@@ -1018,9 +1031,8 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     func windowDidResize(_ notification: Notification) {
         unlockWindowSizing()
         switch MainWindowFrameModel.resizeDecision(current: window.frame, state: mainWindowFrameState) {
-        case .restore(let frame):
-            window.setFrame(frame, display: true)
-            mainWindowFrameState = MainWindowFrameModel.recordingApplied(window.frame, in: mainWindowFrameState)
+        case .restore:
+            scheduleUnexpectedMainWindowRestoreIfNeeded(reason: "restored-unexpected-shrink")
             applyMainLayoutStabilization()
             writeLayoutMetrics(reason: "restored-unexpected-shrink")
             return

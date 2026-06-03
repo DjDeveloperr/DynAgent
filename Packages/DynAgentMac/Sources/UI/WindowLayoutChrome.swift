@@ -65,6 +65,7 @@ enum WindowLayoutChrome {
         rootSplitController?.pinSplitViewToRoot()
         apply(plan, to: splitView)
         splitView.adjustSubviews()
+        rootSplitController?.pinSplitViewToRoot()
         return plan
     }
 
