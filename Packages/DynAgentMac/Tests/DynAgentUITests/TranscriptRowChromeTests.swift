@@ -34,6 +34,26 @@ final class TranscriptRowChromeTests: XCTestCase {
         XCTAssertFalse(container.constraints.contains { $0.firstAttribute == .width && $0.relation == .equal })
     }
 
+    func testMessageTextViewIntrinsicHeightTracksAssignedWidth() {
+        let text = """
+        This is a long markdown row that must wrap inside the readable chat column instead of painting across subsequent transcript rows.
+        This second line makes the regression easier to catch because the height should grow when the view gets narrower.
+        """
+        let view = MessageTextView()
+        view.setRich(NSAttributedString(string: text, attributes: [
+            .font: NSFont.systemFont(ofSize: 15)
+        ]))
+
+        view.setFrameSize(NSSize(width: 760, height: 1))
+        let wideHeight = view.intrinsicContentSize.height
+
+        view.setFrameSize(NSSize(width: 260, height: 1))
+        let narrowHeight = view.intrinsicContentSize.height
+
+        XCTAssertGreaterThan(wideHeight, 1)
+        XCTAssertGreaterThan(narrowHeight, wideHeight)
+    }
+
     func testSteerBubbleLabelsPendingAndCompletedStates() throws {
         let pending = NSView()
         TranscriptRowChrome.installSteerBubble(text: "adjust this", pending: true, in: pending)

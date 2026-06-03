@@ -57,4 +57,21 @@ enum MainWindowFrameModel {
         guard case .restore = resizeDecision(current: current, state: state) else { return false }
         return true
     }
+
+    static func resizeProposal(_ proposed: CGSize, state: MainWindowFrameState, tolerance: CGFloat = 1) -> CGSize {
+        guard !state.isUserLiveResizing,
+              state.appliedFrame.width > 0,
+              proposed.width < state.appliedFrame.width - tolerance else { return proposed }
+        return state.appliedFrame.size
+    }
+
+    static func shouldRestoreRequestedFrameDuringStartup(
+        current: CGRect,
+        requested: CGRect,
+        didStartManualResize: Bool,
+        tolerance: CGFloat = 1
+    ) -> Bool {
+        guard !didStartManualResize, requested.width > 0, requested.height > 0 else { return false }
+        return current.width < requested.width - tolerance || current.height < requested.height - tolerance
+    }
 }

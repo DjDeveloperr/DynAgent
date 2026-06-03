@@ -83,7 +83,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         self?.refreshSelectedActiveCodexThreadIfNeeded()
     }
     private var mainWindowFrameState = MainWindowFrameState()
-    private var pendingWindowFrameRestore = false
+    private var didStartManualMainWindowResize = false
 
     init(window: NSWindow, hotState: NSMutableDictionary? = nil) {
         self.window = window
@@ -170,9 +170,8 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
         setMainWindowFrame(desiredFrame)
-        AppSplitLayoutChrome.installAutoresizing(on: split, size: desiredFrame.size)
         rootContentController = split
-        window.contentViewController = split
+        _ = AppSplitLayoutChrome.installRootView(split, in: window, size: desiredFrame.size)
         split.deactivateInternalSplitSizingConstraints()
         window.toolbar = makeToolbar()
         updateNavigationControls()
@@ -182,12 +181,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         for delay in [0.0, 0.75, 1.6, 3.0, 4.5] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self else { return }
-                if WindowLayoutModel.shouldRestoreAppliedFrame(
-                    current: self.window.frame,
-                    applied: self.mainWindowFrameState.appliedFrame
-                ) {
-                    self.setMainWindowFrame(self.mainWindowFrameState.appliedFrame)
-                }
+                self.restoreRequestedMainWindowFrameDuringStartupIfNeeded()
                 self.applyMainLayoutStabilization()
                 self.writeLayoutMetrics()
             }
@@ -423,36 +417,9 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private func stabilizeMainLayout(reason: String) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.scheduleUnexpectedMainWindowRestoreIfNeeded(reason: "restored-unexpected-shrink")
             self.applyMainLayoutStabilization()
             self.writeLayoutMetrics(reason: reason)
         }
-    }
-
-    private func scheduleUnexpectedMainWindowRestoreIfNeeded(reason: String) {
-        guard MainWindowFrameModel.shouldScheduleUnexpectedRestore(
-            current: window.frame,
-            state: mainWindowFrameState,
-            pending: pendingWindowFrameRestore
-        ) else { return }
-        pendingWindowFrameRestore = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            guard let self else { return }
-            self.pendingWindowFrameRestore = false
-            guard case .restore(let frame) = MainWindowFrameModel.resizeDecision(
-                current: self.window.frame,
-                state: self.mainWindowFrameState
-            ) else { return }
-            self.applyRestoredMainWindowFrame(frame, reason: reason)
-        }
-    }
-
-    private func applyRestoredMainWindowFrame(_ frame: NSRect, reason: String) {
-        unlockWindowSizing()
-        window.setFrame(frame, display: true)
-        mainWindowFrameState = MainWindowFrameModel.recordingApplied(window.frame, in: mainWindowFrameState)
-        applyMainLayoutStabilization()
-        writeLayoutMetrics(reason: reason)
     }
 
     private func applyMainLayoutStabilization() {
@@ -910,8 +877,24 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private func setMainWindowFrame(_ frame: NSRect) {
         mainWindowFrameState = MainWindowFrameModel.recordingRequest(frame, in: mainWindowFrameState)
         window.setFrame(frame, display: true)
-        mainWindowFrameState = MainWindowFrameModel.recordingApplied(window.frame, in: mainWindowFrameState)
-        saveMainWindowFrame(window.frame)
+        let applied = window.frame.width >= frame.width - 1 ? window.frame : frame
+        mainWindowFrameState = MainWindowFrameModel.recordingApplied(applied, in: mainWindowFrameState)
+        saveMainWindowFrame(applied)
+    }
+
+    private func restoreRequestedMainWindowFrameDuringStartupIfNeeded() {
+        guard !didStartManualMainWindowResize else { return }
+        let requested = mainWindowFrameState.requestedFrame
+        guard MainWindowFrameModel.shouldRestoreRequestedFrameDuringStartup(
+            current: window.frame,
+            requested: requested,
+            didStartManualResize: didStartManualMainWindowResize
+        ) else { return }
+        unlockWindowSizing()
+        window.setFrame(requested, display: true)
+        let applied = window.frame.width >= requested.width - 1 ? window.frame : requested
+        mainWindowFrameState = MainWindowFrameModel.recordingApplied(applied, in: mainWindowFrameState)
+        saveMainWindowFrame(applied)
     }
 
     private func initialMainWindowFrame() -> NSRect {
@@ -935,21 +918,14 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     func windowDidResize(_ notification: Notification) {
         unlockWindowSizing()
-        switch MainWindowFrameModel.resizeDecision(current: window.frame, state: mainWindowFrameState) {
-        case .restore:
-            scheduleUnexpectedMainWindowRestoreIfNeeded(reason: "restored-unexpected-shrink")
-            applyMainLayoutStabilization()
-            writeLayoutMetrics(reason: "restored-unexpected-shrink")
-            return
-        case .accept(let frame):
-            mainWindowFrameState = MainWindowFrameModel.recordingApplied(frame, in: mainWindowFrameState)
-            saveMainWindowFrame(frame)
-        }
+        mainWindowFrameState = MainWindowFrameModel.recordingApplied(window.frame, in: mainWindowFrameState)
+        saveMainWindowFrame(window.frame)
         applyMainLayoutStabilization()
         writeLayoutMetrics(reason: "window-resize")
     }
 
     func windowWillStartLiveResize(_ notification: Notification) {
+        didStartManualMainWindowResize = true
         mainWindowFrameState = MainWindowFrameModel.recordingLiveResize(true, in: mainWindowFrameState)
     }
 
@@ -960,6 +936,10 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         saveMainWindowFrame(window.frame)
         applyMainLayoutStabilization()
         writeLayoutMetrics(reason: "window-live-resize")
+    }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        frameSize
     }
 
     @objc private func toggleGit() {

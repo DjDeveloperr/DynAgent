@@ -3,6 +3,14 @@ import AppKit
 final class FullWindowHostView: NSView {
     weak var pinnedView: NSView?
 
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+
+    override var fittingSize: NSSize {
+        .zero
+    }
+
     override func layout() {
         super.layout()
         guard let pinnedView else { return }

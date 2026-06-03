@@ -62,9 +62,11 @@ enum WindowLayoutChrome {
         ))
         apply(plan, to: splitView)
         splitView.adjustSubviews()
+        expandMainItemForCollapsedGit(splitView: splitView, rootSplitController: rootSplitController, gitItem: gitItem)
         rootSplitController?.pinSplitViewToRoot()
         apply(plan, to: splitView)
         splitView.adjustSubviews()
+        expandMainItemForCollapsedGit(splitView: splitView, rootSplitController: rootSplitController, gitItem: gitItem)
         rootSplitController?.pinSplitViewToRoot()
         return plan
     }
@@ -92,5 +94,24 @@ enum WindowLayoutChrome {
         if splitView.subviews.count >= 3, let second = plan.secondDividerPosition {
             splitView.setPosition(second, ofDividerAt: 1)
         }
+    }
+
+    private static func expandMainItemForCollapsedGit(
+        splitView: NSSplitView,
+        rootSplitController: RootSplitViewController?,
+        gitItem: NSSplitViewItem
+    ) {
+        guard gitItem.isCollapsed,
+              let mainView = rootSplitController?.splitViewItems.dropFirst().first?.viewController.view,
+              let wrapper = mainView.superview else { return }
+        let target = NSRect(
+            x: wrapper.frame.minX,
+            y: 0,
+            width: max(0, splitView.bounds.width - wrapper.frame.minX),
+            height: splitView.bounds.height
+        )
+        guard wrapper.frame != target else { return }
+        wrapper.frame = target
+        mainView.frame = wrapper.bounds
     }
 }

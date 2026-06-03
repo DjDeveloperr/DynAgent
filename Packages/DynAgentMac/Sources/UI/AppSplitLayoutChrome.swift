@@ -40,6 +40,7 @@ enum AppSplitLayoutChrome {
         let mainItem = NSSplitViewItem(viewController: workspaceArea)
         mainItem.minimumThickness = mainMinimumWidth
         mainItem.maximumThickness = WindowLayoutChrome.defaultMaximumWindowSize.width
+        mainItem.preferredThicknessFraction = 1
         mainItem.holdingPriority = mainHoldingPriority
         root.addSplitViewItem(mainItem)
 
@@ -62,10 +63,24 @@ enum AppSplitLayoutChrome {
     }
 
     static func installAutoresizing(on root: RootSplitViewController, size: NSSize) {
+        root.preferredContentSize = size
         root.splitView.translatesAutoresizingMaskIntoConstraints = true
         root.view.frame = NSRect(origin: .zero, size: size)
         root.view.autoresizingMask = [.width, .height]
         root.splitView.frame = root.view.bounds
         root.splitView.autoresizingMask = [.width, .height]
+    }
+
+    static func installRootView(_ root: RootSplitViewController, in window: NSWindow, size: NSSize) -> FullWindowHostView {
+        installAutoresizing(on: root, size: size)
+        let host = FullWindowHostView(frame: window.contentView?.bounds ?? NSRect(origin: .zero, size: size))
+        host.autoresizingMask = [.width, .height]
+        host.pinnedView = root.view
+        root.view.removeFromSuperview()
+        host.addSubview(root.view)
+        root.view.frame = host.bounds
+        window.contentViewController = nil
+        window.contentView = host
+        return host
     }
 }

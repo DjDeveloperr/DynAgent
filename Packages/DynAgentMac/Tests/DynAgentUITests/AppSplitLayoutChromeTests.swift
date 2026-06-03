@@ -34,6 +34,7 @@ final class AppSplitLayoutChromeTests: XCTestCase {
 
         XCTAssertEqual(bundle.mainItem.minimumThickness, AppSplitLayoutChrome.mainMinimumWidth)
         XCTAssertEqual(bundle.mainItem.maximumThickness, WindowLayoutChrome.defaultMaximumWindowSize.width)
+        XCTAssertEqual(bundle.mainItem.preferredThicknessFraction, 1)
         XCTAssertEqual(bundle.mainItem.holdingPriority, AppSplitLayoutChrome.mainHoldingPriority)
 
         XCTAssertEqual(bundle.gitItem.minimumThickness, AppSplitLayoutChrome.gitMinimumWidth)
@@ -51,6 +52,7 @@ final class AppSplitLayoutChromeTests: XCTestCase {
 
         AppSplitLayoutChrome.installAutoresizing(on: root, size: NSSize(width: 1_472, height: 798))
 
+        XCTAssertEqual(root.preferredContentSize, NSSize(width: 1_472, height: 798))
         XCTAssertTrue(root.splitView.translatesAutoresizingMaskIntoConstraints)
         XCTAssertEqual(root.view.frame.size.width, 1_472, accuracy: 0.5)
         XCTAssertEqual(root.view.frame.size.height, 798, accuracy: 0.5)
@@ -59,5 +61,27 @@ final class AppSplitLayoutChromeTests: XCTestCase {
         XCTAssertTrue(root.view.autoresizingMask.contains(.height))
         XCTAssertTrue(root.splitView.autoresizingMask.contains(.width))
         XCTAssertTrue(root.splitView.autoresizingMask.contains(.height))
+    }
+
+    func testInstallRootViewUsesFrameManagedContentHost() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1_472, height: 798),
+            styleMask: [.titled, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        let root = RootSplitViewController()
+        _ = root.view
+
+        let host = AppSplitLayoutChrome.installRootView(root, in: window, size: NSSize(width: 1_472, height: 798))
+        host.layoutSubtreeIfNeeded()
+
+        XCTAssertNil(window.contentViewController)
+        XCTAssertIdentical(window.contentView, host)
+        XCTAssertIdentical(root.view.superview, host)
+        XCTAssertIdentical(host.pinnedView, root.view)
+        XCTAssertEqual(host.fittingSize, .zero)
+        XCTAssertEqual(root.view.frame.width, host.bounds.width, accuracy: 0.5)
+        XCTAssertEqual(root.splitView.frame, root.view.bounds)
     }
 }

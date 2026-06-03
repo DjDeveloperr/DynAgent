@@ -20,10 +20,13 @@ final class FlippedView: NSView {
 /// Non-editable, selectable rich text view that keeps Markdown attributes during selection.
 final class MessageTextView: NSTextView {
     override var intrinsicContentSize: NSSize {
-        guard let manager = layoutManager, let container = textContainer else { return super.intrinsicContentSize }
+        guard let manager = layoutManager, let container = textContainer else {
+            return super.intrinsicContentSize
+        }
+        updateTextContainerWidth()
         manager.ensureLayout(for: container)
         let used = manager.usedRect(for: container)
-        return NSSize(width: NSView.noIntrinsicMetric, height: ceil(used.height))
+        return NSSize(width: NSView.noIntrinsicMetric, height: max(ceil(used.height), 1))
     }
 
     init() {
@@ -51,16 +54,39 @@ final class MessageTextView: NSTextView {
 
     required init?(coder: NSCoder) { fatalError() }
 
+    override func setFrameSize(_ newSize: NSSize) {
+        let oldWidth = bounds.width
+        super.setFrameSize(newSize)
+        guard abs(oldWidth - newSize.width) > 0.5 else { return }
+        updateTextContainerWidth()
+        invalidateIntrinsicContentSize()
+    }
+
+    override func layout() {
+        updateTextContainerWidth()
+        super.layout()
+    }
+
     func setPlain(_ text: String) {
         string = text
         font = .systemFont(ofSize: 15)
         textColor = .labelColor
+        updateTextContainerWidth()
         invalidateIntrinsicContentSize()
     }
 
     func setRich(_ text: NSAttributedString) {
         textStorage?.setAttributedString(text)
+        updateTextContainerWidth()
         invalidateIntrinsicContentSize()
+    }
+
+    private func updateTextContainerWidth() {
+        guard let container = textContainer else { return }
+        let width = max(1, bounds.width)
+        guard abs(container.containerSize.width - width) > 0.5 else { return }
+        container.containerSize = NSSize(width: width, height: CGFloat.greatestFiniteMagnitude)
+        layoutManager?.invalidateLayout(forCharacterRange: NSRange(location: 0, length: textStorage?.length ?? 0), actualCharacterRange: nil)
     }
 }
 

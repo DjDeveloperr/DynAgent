@@ -86,4 +86,44 @@ final class MainWindowFrameModelTests: XCTestCase {
             pending: false
         ))
     }
+
+    func testResizeProposalRejectsNonUserShrinkButAllowsLiveResizeAndGrowth() {
+        let applied = CGRect(x: 0, y: 0, width: 1_472, height: 798)
+        let stable = MainWindowFrameState(appliedFrame: applied)
+        let live = MainWindowFrameState(appliedFrame: applied, isUserLiveResizing: true)
+
+        XCTAssertEqual(
+            MainWindowFrameModel.resizeProposal(CGSize(width: 1_336, height: 798), state: stable),
+            applied.size
+        )
+        XCTAssertEqual(
+            MainWindowFrameModel.resizeProposal(CGSize(width: 1_336, height: 798), state: live),
+            CGSize(width: 1_336, height: 798)
+        )
+        XCTAssertEqual(
+            MainWindowFrameModel.resizeProposal(CGSize(width: 1_600, height: 820), state: stable),
+            CGSize(width: 1_600, height: 820)
+        )
+    }
+
+    func testStartupRequestedFrameRestoreRetriesRejectedWideFrameUnlessManualResizeStarted() {
+        let requested = CGRect(x: 20, y: 20, width: 1_452, height: 798)
+        let rejected = CGRect(x: 20, y: 20, width: 1_336, height: 798)
+
+        XCTAssertTrue(MainWindowFrameModel.shouldRestoreRequestedFrameDuringStartup(
+            current: rejected,
+            requested: requested,
+            didStartManualResize: false
+        ))
+        XCTAssertFalse(MainWindowFrameModel.shouldRestoreRequestedFrameDuringStartup(
+            current: requested,
+            requested: requested,
+            didStartManualResize: false
+        ))
+        XCTAssertFalse(MainWindowFrameModel.shouldRestoreRequestedFrameDuringStartup(
+            current: rejected,
+            requested: requested,
+            didStartManualResize: true
+        ))
+    }
 }
