@@ -79,40 +79,42 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     var onChatMenu: ((NSButton) -> Void)?
     /// Sync the composer's harness picker to a conversation, reloading models if it changed.
     func setHarness(_ h: Harness, preferredModel: String? = nil) {
-        composerSelection.rememberPreferredModel(preferredModel)
-        let changed = selectedHarness != h
-        if changed {
-            harnessPopup.selectItem(withTitle: h.rawValue)
-            reasoningPopup.isHidden = h == .codex
-            installModelFallback(for: h, preferred: preferredModel)
-            syncComposerMenus()
-            onHarnessChanged?(h)
-        } else if let preferredModel, modelPopup.itemTitles.contains(preferredModel) {
-            modelPopup.selectItem(withTitle: preferredModel)
-            syncComposerMenus()
-        } else if modelPopup.numberOfItems == 0 {
-            installModelFallback(for: h, preferred: preferredModel)
-        } else {
-            syncComposerMenus()
-        }
+        applyHarnessSyncPlan(for: h, preferredModel: preferredModel, mode: .rememberPreferred)
     }
 
     /// Apply remembered harness+model as the composer defaults (used for new chats on launch).
     func applyDefaults(harness: Harness, model: String?) {
-        composerSelection.applyDefaultModel(model)
-        if harnessPopup.titleOfSelectedItem != harness.rawValue {
+        applyHarnessSyncPlan(for: harness, preferredModel: model, mode: .applyDefault)
+    }
+
+    private func applyHarnessSyncPlan(
+        for harness: Harness,
+        preferredModel: String?,
+        mode: ComposerHarnessSyncMode
+    ) {
+        let plan = composerSelection.planHarnessSync(
+            targetHarness: harness,
+            preferredModel: preferredModel,
+            currentHarness: selectedHarness,
+            availablePopupItems: modelPopup.itemTitles,
+            popupItemCount: modelPopup.numberOfItems,
+            mode: mode
+        )
+        if plan.harnessChanged {
             harnessPopup.selectItem(withTitle: harness.rawValue)
             reasoningPopup.isHidden = harness == .codex
-            installModelFallback(for: harness, preferred: model)
+        }
+        switch plan.action {
+        case .installFallback(let preferred):
+            installModelFallback(for: harness, preferred: preferred)
+        case .selectPopupItem(let title):
+            modelPopup.selectItem(withTitle: title)
             syncComposerMenus()
+        case .syncOnly:
+            syncComposerMenus()
+        }
+        if plan.harnessChanged {
             onHarnessChanged?(harness)
-        } else if let model, modelPopup.itemTitles.contains(model) {
-            modelPopup.selectItem(withTitle: model)
-            syncComposerMenus()
-        } else if modelPopup.numberOfItems == 0 {
-            installModelFallback(for: harness, preferred: model)
-        } else {
-            syncComposerMenus()
         }
     }
 

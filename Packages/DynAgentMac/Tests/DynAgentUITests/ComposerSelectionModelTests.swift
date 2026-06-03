@@ -15,6 +15,94 @@ final class ComposerSelectionModelTests: XCTestCase {
         XCTAssertEqual(state.desiredModel, "gpt-5.5-mini")
     }
 
+    func testHarnessSyncPlanRemembersPreferredModelButIgnoresNilPreferred() {
+        var state = ComposerSelectionState(desiredModel: "gpt-5.5-codex")
+
+        let plan = state.planHarnessSync(
+            targetHarness: .codex,
+            preferredModel: nil,
+            currentHarness: .codex,
+            availablePopupItems: ["gpt-5.5-codex"],
+            popupItemCount: 1,
+            mode: .rememberPreferred
+        )
+
+        XCTAssertEqual(plan, ComposerHarnessSyncPlan(harnessChanged: false, action: .syncOnly))
+        XCTAssertEqual(state.desiredModel, "gpt-5.5-codex")
+    }
+
+    func testHarnessSyncPlanApplyDefaultAllowsNilDefault() {
+        var state = ComposerSelectionState(desiredModel: "gpt-5.5-codex")
+
+        let plan = state.planHarnessSync(
+            targetHarness: .codex,
+            preferredModel: nil,
+            currentHarness: .codex,
+            availablePopupItems: ["gpt-5.5-codex"],
+            popupItemCount: 1,
+            mode: .applyDefault
+        )
+
+        XCTAssertEqual(plan, ComposerHarnessSyncPlan(harnessChanged: false, action: .syncOnly))
+        XCTAssertNil(state.desiredModel)
+    }
+
+    func testHarnessSyncPlanInstallsFallbackWhenHarnessChanges() {
+        var state = ComposerSelectionState()
+
+        let plan = state.planHarnessSync(
+            targetHarness: .codex,
+            preferredModel: "gpt-5.5-mini",
+            currentHarness: .dynagent,
+            availablePopupItems: ["auto"],
+            popupItemCount: 1,
+            mode: .rememberPreferred
+        )
+
+        XCTAssertEqual(plan, ComposerHarnessSyncPlan(
+            harnessChanged: true,
+            action: .installFallback(preferred: "gpt-5.5-mini")
+        ))
+        XCTAssertEqual(state.desiredModel, "gpt-5.5-mini")
+    }
+
+    func testHarnessSyncPlanSelectsPreferredExistingPopupItem() {
+        var state = ComposerSelectionState()
+
+        let plan = state.planHarnessSync(
+            targetHarness: .dynagent,
+            preferredModel: "claude-opus",
+            currentHarness: .dynagent,
+            availablePopupItems: ["auto", "claude-opus"],
+            popupItemCount: 2,
+            mode: .rememberPreferred
+        )
+
+        XCTAssertEqual(plan, ComposerHarnessSyncPlan(
+            harnessChanged: false,
+            action: .selectPopupItem("claude-opus")
+        ))
+        XCTAssertEqual(state.desiredModel, "claude-opus")
+    }
+
+    func testHarnessSyncPlanInstallsFallbackWhenPopupIsEmpty() {
+        var state = ComposerSelectionState()
+
+        let plan = state.planHarnessSync(
+            targetHarness: .dynagent,
+            preferredModel: "missing",
+            currentHarness: .dynagent,
+            availablePopupItems: [],
+            popupItemCount: 0,
+            mode: .rememberPreferred
+        )
+
+        XCTAssertEqual(plan, ComposerHarnessSyncPlan(
+            harnessChanged: false,
+            action: .installFallback(preferred: "missing")
+        ))
+    }
+
     func testConversationAdoptionOnlyChangesCodexModelForCodexThreads() {
         var state = ComposerSelectionState(selectedCodexModel: "gpt-5.5-codex")
 

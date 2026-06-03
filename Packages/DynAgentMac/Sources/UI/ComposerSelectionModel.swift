@@ -6,6 +6,22 @@ enum ComposerConversationAdoptionAction: Equatable {
     case none
 }
 
+enum ComposerHarnessSyncMode: Equatable {
+    case rememberPreferred
+    case applyDefault
+}
+
+enum ComposerHarnessSyncAction: Equatable {
+    case installFallback(preferred: String?)
+    case selectPopupItem(String)
+    case syncOnly
+}
+
+struct ComposerHarnessSyncPlan: Equatable {
+    var harnessChanged: Bool
+    var action: ComposerHarnessSyncAction
+}
+
 struct ComposerSelectionState: Equatable {
     var desiredModel: String?
     var codexModelIds: [String] = []
@@ -22,6 +38,46 @@ struct ComposerSelectionState: Equatable {
 
     mutating func applyDefaultModel(_ model: String?) {
         desiredModel = model
+    }
+
+    mutating func planHarnessSync(
+        targetHarness: Harness,
+        preferredModel: String?,
+        currentHarness: Harness,
+        availablePopupItems: [String],
+        popupItemCount: Int,
+        mode: ComposerHarnessSyncMode
+    ) -> ComposerHarnessSyncPlan {
+        switch mode {
+        case .rememberPreferred:
+            rememberPreferredModel(preferredModel)
+        case .applyDefault:
+            applyDefaultModel(preferredModel)
+        }
+
+        let harnessChanged = currentHarness != targetHarness
+        if harnessChanged {
+            return ComposerHarnessSyncPlan(
+                harnessChanged: true,
+                action: .installFallback(preferred: preferredModel)
+            )
+        }
+
+        if let preferredModel, availablePopupItems.contains(preferredModel) {
+            return ComposerHarnessSyncPlan(
+                harnessChanged: false,
+                action: .selectPopupItem(preferredModel)
+            )
+        }
+
+        if popupItemCount == 0 {
+            return ComposerHarnessSyncPlan(
+                harnessChanged: false,
+                action: .installFallback(preferred: preferredModel)
+            )
+        }
+
+        return ComposerHarnessSyncPlan(harnessChanged: false, action: .syncOnly)
     }
 
     mutating func adoptConversationModel(_ model: String?, harness: Harness) {
