@@ -38,15 +38,13 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var cardBottomConstraint: NSLayoutConstraint?
     private var cardCenterYConstraint: NSLayoutConstraint?
     private var attachmentHeightConstraint: NSLayoutConstraint?
-    private let transcriptInteractions = TranscriptInteractionCoordinator()
     private let streamRegistry = ChatStreamRegistry<URLSessionDataTask>()
     private var turnStart = Date()
-    private let thinkingCoordinator = ChatThinkingCoordinator()
+    private let transcriptCoordinator = ChatTranscriptCoordinator()
     private let streamEventCoordinator = ChatStreamEventCoordinator()
     private let maxRenderedMessages = 240
     private let activityCoordinator = ChatActivityCoordinator()
     private var renderSession = TranscriptRenderSessionState()
-    private let transcriptScrollCoordinator = TranscriptScrollCoordinator()
     private lazy var composerSessionCoordinator = ChatComposerSessionCoordinator(
         composer: composer,
         placeholder: placeholder,
@@ -335,10 +333,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             view.window?.makeFirstResponder(composer)
             return
         }
-        thinkingCoordinator.reset()
+        transcriptCoordinator.reset()
         streamEventCoordinator.adoptVisibleAssistant(for: c)
-        transcriptInteractions.reset()
-        TranscriptStackChrome.removeAllRows(from: transcript)
+        transcriptCoordinator.clearRows(from: transcript)
         // Render each turn: prompt + work divider + final answer.
         let plan = TranscriptTurnModel.plan(
             messages: c.messages,
@@ -346,7 +343,13 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             isActive: isActiveConversation(c),
             updatedAt: c.updatedAt
         )
-        if plan.hiddenCount > 0 { addLargeThreadNotice(hiddenCount: plan.hiddenCount) }
+        if plan.hiddenCount > 0 {
+            transcriptCoordinator.appendLargeThreadNotice(
+                maxRenderedMessages: maxRenderedMessages,
+                hiddenCount: plan.hiddenCount,
+                to: transcript
+            )
+        }
         restoreComposerDraft(for: c)
         updateEmptyState()
         updateSendButton()
@@ -359,12 +362,10 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         renderSession = TranscriptRenderSessionModel.beginLoadingShell(state: renderSession)
         conversation = c
         adoptComposerSelection(for: c)
-        thinkingCoordinator.reset()
+        transcriptCoordinator.reset()
         streamEventCoordinator.adoptVisibleAssistant(for: c)
-        transcriptInteractions.reset()
-        TranscriptStackChrome.removeAllRows(from: transcript)
-        let container = TranscriptLoadingShellChrome.makeRow(text: ChatPresentationModel.loadingText(needsLoad: c.needsLoad))
-        TranscriptStackChrome.appendFullWidthRow(container, to: transcript)
+        transcriptCoordinator.clearRows(from: transcript)
+        transcriptCoordinator.appendLoadingShell(text: ChatPresentationModel.loadingText(needsLoad: c.needsLoad), to: transcript)
         emptyStack.isHidden = true
         cardBottomConstraint?.isActive = true
         cardCenterYConstraint?.isActive = false
@@ -423,29 +424,28 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                 },
                 setLiveDivider: { [unowned self, weak c] divider in
                     guard let c else { return }
-                    thinkingCoordinator.setLiveDivider(divider, for: c.id)
+                    transcriptCoordinator.setLiveDivider(divider, for: c.id)
                 },
                 addFinalFooter: { [unowned self] message in
-                    transcriptInteractions.appendFinalFooter(for: message, to: transcript)
+                    transcriptCoordinator.appendFinalFooter(for: message, to: transcript)
                 }
             )
         )
     }
 
     private func addRowsGrouped(_ messages: [ChatMessage], collapseCompletedTools: Bool = true) -> [NSView] {
-        transcriptInteractions.appendRowsGrouped(
+        transcriptCoordinator.appendRowsGrouped(
             messages,
             collapseCompletedTools: collapseCompletedTools,
             to: transcript,
             markdown: Self.markdown,
-            bulkLoading: renderSession.bulkLoading,
-            pinAfterAppend: { [unowned self] in pinShimmerToBottom() }
+            bulkLoading: renderSession.bulkLoading
         )
     }
 
     @discardableResult
     private func addWorkDivider(duration: Double?, collapsed: Bool = true, active: Bool = false) -> WorkDivider {
-        thinkingCoordinator.addWorkDivider(
+        transcriptCoordinator.addWorkDivider(
             duration: duration,
             collapsed: collapsed,
             active: active,
@@ -455,7 +455,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func ensureLiveWorkDivider(for c: Conversation) -> WorkDivider {
         let startedAt = activeTurnStartedAt(for: c) ?? turnStart.timeIntervalSince1970
-        return thinkingCoordinator.ensureLiveDivider(
+        return transcriptCoordinator.ensureLiveDivider(
             for: c.id,
             startedAt: startedAt,
             now: Date().timeIntervalSince1970,
@@ -634,19 +634,14 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             divider.refresh()
         }
         if let tool = outcome.completedTool {
-            transcriptInteractions.label(for: tool)?.setRich(TranscriptToolFormatter.toolString(tool))
-            if tool.toolName == "edit", let stats = transcriptInteractions.editStats(for: tool) {
-                let summary = TranscriptToolFormatter.editSummary(tool)
-                stats.isHidden = summary.added == 0 && summary.deleted == 0
-                stats.setValues(added: summary.added, deleted: summary.deleted)
-            }
+            transcriptCoordinator.refreshCompletedTool(tool)
         }
         if let trigger = outcome.completedToolRefresh {
             scheduleToolRefresh(for: c, trigger: trigger)
         }
         if let final = outcome.finalAssistant {
-            thinkingCoordinator.finishLiveDivider(for: c.id, duration: final.turnDuration)
-            transcriptInteractions.appendFinalFooter(for: final, to: transcript)
+            transcriptCoordinator.finishLiveDivider(for: c.id, duration: final.turnDuration)
+            transcriptCoordinator.appendFinalFooter(for: final, to: transcript)
         }
         if outcome.shouldFinishConversation {
             finish(c)
@@ -703,9 +698,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     /// Re-render the active assistant message as markdown once its text is final.
     private func finalizeAssistant(for c: Conversation) {
-        guard let a = streamEventCoordinator.finalizableAssistant(for: c, visible: conversation === c),
-              let label = transcriptInteractions.label(for: a) else { return }
-        label.setRich(Self.markdown(a.text))
+        guard let a = streamEventCoordinator.finalizableAssistant(for: c, visible: conversation === c) else { return }
+        transcriptCoordinator.finalizeAssistant(a, markdown: Self.markdown)
     }
 
     /// Full Markdown rendering with a consistent base font.
@@ -749,7 +743,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     // MARK: - Thinking shimmer
 
     private func showThinking() {
-        thinkingCoordinator.showThinking(in: transcript)
+        transcriptCoordinator.showThinking(in: transcript)
         scrollToBottom()
     }
 
@@ -766,7 +760,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func hideThinking() {
-        thinkingCoordinator.hideThinking()
+        transcriptCoordinator.hideThinking()
     }
 
     // MARK: - Title generation
@@ -792,40 +786,20 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     @discardableResult
     private func addRow(for m: ChatMessage) -> NSView {
-        transcriptInteractions.appendRow(
+        transcriptCoordinator.appendRow(
             for: m,
             to: transcript,
             markdown: Self.markdown,
-            bulkLoading: renderSession.bulkLoading,
-            pinAfterAppend: { [unowned self] in pinShimmerToBottom() }
+            bulkLoading: renderSession.bulkLoading
         )
-    }
-
-    private func addLargeThreadNotice(hiddenCount: Int) {
-        let container = TranscriptRowFactory.largeThreadNotice(
-            maxRenderedMessages: maxRenderedMessages,
-            hiddenCount: hiddenCount
-        )
-        TranscriptStackChrome.appendFullWidthRow(container, to: transcript)
     }
 
     private func renderLiveAssistant(_ assistant: ChatMessage, force: Bool = false) {
-        guard let label = transcriptInteractions.label(for: assistant) else { return }
-        let now = Date().timeIntervalSince1970
-        guard transcriptInteractions.consumeLiveMarkdownRenderSlot(
-            for: assistant,
-            force: force,
-            now: now
-        ) else { return }
-        label.setRich(Self.markdown(assistant.text))
-    }
-
-    private func pinShimmerToBottom() {
-        thinkingCoordinator.pinThinkingToBottom(in: transcript)
+        transcriptCoordinator.renderLiveAssistant(assistant, markdown: Self.markdown, force: force)
     }
 
     private func scrollToBottom() {
-        transcriptScrollCoordinator.scrollToBottom(
+        transcriptCoordinator.scrollToBottom(
             streaming: streaming,
             root: view,
             scroll: scroll

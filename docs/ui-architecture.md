@@ -50,6 +50,7 @@
 - `TranscriptRowFactory.swift`: tested row factory that maps chat messages to AppKit row chrome and returns controller metadata for labels, clickable tool views, and edit stats.
 - `TranscriptRowRegistry.swift`: tested transcript interaction registry for message labels, clickable tool rows, edit stats, copy text, and live markdown render throttling.
 - `TranscriptInteractionCoordinator.swift`: tested AppKit bridge for transcript row registration, clickable tool popovers, grouped edit popovers, final-footer copy actions, and shimmer pin callbacks.
+- `ChatTranscriptCoordinator.swift`: tested AppKit bridge that owns chat transcript row lifecycle, grouped rows, thinking/work dividers, live assistant markdown updates, and autoscroll.
 - `TranscriptToolChrome.swift`: reusable AppKit shell/edit/inline tool rows, grouped tool collapse controls, and inline edit diff popover blocks.
 - `TranscriptGroupedToolRowChrome.swift`: tested AppKit helper for appending grouped shell and edit tool rows into the transcript while preserving edit-file popover callbacks.
 - `TranscriptToolFormatter.swift`: tested attributed title, preview, grouping, and icon-name formatting for transcript tool rows.

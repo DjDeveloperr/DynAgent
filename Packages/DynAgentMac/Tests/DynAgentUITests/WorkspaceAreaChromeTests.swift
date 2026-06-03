@@ -12,6 +12,9 @@ final class WorkspaceAreaChromeTests: XCTestCase {
 
         XCTAssertTrue(split.isVertical)
         XCTAssertEqual(split.dividerStyle, .thin)
+        XCTAssertTrue(root.translatesAutoresizingMaskIntoConstraints)
+        XCTAssertTrue(root.autoresizingMask.contains(.width))
+        XCTAssertTrue(root.autoresizingMask.contains(.height))
         XCTAssertTrue(split.translatesAutoresizingMaskIntoConstraints)
         XCTAssertTrue(split.autoresizingMask.contains(.width))
         XCTAssertTrue(split.autoresizingMask.contains(.height))

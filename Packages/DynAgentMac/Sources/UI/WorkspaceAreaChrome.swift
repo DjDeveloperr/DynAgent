@@ -4,6 +4,8 @@ enum WorkspaceAreaChrome {
     static func makeRootView(pinning splitView: NSSplitView) -> WorkspaceAreaRootView {
         configureRootSplit(splitView)
         let rootView = WorkspaceAreaRootView()
+        rootView.translatesAutoresizingMaskIntoConstraints = true
+        rootView.autoresizingMask = [.width, .height]
         rootView.pinnedSplitView = splitView
         rootView.addSubview(splitView)
         splitView.frame = rootView.bounds
