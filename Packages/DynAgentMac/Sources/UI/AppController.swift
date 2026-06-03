@@ -26,6 +26,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private lazy var usageCoordinator = AppUsageCoordinator(client: client)
     private lazy var modelCatalog = AppModelCatalogCoordinator(client: client)
     private lazy var codexHistoryRefreshCoordinator = AppCodexHistoryRefreshCoordinator(client: client)
+    private lazy var codexThreadListCoordinator = AppCodexThreadListCoordinator(client: client)
 
     private var conversations: [Conversation] = []
     private var draft: Conversation?
@@ -1055,39 +1056,22 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     /// Fetch Codex's existing threads per workspace (and its worktrees), grouped under the parent.
     private func loadCodexThreads() {
         Task { @MainActor in
-            await loadProjectlessCodexThreads()
-            for ref in workspaceRefs {
-                let cwds = [ref.path] + (worktreesByPath[ref.path] ?? [])
-                var batches: [(cwd: String, threads: [AgentClient.CodexThread])] = []
-                for cwd in cwds {
-                    guard let threads = try? await client.codexThreads(cwd: cwd) else { continue }
-                    batches.append((cwd: cwd, threads: threads))
-                }
-                codexStubs[ref.path] = AppCodexThreadStubModel.workspaceStubs(
-                    threadBatches: batches,
-                    existingStubs: codexStubs[ref.path] ?? [],
-                    localConversations: conversations,
-                    archivedIds: archivedCodexIds,
-                    defaultModel: modelCatalog.preferredModel(for: .codex)
-                )
-            }
+            codexStubs = await codexThreadListCoordinator.load(
+                workspaceRefs: workspaceRefs,
+                worktreesByPath: worktreesByPath,
+                existingStubs: codexStubs,
+                localConversations: conversations,
+                archivedIds: archivedCodexIds,
+                defaultModel: modelCatalog.preferredModel(for: .codex),
+                projectlessKey: projectlessCodexKey,
+                primaryPath: primaryPath
+            )
             Store.saveCodexStubs(codexStubs)
             rebuildGroups(select: chat.conversation)
             if let selected = chat.conversation {
                 refreshCodexHistoryIfNeeded(selected)
             }
         }
-    }
-
-    @MainActor private func loadProjectlessCodexThreads() async {
-        guard let threads = try? await client.codexThreads() else { return }
-        codexStubs[projectlessCodexKey] = AppCodexThreadStubModel.projectlessStubs(
-            threads: threads,
-            existingStubs: codexStubs[projectlessCodexKey] ?? [],
-            archivedIds: archivedCodexIds,
-            defaultModel: modelCatalog.preferredModel(for: .codex),
-            fallbackWorkspace: primaryPath
-        )
     }
 
 }
