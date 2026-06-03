@@ -377,17 +377,22 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     /// Keep the transcript clear of the floating composer: bottom inset tracks the composer height.
     override func viewDidLayout() {
         super.viewDidLayout()
-        if scroll.frame != view.bounds {
-            scroll.frame = view.bounds
+        if let correction = ChatViewportLayoutModel.scrollFrameCorrection(
+            scrollFrame: scroll.frame,
+            rootBounds: view.bounds
+        ) {
+            scroll.frame = correction
         }
         if let document = scroll.documentView {
-            let targetWidth = view.bounds.width
-            if abs(document.frame.width - targetWidth) > 0.5 {
+            if let targetWidth = ChatViewportLayoutModel.documentWidthCorrection(
+                rootWidth: view.bounds.width,
+                documentWidth: document.frame.width
+            ) {
                 document.setFrameSize(NSSize(width: targetWidth, height: document.frame.height))
             }
         }
-        let inset = card.frame.height + 28
-        if abs(inset - bottomInsetCache) > 1 {
+        let inset = ChatViewportLayoutModel.bottomInset(composerHeight: card.frame.height)
+        if ChatViewportLayoutModel.shouldUpdateBottomInset(current: bottomInsetCache, next: inset) {
             bottomInsetCache = inset
             scroll.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: inset, right: 0)
         }

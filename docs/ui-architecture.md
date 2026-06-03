@@ -65,6 +65,7 @@
 - `AppHotStateModel.swift`: tested hot-reload state serializer/restorer for conversations, active Codex thread status, workspace refs, model cache, and selection.
 - `MainWindowFrameModel.swift`: tested main-window frame state model for initial saved-frame restoration, requested/applied frame tracking, live-resize state, and unexpected-shrink recovery.
 - `ChatLayoutModel.swift`: shared chat-column constants, readable-width cap, and inspector-aware split sizing.
+- `ChatViewportLayoutModel.swift`: tested chat viewport layout policy for scroll frame pinning, document-width correction, and composer bottom inset updates.
 - `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, root content bounds, wide fallback sizing, split divider planning, metrics payloads, and post-load width invariants.
 - `WindowLayoutChrome.swift`: tested AppKit bridge for applying usable window limits, pinning root/split frames to content bounds, applying split plans, and capturing frame metrics.
 - `MainLayoutStabilizer.swift`: tested AppKit orchestration for the post-load/resize/git-toggle layout pass that keeps the root split, workspace tile, and chat view tracking the real window width.
