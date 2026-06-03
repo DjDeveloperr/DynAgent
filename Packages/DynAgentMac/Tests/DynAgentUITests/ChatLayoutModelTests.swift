@@ -9,7 +9,7 @@ final class ChatLayoutModelTests: XCTestCase {
 
     func testReadableWidthCapsWideContainers() {
         XCTAssertEqual(ChatLayoutModel.readableWidth(for: 1_400), ChatLayoutModel.maxReadableWidth)
-        XCTAssertEqual(ChatLayoutModel.maxReadableWidth, 1_100)
+        XCTAssertEqual(ChatLayoutModel.maxReadableWidth, 880)
         XCTAssertEqual(ChatLayoutModel.preferredMainWidthWithInspector, 1_128)
     }
 
