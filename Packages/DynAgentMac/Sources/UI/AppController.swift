@@ -730,7 +730,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
                 m.isSteer = item.isSteer
                 return m
             }
-            c.status = latestCodexTurnLooksActive(c) ? .running : .idle
+            c.status = TranscriptTurnModel.latestTurnLooksActive(conversation: c) ? .running : .idle
             c.updatedAt = previousUpdatedAt
             if chat.conversation === c {
                 chat.show(c)
@@ -929,7 +929,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         draft = state.draft
         codexStubs = state.codexStubs
         for c in conversations + codexStubs.values.flatMap({ $0 }) where c.harness == .codex {
-            if latestCodexTurnLooksActive(c) {
+            if TranscriptTurnModel.latestTurnLooksActive(conversation: c) {
                 c.status = .running
                 c.needsLoad = true
             } else if c.status == .thinking || c.status == .running {
@@ -982,15 +982,6 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         let item = DispatchWorkItem { [weak self] in self?.saveHotState() }
         pendingHotStateSave = item
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: item)
-    }
-
-    private func latestCodexTurnLooksActive(_ c: Conversation) -> Bool {
-        let recentCutoff = Date().timeIntervalSince1970 - 20 * 60
-        guard c.updatedAt >= recentCutoff else { return false }
-        guard let promptIndex = c.messages.lastIndex(where: { $0.role == .user && !($0.isSteer ?? false) }) else { return false }
-        let latestTurn = c.messages[promptIndex...]
-        if latestTurn.contains(where: { ($0.isFinal ?? false) || $0.turnStatus == "completed" }) { return false }
-        return latestTurn.contains { $0.turnStatus != nil && $0.turnStatus != "completed" }
     }
 
     private func allVisibleConversations() -> [Conversation] {

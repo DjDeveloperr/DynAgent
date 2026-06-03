@@ -799,7 +799,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     /// Render one turn with its work divider above the final assistant response.
     private func renderTurn(_ turn: [ChatMessage], conversation c: Conversation, allowCollapse: Bool, forceActive: Bool = false) {
-        let activeTurn = forceActive || (isActiveConversation(c) && !allowCollapse && turn.contains { $0.turnStatus != nil && $0.turnStatus != "completed" })
+        let activeTurn = forceActive || (isActiveConversation(c) && !allowCollapse && TranscriptTurnModel.latestTurnHasRunningStatus(turn))
         if activeTurn {
             renderActiveTurn(turn, conversation: c)
             return
@@ -914,11 +914,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func activeTurnStartedAt(for c: Conversation) -> Double? {
-        if let started = c.messages.reversed().compactMap(\.turnStartedAt).first {
-            return started
-        }
-        if c.updatedAt > 0 { return c.updatedAt }
-        return nil
+        TranscriptTurnModel.activeStartedAt(messages: c.messages, fallbackUpdatedAt: c.updatedAt)
     }
 
     /// Copy button + timestamp under a turn's final assistant message.

@@ -13,6 +13,8 @@ struct TranscriptTurnPlan {
 }
 
 enum TranscriptTurnModel {
+    static let defaultRecentActiveWindow: Double = 20 * 60
+
     static func plan(messages allMessages: [ChatMessage],
                      maxRenderedMessages: Int,
                      isActive: Bool,
@@ -41,6 +43,30 @@ enum TranscriptTurnModel {
         }
 
         return TranscriptTurnPlan(hiddenCount: trimmedCount, visibleMessages: visibleMessages, turns: turns)
+    }
+
+    static func latestTurnLooksActive(conversation: Conversation,
+                                      now: Double = Date().timeIntervalSince1970,
+                                      recentWindow: Double = defaultRecentActiveWindow) -> Bool {
+        guard conversation.updatedAt >= now - recentWindow else { return false }
+        guard let promptIndex = conversation.messages.lastIndex(where: startsPromptTurn) else { return false }
+        let latestTurn = conversation.messages[promptIndex...]
+        if latestTurn.contains(where: { ($0.isFinal ?? false) || $0.turnStatus == "completed" }) { return false }
+        return latestTurnHasRunningStatus(latestTurn)
+    }
+
+    static func latestTurnHasRunningStatus<S: Sequence>(_ messages: S) -> Bool where S.Element == ChatMessage {
+        messages.contains { $0.turnStatus != nil && $0.turnStatus != "completed" }
+    }
+
+    static func activeStartedAt(messages: [ChatMessage], fallbackUpdatedAt: Double? = nil) -> Double? {
+        if let started = messages.reversed().compactMap(\.turnStartedAt).first {
+            return started
+        }
+        if let fallbackUpdatedAt, fallbackUpdatedAt > 0 {
+            return fallbackUpdatedAt
+        }
+        return nil
     }
 
     private static func startsPromptTurn(_ message: ChatMessage) -> Bool {
