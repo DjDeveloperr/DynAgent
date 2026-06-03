@@ -22,6 +22,12 @@ struct ComposerHarnessSyncPlan: Equatable {
     var action: ComposerHarnessSyncAction
 }
 
+enum ComposerModelListSyncAction: Equatable {
+    case installFallback(preferred: String?)
+    case installCodexMenu([String])
+    case replacePopupItems(ids: [String], selected: String?)
+}
+
 struct ComposerSelectionState: Equatable {
     var desiredModel: String?
     var codexModelIds: [String] = []
@@ -98,6 +104,19 @@ struct ComposerSelectionState: Equatable {
         }
         guard let model, availablePopupItems.contains(model) else { return .none }
         return .selectPopupItem(model)
+    }
+
+    func planModelListSync(ids: [String], selectedHarness: Harness) -> ComposerModelListSyncAction {
+        guard !ids.isEmpty else {
+            return .installFallback(preferred: desiredModel)
+        }
+        if selectedHarness == .codex {
+            return .installCodexMenu(ids)
+        }
+        return .replacePopupItems(
+            ids: ids,
+            selected: ComposerModel.selectedModelForList(ids: ids, desiredModel: desiredModel)
+        )
     }
 
     mutating func installFallback(for harness: Harness, preferred: String?) -> String {

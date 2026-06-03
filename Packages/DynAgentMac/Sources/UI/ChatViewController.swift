@@ -119,22 +119,21 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     func setModels(_ ids: [String]) {
-        guard !ids.isEmpty else {
-            installModelFallback(for: selectedHarness, preferred: composerSelection.desiredModel)
-            return
-        }
-        if selectedHarness == .codex {
+        switch composerSelection.planModelListSync(ids: ids, selectedHarness: selectedHarness) {
+        case .installFallback(let preferred):
+            installModelFallback(for: selectedHarness, preferred: preferred)
+        case .installCodexMenu(let ids):
             installCodexModelMenu(ids)
-            return
+        case .replacePopupItems(let ids, let selected):
+            modelPopup.removeAllItems()
+            modelPopup.addItems(withTitles: ids)
+            let icon = NSImage(systemSymbolName: "cpu", accessibilityDescription: nil)
+            for i in modelPopup.itemArray.indices { modelPopup.item(at: i)?.image = icon }
+            if let selected {
+                modelPopup.selectItem(withTitle: selected)
+            }
+            syncComposerMenus()
         }
-        modelPopup.removeAllItems()
-        modelPopup.addItems(withTitles: ids)
-        let icon = NSImage(systemSymbolName: "cpu", accessibilityDescription: nil)
-        for i in modelPopup.itemArray.indices { modelPopup.item(at: i)?.image = icon }
-        if let selected = ComposerModel.selectedModelForList(ids: ids, desiredModel: composerSelection.desiredModel) {
-            modelPopup.selectItem(withTitle: selected)
-        }
-        syncComposerMenus()
     }
 
     private func installModelFallback(for harness: Harness, preferred: String?) {

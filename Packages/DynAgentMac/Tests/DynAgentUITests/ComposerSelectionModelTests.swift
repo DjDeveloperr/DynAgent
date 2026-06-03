@@ -154,6 +154,42 @@ final class ComposerSelectionModelTests: XCTestCase {
         XCTAssertEqual(state.selectedCodexModel, "gpt-5.5-codex")
     }
 
+    func testModelListSyncInstallsFallbackForEmptyModelList() {
+        let state = ComposerSelectionState(desiredModel: "preferred")
+
+        XCTAssertEqual(
+            state.planModelListSync(ids: [], selectedHarness: .dynagent),
+            .installFallback(preferred: "preferred")
+        )
+    }
+
+    func testModelListSyncInstallsCodexMenuForCodexHarness() {
+        let state = ComposerSelectionState(desiredModel: "gpt-5.5-mini")
+
+        XCTAssertEqual(
+            state.planModelListSync(ids: ["gpt-5.5-codex", "gpt-5.5-mini"], selectedHarness: .codex),
+            .installCodexMenu(["gpt-5.5-codex", "gpt-5.5-mini"])
+        )
+    }
+
+    func testModelListSyncReplacesPopupAndSelectsDesiredModelForNonCodexHarness() {
+        let state = ComposerSelectionState(desiredModel: "claude-opus")
+
+        XCTAssertEqual(
+            state.planModelListSync(ids: ["auto", "claude-opus"], selectedHarness: .dynagent),
+            .replacePopupItems(ids: ["auto", "claude-opus"], selected: "claude-opus")
+        )
+    }
+
+    func testModelListSyncReplacesPopupAndPrefersFirstNonAutoWhenDesiredMissing() {
+        let state = ComposerSelectionState(desiredModel: "missing")
+
+        XCTAssertEqual(
+            state.planModelListSync(ids: ["auto", "sonnet"], selectedHarness: .pi),
+            .replacePopupItems(ids: ["auto", "sonnet"], selected: "sonnet")
+        )
+    }
+
     func testFallbackUpdatesCodexSelectionOnlyForCodexHarness() {
         var state = ComposerSelectionState(selectedCodexModel: "gpt-5.5-codex")
 

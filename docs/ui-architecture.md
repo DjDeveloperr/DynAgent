@@ -51,7 +51,7 @@
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
 - `SearchOverlayModel.swift`: tested pure search overlay model for bounded chat/message matching, recency sorting, result limiting, and row detail labels.
 - `ComposerModel.swift`: tested composer behavior model for model/reasoning menu data, picker selection, draft keys, attachment message text, draft snapshots, attachment normalization, context state, and send/stop state.
-- `ComposerSelectionModel.swift`: tested composer model/reasoning selection state for Codex availability, harness sync plans, conversation adoption actions, desired-model adoption, fallback selection, and picker updates.
+- `ComposerSelectionModel.swift`: tested composer model/reasoning selection state for Codex availability, harness sync plans, model-list sync plans, conversation adoption actions, desired-model adoption, fallback selection, and picker updates.
 - `ComposerSessionModel.swift`: tested composer session state transitions for attachment add/remove, draft restoration, placeholder visibility, and send clearing.
 - `ComposerDraftCoordinator.swift`: tested AppKit-free coordinator for composer attachment state, draft save/restore/clear, and debounced draft persistence.
 - `ChatSendModel.swift`: tested prompt/stop/steer send-action routing, attachment-only sends, native Codex steering, and queued steer prompt joining.
