@@ -1373,7 +1373,11 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         let key = ObjectIdentifier(assistant)
         guard let label = labels[key] else { return }
         let now = Date().timeIntervalSince1970
-        if !force, let last = lastLiveMarkdownRender[key], now - last < 0.45 { return }
+        guard TranscriptLiveUpdateModel.shouldRenderMarkdown(
+            force: force,
+            now: now,
+            lastRenderAt: lastLiveMarkdownRender[key]
+        ) else { return }
         lastLiveMarkdownRender[key] = now
         label.setRich(Self.markdown(assistant.text))
     }
@@ -1414,10 +1418,14 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func scrollToBottom() {
         let now = Date().timeIntervalSince1970
-        if streaming && now - lastScrollToBottomAt < 0.25 {
+        if TranscriptLiveUpdateModel.shouldThrottleScroll(
+            streaming: streaming,
+            now: now,
+            lastScrollAt: lastScrollToBottomAt
+        ) {
             guard !pendingScrollToBottom else { return }
             pendingScrollToBottom = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + TranscriptLiveUpdateModel.scrollInterval) { [weak self] in
                 guard let self else { return }
                 self.pendingScrollToBottom = false
                 self.scrollToBottom()
