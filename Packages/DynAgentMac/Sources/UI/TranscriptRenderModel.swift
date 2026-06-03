@@ -9,6 +9,34 @@ enum TranscriptRenderItem {
 enum TranscriptRenderModel {
     static let defaultTurnBatchSize = 6
 
+    static func fingerprint(for conversation: Conversation, maxRenderedMessages: Int) -> Int {
+        let allMessages = conversation.messages
+        let visibleLimit = max(0, maxRenderedMessages)
+        let trimmedCount = visibleLimit > 0 ? max(0, allMessages.count - visibleLimit) : allMessages.count
+        let visibleMessages = trimmedCount > 0 ? allMessages.suffix(visibleLimit) : allMessages[...]
+        var hasher = Hasher()
+        hasher.combine(conversation.id)
+        hasher.combine(conversation.status.rawValue)
+        hasher.combine(conversation.updatedAt)
+        hasher.combine(trimmedCount)
+        hasher.combine(visibleMessages.count)
+        for message in visibleMessages {
+            hasher.combine(ObjectIdentifier(message))
+            hasher.combine(message.role.rawValue)
+            hasher.combine(message.text)
+            hasher.combine(message.toolName)
+            hasher.combine(message.toolDetail)
+            hasher.combine(message.toolDone)
+            hasher.combine(message.turnStartedAt)
+            hasher.combine(message.turnStatus)
+            hasher.combine(message.isFinal)
+            hasher.combine(message.isSteer)
+            hasher.combine(message.timestamp)
+            hasher.combine(message.turnDuration)
+        }
+        return hasher.finalize()
+    }
+
     static func batchRange(totalCount: Int, startIndex: Int, batchSize: Int = defaultTurnBatchSize) -> Range<Int>? {
         guard totalCount > 0, batchSize > 0, startIndex < totalCount else { return nil }
         return startIndex..<min(startIndex + batchSize, totalCount)

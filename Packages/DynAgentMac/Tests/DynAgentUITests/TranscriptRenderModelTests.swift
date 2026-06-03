@@ -2,6 +2,44 @@
 import XCTest
 
 final class TranscriptRenderModelTests: XCTestCase {
+    func testFingerprintChangesWhenToolDetailChanges() {
+        let conversation = Conversation(model: "gpt-5.5", workspace: "/repo", harness: .codex)
+        let tool = shellTool(done: false, detail: "$ sed -n '1,20p' A.swift")
+        conversation.messages = [tool]
+
+        let before = TranscriptRenderModel.fingerprint(for: conversation, maxRenderedMessages: 240)
+        tool.toolDetail = "$ sed -n '1,40p' A.swift\nnew output"
+        let after = TranscriptRenderModel.fingerprint(for: conversation, maxRenderedMessages: 240)
+
+        XCTAssertNotEqual(before, after)
+    }
+
+    func testFingerprintChangesWhenTurnStartChanges() {
+        let conversation = Conversation(model: "gpt-5.5", workspace: "/repo", harness: .codex)
+        let assistant = ChatMessage(role: .assistant, text: "Working")
+        assistant.turnStartedAt = 100
+        conversation.messages = [assistant]
+
+        let before = TranscriptRenderModel.fingerprint(for: conversation, maxRenderedMessages: 240)
+        assistant.turnStartedAt = 200
+        let after = TranscriptRenderModel.fingerprint(for: conversation, maxRenderedMessages: 240)
+
+        XCTAssertNotEqual(before, after)
+    }
+
+    func testFingerprintIgnoresDetailChangesOutsideRenderedWindow() {
+        let conversation = Conversation(model: "gpt-5.5", workspace: "/repo", harness: .codex)
+        let hidden = shellTool(done: true, detail: "$ hidden")
+        let visible = shellTool(done: true, detail: "$ visible")
+        conversation.messages = [hidden, visible]
+
+        let before = TranscriptRenderModel.fingerprint(for: conversation, maxRenderedMessages: 1)
+        hidden.toolDetail = "$ hidden changed"
+        let after = TranscriptRenderModel.fingerprint(for: conversation, maxRenderedMessages: 1)
+
+        XCTAssertEqual(before, after)
+    }
+
     func testBatchRangeUsesDefaultChunkSizeAndStopsAtEnd() {
         XCTAssertEqual(TranscriptRenderModel.batchRange(totalCount: 13, startIndex: 0), 0..<6)
         XCTAssertEqual(TranscriptRenderModel.batchRange(totalCount: 13, startIndex: 6), 6..<12)

@@ -602,63 +602,59 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func writeLayoutMetrics(reason: String = "startup") {
-        let splitFrames = splitView?.subviews.enumerated().map { index, view in
-            [
-                "index": index,
-                "class": String(describing: type(of: view)),
-                "x": Double(view.frame.minX),
-                "width": Double(view.frame.width),
-                "height": Double(view.frame.height),
-            ] as [String: Any]
-        } ?? []
-        let rootSubviews = window.contentView?.subviews.enumerated().map { index, view in
-            [
-                "index": index,
-                "class": String(describing: type(of: view)),
-                "x": Double(view.frame.minX),
-                "width": Double(view.frame.width),
-                "height": Double(view.frame.height),
-            ] as [String: Any]
-        } ?? []
-        var payload: [String: Any] = [
-            "reason": reason,
-            "windowWidth": Double(window.frame.width),
-            "windowHeight": Double(window.frame.height),
-            "contentViewWidth": Double(window.contentView?.bounds.width ?? -1),
-            "contentViewHeight": Double(window.contentView?.bounds.height ?? -1),
-            "contentControllerWidth": Double(rootContentController?.view.frame.width ?? -1),
-            "contentControllerHeight": Double(rootContentController?.view.frame.height ?? -1),
-            "contentLayoutWidth": Double(window.contentLayoutRect.width),
-            "contentLayoutHeight": Double(window.contentLayoutRect.height),
-            "rootSplitViewWidth": Double(rootSplitController?.view.frame.width ?? -1),
-            "rootSplitViewHeight": Double(rootSplitController?.view.frame.height ?? -1),
-            "splitViewWidth": Double(splitView?.frame.width ?? -1),
-            "splitViewHeight": Double(splitView?.frame.height ?? -1),
-            "splitViewX": Double(splitView?.frame.minX ?? -1),
-            "splitViewClass": String(describing: type(of: splitView ?? NSSplitView())),
-            "rootSubviews": rootSubviews,
-            "requestedFrameWidth": Double(lastRequestedMainFrame.width),
-            "requestedFrameHeight": Double(lastRequestedMainFrame.height),
-            "appliedFrameWidth": Double(lastAppliedMainFrame.width),
-            "appliedFrameHeight": Double(lastAppliedMainFrame.height),
-            "screenVisibleWidth": Double((window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero).width),
-            "screenVisibleHeight": Double((window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero).height),
-            "sidebarCollapsed": sidebarItem.isCollapsed,
-            "gitCollapsed": gitItem.isCollapsed,
-            "splitFrames": splitFrames,
-            "chatViewWidth": Double(chat.view.frame.width),
-            "chatViewHeight": Double(chat.view.frame.height),
-            "workspaceWidth": Double(workspaceArea.view.frame.width),
-            "workspaceHeight": Double(workspaceArea.view.frame.height),
-            "mainSplitItemWidth": Double(mainSplitItemWidth()),
-            "workspaceWidthSlack": Double(mainSplitItemWidth() - workspaceArea.view.frame.width),
-        ]
-        payload["chat"] = chat.layoutMetrics
-        payload["workspace"] = workspaceArea.layoutMetrics
+        let mainWidth = mainSplitItemWidth()
+        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+        let snapshot = WindowLayoutMetricsSnapshot(
+            reason: reason,
+            windowWidth: Double(window.frame.width),
+            windowHeight: Double(window.frame.height),
+            contentViewWidth: Double(window.contentView?.bounds.width ?? -1),
+            contentViewHeight: Double(window.contentView?.bounds.height ?? -1),
+            contentControllerWidth: Double(rootContentController?.view.frame.width ?? -1),
+            contentControllerHeight: Double(rootContentController?.view.frame.height ?? -1),
+            contentLayoutWidth: Double(window.contentLayoutRect.width),
+            contentLayoutHeight: Double(window.contentLayoutRect.height),
+            rootSplitViewWidth: Double(rootSplitController?.view.frame.width ?? -1),
+            rootSplitViewHeight: Double(rootSplitController?.view.frame.height ?? -1),
+            splitViewWidth: Double(splitView?.frame.width ?? -1),
+            splitViewHeight: Double(splitView?.frame.height ?? -1),
+            splitViewX: Double(splitView?.frame.minX ?? -1),
+            splitViewClass: String(describing: type(of: splitView ?? NSSplitView())),
+            rootSubviews: layoutFrameMetrics(for: window.contentView?.subviews ?? []),
+            requestedFrameWidth: Double(lastRequestedMainFrame.width),
+            requestedFrameHeight: Double(lastRequestedMainFrame.height),
+            appliedFrameWidth: Double(lastAppliedMainFrame.width),
+            appliedFrameHeight: Double(lastAppliedMainFrame.height),
+            screenVisibleWidth: Double(visible.width),
+            screenVisibleHeight: Double(visible.height),
+            sidebarCollapsed: sidebarItem.isCollapsed,
+            gitCollapsed: gitItem.isCollapsed,
+            splitFrames: layoutFrameMetrics(for: splitView?.subviews ?? []),
+            chatViewWidth: Double(chat.view.frame.width),
+            chatViewHeight: Double(chat.view.frame.height),
+            workspaceWidth: Double(workspaceArea.view.frame.width),
+            workspaceHeight: Double(workspaceArea.view.frame.height),
+            mainSplitItemWidth: Double(mainWidth),
+            chatMetrics: chat.layoutMetrics,
+            workspaceMetrics: workspaceArea.layoutMetrics
+        )
+        let payload = WindowLayoutModel.metricsPayload(from: snapshot)
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".dynagent")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) {
             try? data.write(to: dir.appendingPathComponent("ui-layout-metrics.json"))
+        }
+    }
+
+    private func layoutFrameMetrics(for views: [NSView]) -> [WindowLayoutViewFrame] {
+        views.enumerated().map { index, view in
+            WindowLayoutViewFrame(
+                index: index,
+                className: String(describing: type(of: view)),
+                x: Double(view.frame.minX),
+                width: Double(view.frame.width),
+                height: Double(view.frame.height)
+            )
         }
     }
 

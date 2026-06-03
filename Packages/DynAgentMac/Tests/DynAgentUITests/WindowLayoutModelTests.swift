@@ -113,4 +113,62 @@ final class WindowLayoutModelTests: XCTestCase {
 
         XCTAssertEqual(plan.secondDividerPosition, 660)
     }
+
+    func testMetricsPayloadPreservesWidthInvariantFields() throws {
+        let payload = WindowLayoutModel.metricsPayload(from: WindowLayoutMetricsSnapshot(
+            reason: "codex-history-render",
+            windowWidth: 1452,
+            windowHeight: 798,
+            contentViewWidth: 1452,
+            contentViewHeight: 798,
+            contentControllerWidth: 1452,
+            contentControllerHeight: 798,
+            contentLayoutWidth: 1452,
+            contentLayoutHeight: 746,
+            rootSplitViewWidth: 1452,
+            rootSplitViewHeight: 798,
+            splitViewWidth: 1452,
+            splitViewHeight: 798,
+            splitViewX: 0,
+            splitViewClass: "NSSplitView",
+            rootSubviews: [
+                WindowLayoutViewFrame(index: 0, className: "NSSplitView", x: 0, width: 1452, height: 798),
+            ],
+            requestedFrameWidth: 1452,
+            requestedFrameHeight: 798,
+            appliedFrameWidth: 1452,
+            appliedFrameHeight: 798,
+            screenVisibleWidth: 1512,
+            screenVisibleHeight: 949,
+            sidebarCollapsed: false,
+            gitCollapsed: true,
+            splitFrames: [
+                WindowLayoutViewFrame(index: 0, className: "Sidebar", x: 0, width: 260, height: 798),
+                WindowLayoutViewFrame(index: 1, className: "Main", x: 261, width: 1191, height: 798),
+            ],
+            chatViewWidth: 1191,
+            chatViewHeight: 798,
+            workspaceWidth: 1191,
+            workspaceHeight: 798,
+            mainSplitItemWidth: 1191,
+            chatMetrics: ["composerWidth": 1163],
+            workspaceMetrics: ["workspaceRootWidth": 1191]
+        ))
+
+        XCTAssertEqual(payload["reason"] as? String, "codex-history-render")
+        XCTAssertEqual(payload["windowWidth"] as? Double, 1452)
+        XCTAssertEqual(payload["splitViewWidth"] as? Double, 1452)
+        XCTAssertEqual(payload["chatViewWidth"] as? Double, 1191)
+        XCTAssertEqual(payload["workspaceWidth"] as? Double, 1191)
+        XCTAssertEqual(payload["workspaceWidthSlack"] as? Double, 0)
+        XCTAssertEqual(payload["gitCollapsed"] as? Bool, true)
+        let rootSubviews = try XCTUnwrap(payload["rootSubviews"] as? [[String: Any]])
+        XCTAssertEqual(rootSubviews.first?["class"] as? String, "NSSplitView")
+        XCTAssertEqual((payload["chat"] as? [String: Any])?["composerWidth"] as? Int, 1163)
+    }
+
+    func testWorkspaceWidthSlackReportsDeadArea() {
+        XCTAssertEqual(WindowLayoutModel.workspaceWidthSlack(mainSplitItemWidth: 1191, workspaceWidth: 1191), 0)
+        XCTAssertEqual(WindowLayoutModel.workspaceWidthSlack(mainSplitItemWidth: 1191, workspaceWidth: 900), 291)
+    }
 }

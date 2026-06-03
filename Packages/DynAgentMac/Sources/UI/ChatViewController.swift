@@ -706,7 +706,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             modelPopup.selectItem(withTitle: c.model)
         }
         syncComposerMenus()
-        let fingerprint = transcriptFingerprint(for: c)
+        let fingerprint = TranscriptRenderModel.fingerprint(for: c, maxRenderedMessages: maxRenderedMessages)
         if wasShowingSameConversation,
            !isActiveConversation(c),
            renderedTranscriptConversationId == c.id,
@@ -740,31 +740,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         updateSendButton()
         view.window?.makeFirstResponder(composer)
         renderTurnsAsync(plan.turns, conversation: c, generation: generation)
-    }
-
-    private func transcriptFingerprint(for c: Conversation) -> Int {
-        let allMessages = c.messages
-        let trimmedCount = max(0, allMessages.count - maxRenderedMessages)
-        let visibleMessages = trimmedCount > 0 ? allMessages.suffix(maxRenderedMessages) : allMessages[...]
-        var hasher = Hasher()
-        hasher.combine(c.id)
-        hasher.combine(c.status.rawValue)
-        hasher.combine(c.updatedAt)
-        hasher.combine(trimmedCount)
-        hasher.combine(visibleMessages.count)
-        for message in visibleMessages {
-            hasher.combine(ObjectIdentifier(message))
-            hasher.combine(message.role.rawValue)
-            hasher.combine(message.text)
-            hasher.combine(message.toolName)
-            hasher.combine(message.toolDone)
-            hasher.combine(message.turnStatus)
-            hasher.combine(message.isFinal)
-            hasher.combine(message.isSteer)
-            hasher.combine(message.timestamp)
-            hasher.combine(message.turnDuration)
-        }
-        return hasher.finalize()
     }
 
     func showShell(_ c: Conversation) {

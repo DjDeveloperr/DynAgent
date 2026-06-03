@@ -11,7 +11,7 @@
 - `ShellToolModel.swift`: tested command summarizer and command-title model for shell tool rows.
 - `EditToolModel.swift`: tested edit-tool parser and title model for grouped editing rows and popout diff data.
 - `TranscriptTurnModel.swift`: tested turn-planning model for prompt/steer boundaries, active-turn expansion, final-response collapse, timestamps, and large-thread trimming.
-- `TranscriptRenderModel.swift`: tested row data-source model for turn batching, shell tool grouping, and completed edit grouping.
+- `TranscriptRenderModel.swift`: tested row data-source model for render-cache fingerprints, turn batching, shell tool grouping, and completed edit grouping.
 - `WorkDividerModel.swift`: tested label/duration model for active and completed Codex-style work dividers.
 - `TranscriptChrome.swift`: reusable AppKit transcript text, shimmer, work-divider, edit-stat, and transcript row views.
 - `TranscriptToolChrome.swift`: reusable AppKit shell/edit/inline tool rows, grouped tool collapse controls, and inline edit diff popover blocks.
@@ -22,7 +22,7 @@
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
 - `ComposerModel.swift`: tested composer behavior model for model/reasoning labels, draft keys, attachment message text, draft snapshots, attachment normalization, context state, and send/stop state.
 - `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips, and attachment strip rendering.
-- `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, wide fallback sizing, split divider planning, and post-load width invariants.
+- `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, wide fallback sizing, split divider planning, metrics payloads, and post-load width invariants.
 - `WindowHosting.swift`: full-window host and split-view pinning used by the hot-reloadable macOS UI.
 
 Feature controllers should keep behavior and orchestration, not reusable visual/parser logic. When a controller grows a reusable widget, parser, or display model, extract it into a small file and add a focused test before expanding behavior.

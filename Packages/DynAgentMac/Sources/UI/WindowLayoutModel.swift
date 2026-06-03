@@ -23,6 +23,59 @@ struct WindowSplitPlan: Equatable {
     var secondDividerPosition: CGFloat?
 }
 
+struct WindowLayoutViewFrame: Equatable {
+    var index: Int
+    var className: String
+    var x: Double
+    var width: Double
+    var height: Double
+
+    var dictionary: [String: Any] {
+        [
+            "index": index,
+            "class": className,
+            "x": x,
+            "width": width,
+            "height": height,
+        ]
+    }
+}
+
+struct WindowLayoutMetricsSnapshot {
+    var reason: String
+    var windowWidth: Double
+    var windowHeight: Double
+    var contentViewWidth: Double
+    var contentViewHeight: Double
+    var contentControllerWidth: Double
+    var contentControllerHeight: Double
+    var contentLayoutWidth: Double
+    var contentLayoutHeight: Double
+    var rootSplitViewWidth: Double
+    var rootSplitViewHeight: Double
+    var splitViewWidth: Double
+    var splitViewHeight: Double
+    var splitViewX: Double
+    var splitViewClass: String
+    var rootSubviews: [WindowLayoutViewFrame]
+    var requestedFrameWidth: Double
+    var requestedFrameHeight: Double
+    var appliedFrameWidth: Double
+    var appliedFrameHeight: Double
+    var screenVisibleWidth: Double
+    var screenVisibleHeight: Double
+    var sidebarCollapsed: Bool
+    var gitCollapsed: Bool
+    var splitFrames: [WindowLayoutViewFrame]
+    var chatViewWidth: Double
+    var chatViewHeight: Double
+    var workspaceWidth: Double
+    var workspaceHeight: Double
+    var mainSplitItemWidth: Double
+    var chatMetrics: [String: Any]
+    var workspaceMetrics: [String: Any]
+}
+
 enum WindowLayoutModel {
     static func wideFrame(visibleFrame: CGRect) -> CGRect {
         let visible = visibleFrame.isEmpty
@@ -87,6 +140,51 @@ enum WindowLayoutModel {
             firstDividerPosition: config.sidebarCollapsed ? nil : sidebarWidth,
             secondDividerPosition: secondDivider
         )
+    }
+
+    static func workspaceWidthSlack(mainSplitItemWidth: Double, workspaceWidth: Double) -> Double {
+        mainSplitItemWidth - workspaceWidth
+    }
+
+    static func metricsPayload(from snapshot: WindowLayoutMetricsSnapshot) -> [String: Any] {
+        [
+            "reason": snapshot.reason,
+            "windowWidth": snapshot.windowWidth,
+            "windowHeight": snapshot.windowHeight,
+            "contentViewWidth": snapshot.contentViewWidth,
+            "contentViewHeight": snapshot.contentViewHeight,
+            "contentControllerWidth": snapshot.contentControllerWidth,
+            "contentControllerHeight": snapshot.contentControllerHeight,
+            "contentLayoutWidth": snapshot.contentLayoutWidth,
+            "contentLayoutHeight": snapshot.contentLayoutHeight,
+            "rootSplitViewWidth": snapshot.rootSplitViewWidth,
+            "rootSplitViewHeight": snapshot.rootSplitViewHeight,
+            "splitViewWidth": snapshot.splitViewWidth,
+            "splitViewHeight": snapshot.splitViewHeight,
+            "splitViewX": snapshot.splitViewX,
+            "splitViewClass": snapshot.splitViewClass,
+            "rootSubviews": snapshot.rootSubviews.map(\.dictionary),
+            "requestedFrameWidth": snapshot.requestedFrameWidth,
+            "requestedFrameHeight": snapshot.requestedFrameHeight,
+            "appliedFrameWidth": snapshot.appliedFrameWidth,
+            "appliedFrameHeight": snapshot.appliedFrameHeight,
+            "screenVisibleWidth": snapshot.screenVisibleWidth,
+            "screenVisibleHeight": snapshot.screenVisibleHeight,
+            "sidebarCollapsed": snapshot.sidebarCollapsed,
+            "gitCollapsed": snapshot.gitCollapsed,
+            "splitFrames": snapshot.splitFrames.map(\.dictionary),
+            "chatViewWidth": snapshot.chatViewWidth,
+            "chatViewHeight": snapshot.chatViewHeight,
+            "workspaceWidth": snapshot.workspaceWidth,
+            "workspaceHeight": snapshot.workspaceHeight,
+            "mainSplitItemWidth": snapshot.mainSplitItemWidth,
+            "workspaceWidthSlack": workspaceWidthSlack(
+                mainSplitItemWidth: snapshot.mainSplitItemWidth,
+                workspaceWidth: snapshot.workspaceWidth
+            ),
+            "chat": snapshot.chatMetrics,
+            "workspace": snapshot.workspaceMetrics,
+        ]
     }
 
     private static func clamp(_ value: CGFloat, min minimum: CGFloat, max maximum: CGFloat) -> CGFloat {
