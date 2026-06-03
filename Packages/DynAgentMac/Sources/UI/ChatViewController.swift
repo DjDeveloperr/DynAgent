@@ -960,21 +960,15 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     /// Copy button + timestamp under a turn's final assistant message.
     private func addFinalFooter(for m: ChatMessage) {
-        let copy = NSButton(image: NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: "Copy")!, target: self, action: #selector(copyFinal(_:)))
-        copy.isBordered = false; copy.contentTintColor = .tertiaryLabelColor; copy.toolTip = "Copy"
+        let footer = TranscriptRowChrome.finalFooter(
+            text: m.text,
+            timestamp: m.timestamp,
+            target: self,
+            copyAction: #selector(copyFinal(_:))
+        )
+        let copy = footer.copyButton
         copyText[ObjectIdentifier(copy)] = m.text
-        let ts = NSTextField(labelWithString: m.timestamp.map(Self.formatTime) ?? "")
-        ts.font = .systemFont(ofSize: 11); ts.textColor = .tertiaryLabelColor
-        let row = NSStackView(views: [copy, ts] as [NSView])
-        row.orientation = .horizontal; row.spacing = 6; row.alignment = .centerY
-        row.translatesAutoresizingMaskIntoConstraints = false
-        let container = NSView(); container.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(row)
-        NSLayoutConstraint.activate([
-            row.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            row.topAnchor.constraint(equalTo: container.topAnchor),
-            row.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
+        let container = footer.view
         transcript.addArrangedSubview(container)
         container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
     }
@@ -982,11 +976,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     @objc private func copyFinal(_ sender: NSButton) {
         guard let t = copyText[ObjectIdentifier(sender)] else { return }
         NSPasteboard.general.clearContents(); NSPasteboard.general.setString(t, forType: .string)
-    }
-
-    private static func formatTime(_ epoch: Double) -> String {
-        let f = DateFormatter(); f.dateFormat = "MMM d, h:mm a"
-        return f.string(from: Date(timeIntervalSince1970: epoch))
     }
 
     private func updateEmptyState() {
@@ -1416,62 +1405,18 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         switch m.role {
         case .assistant:
             content.setRich(Self.markdown(m.text))
-            container.addSubview(content)
-            NSLayoutConstraint.activate([
-                content.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
-                content.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -2),
-                content.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-                content.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            ])
+            TranscriptRowChrome.installAssistantContent(content, in: container)
         case .user:
             if m.isSteer == true {
                 let pending = m.toolDetail == "pending"
-                let title = NSTextField(labelWithString: pending ? "Steering conversation…" : "Steered conversation")
-                title.font = .systemFont(ofSize: 13, weight: .regular)
-                title.textColor = .secondaryLabelColor
-                title.translatesAutoresizingMaskIntoConstraints = false
-                let steerText = userTextLabel(m.text)
-                let bubble = box(steerText, bg: NSColor.secondaryLabelColor.withAlphaComponent(0.12), topInset: 9, bottomInset: 9, horizontalInset: 12, radius: 10)
-                container.addSubview(title)
-                container.addSubview(bubble)
-                NSLayoutConstraint.activate([
-                    title.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
-                    title.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
-                    title.trailingAnchor.constraint(lessThanOrEqualTo: bubble.trailingAnchor),
-                    bubble.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),
-                    bubble.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-                    bubble.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-                    bubble.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 110),
-                    bubble.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: 0.72),
-                ])
+                TranscriptRowChrome.installSteerBubble(text: m.text, pending: pending, in: container)
                 break
             }
-            let userText = userTextLabel(m.text)
-            let bubble = box(userText, bg: NSColor.secondaryLabelColor.withAlphaComponent(0.12), topInset: 9, bottomInset: 9, horizontalInset: 12, radius: 10)
-            container.addSubview(bubble)
-            NSLayoutConstraint.activate([
-                bubble.topAnchor.constraint(equalTo: container.topAnchor),
-                bubble.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-                bubble.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-                bubble.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 110),
-                bubble.widthAnchor.constraint(lessThanOrEqualTo: container.widthAnchor, multiplier: 0.72),
-            ])
+            TranscriptRowChrome.installUserBubble(text: m.text, in: container)
         case .tool:
             if m.toolName == "steer" {
                 let detail = m.toolDetail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let label = m.toolDetail == "pending" ? "Steering conversation…" : "Steered conversation"
-                let noticeText = detail.isEmpty || detail == "Steered conversation" ? label : "\(label)\n\(detail)"
-                let notice = NSTextField(wrappingLabelWithString: noticeText)
-                notice.font = .systemFont(ofSize: 13, weight: .regular)
-                notice.textColor = .secondaryLabelColor
-                notice.translatesAutoresizingMaskIntoConstraints = false
-                container.addSubview(notice)
-                NSLayoutConstraint.activate([
-                    notice.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
-                    notice.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -2),
-                    notice.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 6),
-                    notice.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
-                ])
+                TranscriptRowChrome.installSteerNotice(detail: detail, pending: m.toolDetail == "pending", in: container)
                 break
             }
             if m.toolName == "shell" {
@@ -1515,31 +1460,11 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         return container
     }
 
-    private func userTextLabel(_ text: String) -> NSTextField {
-        let label = NSTextField(wrappingLabelWithString: text)
-        label.font = .systemFont(ofSize: 15)
-        label.textColor = .labelColor
-        label.isSelectable = true
-        label.lineBreakMode = .byWordWrapping
-        label.setContentHuggingPriority(.required, for: .horizontal)
-        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
-    }
-
     private func addLargeThreadNotice(hiddenCount: Int) {
-        let label = NSTextField(labelWithString: "Showing latest \(maxRenderedMessages) messages. \(hiddenCount) older messages skipped for performance.")
-        label.font = .systemFont(ofSize: 12, weight: .medium)
-        label.textColor = .tertiaryLabelColor
-        label.translatesAutoresizingMaskIntoConstraints = false
-        let container = NSView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            label.topAnchor.constraint(equalTo: container.topAnchor),
-            label.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        ])
+        let container = TranscriptRowChrome.largeThreadNotice(
+            maxRenderedMessages: maxRenderedMessages,
+            hiddenCount: hiddenCount
+        )
         transcript.addArrangedSubview(container)
         container.widthAnchor.constraint(equalTo: transcript.widthAnchor).isActive = true
     }
@@ -1667,28 +1592,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             relativeTo: anchor.bounds.isEmpty ? NSRect(x: 0, y: 0, width: 1, height: 1) : anchor.bounds,
             of: anchor
         )
-    }
-
-    /// A rounded, padded background box hugging its content.
-    private func box(_ content: NSView, bg: NSColor, inset: CGFloat, radius: CGFloat) -> NSView {
-        box(content, bg: bg, topInset: inset, bottomInset: inset, horizontalInset: inset + 2, radius: radius)
-    }
-
-    private func box(_ content: NSView, bg: NSColor, topInset: CGFloat, bottomInset: CGFloat, horizontalInset: CGFloat, radius: CGFloat) -> NSView {
-        let v = NSView()
-        v.wantsLayer = true
-        v.layer?.backgroundColor = bg.cgColor
-        v.layer?.cornerRadius = radius
-        v.translatesAutoresizingMaskIntoConstraints = false
-        content.translatesAutoresizingMaskIntoConstraints = false
-        v.addSubview(content)
-        NSLayoutConstraint.activate([
-            content.topAnchor.constraint(equalTo: v.topAnchor, constant: topInset),
-            content.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -bottomInset),
-            content.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: horizontalInset),
-            content.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -horizontalInset),
-        ])
-        return v
     }
 
     private func scrollToBottom() {

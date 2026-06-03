@@ -286,3 +286,164 @@ final class EditStatsView: NSView {
         label.textColor = color
     }
 }
+
+enum TranscriptRowChrome {
+    static func installAssistantContent(_ content: NSView, in container: NSView) {
+        container.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
+            content.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -2),
+            content.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+        ])
+    }
+
+    static func installUserBubble(text: String, in container: NSView) {
+        let bubble = roundedBox(
+            userTextLabel(text),
+            bg: NSColor.secondaryLabelColor.withAlphaComponent(0.12),
+            topInset: 9,
+            bottomInset: 9,
+            horizontalInset: 12,
+            radius: 10
+        )
+        container.addSubview(bubble)
+        NSLayoutConstraint.activate([
+            bubble.topAnchor.constraint(equalTo: container.topAnchor),
+            bubble.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            bubble.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            bubble.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 110),
+            bubble.widthAnchor.constraint(lessThanOrEqualTo: container.widthAnchor, multiplier: 0.72),
+        ])
+    }
+
+    static func installSteerBubble(text: String, pending: Bool, in container: NSView) {
+        let title = NSTextField(labelWithString: pending ? "Steering conversation…" : "Steered conversation")
+        title.font = .systemFont(ofSize: 13, weight: .regular)
+        title.textColor = .secondaryLabelColor
+        title.translatesAutoresizingMaskIntoConstraints = false
+
+        let bubble = roundedBox(
+            userTextLabel(text),
+            bg: NSColor.secondaryLabelColor.withAlphaComponent(0.12),
+            topInset: 9,
+            bottomInset: 9,
+            horizontalInset: 12,
+            radius: 10
+        )
+        container.addSubview(title)
+        container.addSubview(bubble)
+        NSLayoutConstraint.activate([
+            title.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
+            title.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
+            title.trailingAnchor.constraint(lessThanOrEqualTo: bubble.trailingAnchor),
+            bubble.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),
+            bubble.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            bubble.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            bubble.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 110),
+            bubble.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: 0.72),
+        ])
+    }
+
+    static func installSteerNotice(detail: String, pending: Bool, in container: NSView) {
+        let label = pending ? "Steering conversation…" : "Steered conversation"
+        let noticeText = detail.isEmpty || detail == "Steered conversation" ? label : "\(label)\n\(detail)"
+        let notice = NSTextField(wrappingLabelWithString: noticeText)
+        notice.font = .systemFont(ofSize: 13, weight: .regular)
+        notice.textColor = .secondaryLabelColor
+        notice.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(notice)
+        NSLayoutConstraint.activate([
+            notice.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
+            notice.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -2),
+            notice.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 6),
+            notice.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
+        ])
+    }
+
+    static func largeThreadNotice(maxRenderedMessages: Int, hiddenCount: Int) -> NSView {
+        let label = NSTextField(labelWithString: "Showing latest \(maxRenderedMessages) messages. \(hiddenCount) older messages skipped for performance.")
+        label.font = .systemFont(ofSize: 12, weight: .medium)
+        label.textColor = .tertiaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            label.topAnchor.constraint(equalTo: container.topAnchor),
+            label.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        return container
+    }
+
+    static func finalFooter(text _: String, timestamp: Double?, target: AnyObject, copyAction: Selector) -> (view: NSView, copyButton: NSButton) {
+        let copy = NSButton(
+            image: NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: "Copy") ?? NSImage(),
+            target: target,
+            action: copyAction
+        )
+        copy.isBordered = false
+        copy.contentTintColor = .tertiaryLabelColor
+        copy.toolTip = "Copy"
+
+        let ts = NSTextField(labelWithString: timestamp.map(formatTime) ?? "")
+        ts.font = .systemFont(ofSize: 11)
+        ts.textColor = .tertiaryLabelColor
+
+        let row = NSStackView(views: [copy, ts] as [NSView])
+        row.orientation = .horizontal
+        row.spacing = 6
+        row.alignment = .centerY
+        row.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            row.topAnchor.constraint(equalTo: container.topAnchor),
+            row.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+        return (container, copy)
+    }
+
+    static func roundedBox(_ content: NSView, bg: NSColor, inset: CGFloat, radius: CGFloat) -> NSView {
+        roundedBox(content, bg: bg, topInset: inset, bottomInset: inset, horizontalInset: inset + 2, radius: radius)
+    }
+
+    static func roundedBox(_ content: NSView, bg: NSColor, topInset: CGFloat, bottomInset: CGFloat, horizontalInset: CGFloat, radius: CGFloat) -> NSView {
+        let view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = bg.cgColor
+        view.layer?.cornerRadius = radius
+        view.translatesAutoresizingMaskIntoConstraints = false
+        content.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: view.topAnchor, constant: topInset),
+            content.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -bottomInset),
+            content.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: horizontalInset),
+            content.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -horizontalInset),
+        ])
+        return view
+    }
+
+    static func userTextLabel(_ text: String) -> NSTextField {
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.font = .systemFont(ofSize: 15)
+        label.textColor = .labelColor
+        label.isSelectable = true
+        label.lineBreakMode = .byWordWrapping
+        label.setContentHuggingPriority(.required, for: .horizontal)
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }
+
+    static func formatTime(_ epoch: Double) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, h:mm a"
+        return formatter.string(from: Date(timeIntervalSince1970: epoch))
+    }
+}

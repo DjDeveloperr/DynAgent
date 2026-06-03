@@ -13,7 +13,7 @@
 - `TranscriptTurnModel.swift`: tested turn-planning model for prompt/steer boundaries, active-turn expansion, final-response collapse, timestamps, and large-thread trimming.
 - `TranscriptRenderModel.swift`: tested row data-source model for turn batching, shell tool grouping, and completed edit grouping.
 - `WorkDividerModel.swift`: tested label/duration model for active and completed Codex-style work dividers.
-- `TranscriptChrome.swift`: reusable AppKit transcript text, shimmer, work-divider, and edit-stat views.
+- `TranscriptChrome.swift`: reusable AppKit transcript text, shimmer, work-divider, edit-stat, and transcript row views.
 - `TranscriptToolChrome.swift`: reusable AppKit shell/edit tool rows, grouped tool collapse controls, and inline edit diff popover blocks.
 - `TranscriptToolFormatter.swift`: tested attributed title, preview, grouping, and icon-name formatting for transcript tool rows.
 - `TranscriptPopoverChrome.swift`: reusable AppKit popover content and presenter for tool details, shell output, and edit diffs.
