@@ -20,6 +20,11 @@ enum MainLayoutStabilizer {
             rootContentController: rootContentController,
             splitView: splitView
         )
+        configureMainMinimumThickness(
+            rootSplitController: rootSplitController,
+            gitItem: gitItem,
+            preferredMainWidth: preferredMainWidth
+        )
         workspaceArea.forceLayoutToBounds()
         let plan = WindowLayoutChrome.applySplitPlan(
             splitView: splitView,
@@ -32,6 +37,17 @@ enum MainLayoutStabilizer {
         expandWorkspaceForCollapsedGit(splitView: splitView, workspaceArea: workspaceArea, gitItem: gitItem)
         workspaceArea.forceLayoutToBounds()
         return plan
+    }
+
+    private static func configureMainMinimumThickness(
+        rootSplitController: RootSplitViewController?,
+        gitItem: NSSplitViewItem,
+        preferredMainWidth: CGFloat
+    ) {
+        guard let mainItem = rootSplitController?.splitViewItems.dropFirst().first else { return }
+        mainItem.minimumThickness = gitItem.isCollapsed
+            ? preferredMainWidth
+            : AppSplitLayoutChrome.mainMinimumWidth
     }
 
     private static func expandWorkspaceForCollapsedGit(
