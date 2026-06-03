@@ -574,40 +574,31 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     /// Render one turn with its work divider above the final assistant response.
     private func renderTurn(_ turn: [ChatMessage], conversation c: Conversation, allowCollapse: Bool, forceActive: Bool = false) {
-        let activeTurn = forceActive || (isActiveConversation(c) && !allowCollapse && TranscriptTurnModel.latestTurnHasRunningStatus(turn))
-        if activeTurn {
-            renderActiveTurn(turn, conversation: c)
-            return
+        let plan = TranscriptTurnRenderModel.plan(
+            turn: turn,
+            allowCollapse: allowCollapse,
+            isConversationActive: isActiveConversation(c),
+            forceActive: forceActive,
+            fallbackActiveStartedAt: activeTurnStartedAt(for: c),
+            now: Date().timeIntervalSince1970
+        )
+        switch plan {
+        case .expanded(let messages):
+            for message in messages { addRow(for: message) }
+        case .collapsed(let userMessages, let middleMessages, let finalMessage):
+            for message in userMessages { addRow(for: message) }
+            let divider = addWorkDivider(duration: finalMessage.turnDuration)
+            divider.rows = addRowsGrouped(middleMessages).map { row in row.isHidden = true; return row }
+            divider.refresh()
+            addRow(for: finalMessage)
+            addFinalFooter(for: finalMessage)
+        case .active(let startedAt, let userMessages, let middleMessages):
+            for message in userMessages { addRow(for: message) }
+            let divider = addWorkDivider(duration: Date().timeIntervalSince1970 - startedAt, collapsed: false, active: true)
+            liveWorkDividerByConversationId[c.id] = divider
+            divider.rows = addRowsGrouped(middleMessages, collapseCompletedTools: false)
+            divider.refresh()
         }
-        let finalIdx = allowCollapse ? turn.lastIndex { ($0.isFinal == true) || ($0.isFinal == nil && $0.role == .assistant && !$0.text.isEmpty) } : nil
-        guard let finalIdx else {
-            for m in turn { addRow(for: m) }
-            return
-        }
-        var middle: [ChatMessage] = []
-        for (k, m) in turn.enumerated() {
-            if m.role == .user && m.isSteer != true { addRow(for: m) }
-            else if k == finalIdx { continue }
-            else { middle.append(m) }
-        }
-        let divider = addWorkDivider(duration: turn[finalIdx].turnDuration)
-        divider.rows = addRowsGrouped(middle).map { row in row.isHidden = true; return row }
-        divider.refresh()
-        addRow(for: turn[finalIdx])
-        addFinalFooter(for: turn[finalIdx])
-    }
-
-    private func renderActiveTurn(_ turn: [ChatMessage], conversation c: Conversation) {
-        let started = turn.compactMap(\.turnStartedAt).first ?? activeTurnStartedAt(for: c) ?? Date().timeIntervalSince1970
-        var middle: [ChatMessage] = []
-        for m in turn {
-            if m.role == .user && m.isSteer != true { addRow(for: m) }
-            else { middle.append(m) }
-        }
-        let divider = addWorkDivider(duration: Date().timeIntervalSince1970 - started, collapsed: false, active: true)
-        liveWorkDividerByConversationId[c.id] = divider
-        divider.rows = addRowsGrouped(middle, collapseCompletedTools: false)
-        divider.refresh()
     }
 
     private func addRowsGrouped(_ messages: [ChatMessage], collapseCompletedTools: Bool = true) -> [NSView] {
