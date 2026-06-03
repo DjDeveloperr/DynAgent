@@ -231,25 +231,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     override func loadView() {
-        transcript.orientation = .vertical
-        transcript.alignment = .leading
-        transcript.spacing = 14
-        transcript.translatesAutoresizingMaskIntoConstraints = false
-        transcript.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        transcript.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let doc = FlippedView()
-        doc.addSubview(transcript)
-        doc.translatesAutoresizingMaskIntoConstraints = false
-        doc.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        doc.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        scroll.hasVerticalScroller = true
-        scroll.drawsBackground = false
-        scroll.automaticallyAdjustsContentInsets = false
-        scroll.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 96, right: 0)
-        scroll.documentView = doc
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        scroll.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        TranscriptViewportChrome.configureTranscript(transcript)
+        let doc = TranscriptViewportChrome.makeDocument(containing: transcript)
+        TranscriptViewportChrome.configureScroll(scroll, document: doc)
 
         ChatHeaderChrome.configureTitle(headerTitle)
         ChatHeaderChrome.configureMenuButton(headerMenuButton, target: self, action: #selector(showHeaderMenu(_:)))
@@ -353,20 +337,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         cardCenterYConstraint?.isActive = false
 
         NSLayoutConstraint.activate([
-            scroll.topAnchor.constraint(equalTo: root.topAnchor),
-            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor),
-
-            // Transcript fills the available chat panel width with side padding.
-            doc.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
-            doc.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
-            doc.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
-            transcript.topAnchor.constraint(equalTo: doc.topAnchor, constant: 20),
-            transcript.bottomAnchor.constraint(equalTo: doc.bottomAnchor, constant: -12),
-            transcript.leadingAnchor.constraint(equalTo: doc.leadingAnchor, constant: ChatLayoutModel.horizontalInset),
-            transcript.trailingAnchor.constraint(equalTo: doc.trailingAnchor, constant: -ChatLayoutModel.horizontalInset),
-
             // Composer matches the full transcript width.
             card.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: ChatLayoutModel.horizontalInset),
             card.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -ChatLayoutModel.horizontalInset),
@@ -389,7 +359,12 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             footer.leadingAnchor.constraint(equalTo: cardContent.leadingAnchor, constant: 12),
             footer.trailingAnchor.constraint(equalTo: cardContent.trailingAnchor, constant: -12),
             footer.bottomAnchor.constraint(equalTo: cardContent.bottomAnchor, constant: -12),
-        ] + ComposerChrome.footerControlConstraints(
+        ] + TranscriptViewportChrome.constraints(
+            scroll: scroll,
+            root: root,
+            document: doc,
+            transcript: transcript
+        ) + ComposerChrome.footerControlConstraints(
             addAttachmentButton: addAttachmentButton,
             sendContainer: sendStack,
             sendButton: sendButton,

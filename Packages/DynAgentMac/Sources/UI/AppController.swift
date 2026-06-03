@@ -308,12 +308,15 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func refreshSelectedActiveCodexThreadIfNeeded() {
-        guard let c = chat.conversation,
-              c.harness == .codex,
-              c.status == .thinking || c.status == .running else { return }
-        guard !chat.hasLocalStream(for: c) else { return }
         let now = Date().timeIntervalSince1970
-        guard now - lastActiveHistoryRefresh > 2.0 else { return }
+        guard let c = chat.conversation,
+              AppActivityRefreshModel.shouldRefreshSelectedActiveCodexThread(
+                  harness: c.harness,
+                  status: c.status,
+                  hasLocalStream: chat.hasLocalStream(for: c),
+                  now: now,
+                  lastRefresh: lastActiveHistoryRefresh
+              ) else { return }
         lastActiveHistoryRefresh = now
         refreshCodexHistoryIfNeeded(c, force: true)
     }
@@ -698,25 +701,34 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
         let now = Date().timeIntervalSince1970
         let active = c.status == .thinking || c.status == .running || chat.hasLocalStream(for: c)
-        let lastSidebar = lastActivitySidebarRefresh[c.id] ?? 0
-        if !active || now - lastSidebar > 1.0 {
-            lastActivitySidebarRefresh[c.id] = now
+        let plan = AppActivityRefreshModel.activityPlan(
+            isActive: active,
+            now: now,
+            lastSidebarRefresh: lastActivitySidebarRefresh[c.id],
+            lastHistoryRefresh: lastActiveHistoryRefresh
+        )
+        if let next = plan.nextSidebarRefresh {
+            lastActivitySidebarRefresh[c.id] = next
+        }
+        if plan.refreshSidebar {
             rebuildGroups(select: chat.conversation)
         } else {
             updateDockState()
         }
 
-        if !active || now - lastActiveHistoryRefresh > 8.0 {
-            lastActiveHistoryRefresh = now
+        if let next = plan.nextHistoryRefresh {
+            lastActiveHistoryRefresh = next
+        }
+        if plan.refreshQuota {
             loadQuota()
         }
 
-        if !active {
-            lastActivityGitReload[c.id] = now
+        if let next = plan.nextGitReload {
+            lastActivityGitReload[c.id] = next
             gitPanel.reload()
         }
 
-        if !active { persist() }
+        if plan.persist { persist() }
     }
 
     private func updateWindowTitle(_ c: Conversation?) {
