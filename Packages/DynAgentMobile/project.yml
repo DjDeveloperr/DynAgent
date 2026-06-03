@@ -7,7 +7,15 @@ targets:
   DynAgentMobile:
     type: application
     platform: iOS
-    sources: [Sources]
+    sources:
+      - Sources
+      - path: ../DynAgentMac/Sources/UI/Models.swift
+      - path: ../DynAgentMac/Sources/UI/ComposerModel.swift
+      - path: ../DynAgentMac/Sources/UI/ShellToolModel.swift
+      - path: ../DynAgentMac/Sources/UI/EditToolModel.swift
+      - path: ../DynAgentMac/Sources/UI/TranscriptTurnModel.swift
+      - path: ../DynAgentMac/Sources/UI/TranscriptRenderModel.swift
+      - path: ../DynAgentMac/Sources/UI/WorkDividerModel.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.dynagent.mobile

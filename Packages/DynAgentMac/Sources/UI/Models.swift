@@ -89,7 +89,13 @@ struct WorkspaceRef: Codable, Equatable { var name: String; var path: String }
 
 /// Persists conversations and workspaces under ~/.dynagent.
 enum Store {
+    #if os(macOS)
     private static let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".dynagent")
+    #else
+    private static let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+        .appendingPathComponent("DynAgent", isDirectory: true)
+        ?? FileManager.default.temporaryDirectory.appendingPathComponent("DynAgent", isDirectory: true)
+    #endif
     private static let sessions = dir.appendingPathComponent("sessions.json")
     private static let workspaces = dir.appendingPathComponent("workspaces.json")
     private static let codexStubs = dir.appendingPathComponent("codex-stubs.json")

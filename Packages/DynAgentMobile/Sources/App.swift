@@ -1,160 +1,294 @@
-import SwiftUI
 import Foundation
-
-// MARK: - Model
-
-struct Msg: Identifiable {
-    let id = UUID()
-    let role: String   // user | assistant | tool
-    var text: String
-}
-
-// MARK: - Store (talks to the desktop DynAgent server over Tailscale)
+import Observation
+import SwiftUI
 
 @MainActor
-final class Store: ObservableObject {
-    @Published var serverURL = UserDefaults.standard.string(forKey: "serverURL") ?? ""
-    @Published var models: [String] = []
-    @Published var model = "auto"
-    @Published var messages: [Msg] = []
-    @Published var input = ""
-    @Published var sending = false
-    @Published var credits = ""
-    @Published var workspace = ""
+@Observable
+final class MobileChatStore {
+    var serverURL = UserDefaults.standard.string(forKey: "serverURL") ?? ""
+    var models: [String] = []
+    var conversation = Conversation(model: "auto", harness: .dynagent)
+    var input = ""
+    var sending = false
+    var credits = ""
+    var workspace = ""
 
-    private let conversationId = UUID().uuidString
     private var base: URL? { URL(string: serverURL) }
 
-    struct Named: Decodable { let id: String }
-    struct Cwd: Decodable { let name: String }
-    struct Quota: Decodable { let sessionCredits: Double? }
+    private struct Named: Decodable { let id: String }
+    private struct Cwd: Decodable { let name: String }
+    private struct Quota: Decodable { let sessionCredits: Double? }
 
-    func saveURL() { UserDefaults.standard.set(serverURL, forKey: "serverURL") }
+    func saveURL() {
+        UserDefaults.standard.set(serverURL, forKey: "serverURL")
+    }
 
     func load() async {
         guard let base else { return }
-        if let (d, _) = try? await URLSession.shared.data(from: base.appendingPathComponent("models")),
-           let arr = try? JSONDecoder().decode([Named].self, from: d) {
-            models = arr.map(\.id)
-            if model == "auto", let f = models.first(where: { $0 != "auto" }) { model = f }
+        if let (data, _) = try? await URLSession.shared.data(from: base.appendingPathComponent("models")),
+           let availableModels = try? JSONDecoder().decode([Named].self, from: data) {
+            models = availableModels.map(\.id)
+            if conversation.model == "auto", let first = models.first(where: { $0 != "auto" }) {
+                conversation.model = first
+            }
         }
-        if let (d, _) = try? await URLSession.shared.data(from: base.appendingPathComponent("cwd")),
-           let c = try? JSONDecoder().decode(Cwd.self, from: d) { workspace = c.name }
+        if let (data, _) = try? await URLSession.shared.data(from: base.appendingPathComponent("cwd")),
+           let cwd = try? JSONDecoder().decode(Cwd.self, from: data) {
+            workspace = cwd.name
+        }
         await refreshCredits()
     }
 
     func refreshCredits() async {
         guard let base else { return }
-        if let (d, _) = try? await URLSession.shared.data(from: base.appendingPathComponent("quota")),
-           let q = try? JSONDecoder().decode(Quota.self, from: d) {
-            credits = String(format: "credits %.3f", q.sessionCredits ?? 0)
+        if let (data, _) = try? await URLSession.shared.data(from: base.appendingPathComponent("quota")),
+           let quota = try? JSONDecoder().decode(Quota.self, from: data) {
+            let amount = quota.sessionCredits ?? 0
+            credits = "credits \(amount.formatted(.number.precision(.fractionLength(3))))"
         }
     }
 
     func send() async {
-        guard let base, !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !sending else { return }
-        let text = input
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let base, !text.isEmpty, !sending else { return }
+
         input = ""
-        messages.append(Msg(role: "user", text: text))
-        let history = messages
-            .filter { ($0.role == "user" || $0.role == "assistant") && !$0.text.isEmpty }
-            .map { ["role": $0.role, "content": $0.text] }
-        let assistant = Msg(role: "assistant", text: "")
-        messages.append(assistant)
-        let aid = assistant.id
+        let user = ChatMessage(role: .user, text: text)
+        conversation.messages.append(user)
+
+        let assistant = ChatMessage(role: .assistant, text: "")
+        conversation.messages.append(assistant)
         sending = true
 
-        var req = URLRequest(url: base.appendingPathComponent("chat"))
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: [
-            "model": model, "conversationId": conversationId, "messages": history,
+        var request = URLRequest(url: base.appendingPathComponent("chat"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "model": conversation.model,
+            "conversationId": conversation.id,
+            "messages": conversation.history,
         ])
+
         do {
-            let (bytes, _) = try await URLSession.shared.bytes(for: req)
+            let (bytes, _) = try await URLSession.shared.bytes(for: request)
             for try await line in bytes.lines where line.hasPrefix("data:") {
                 let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
-                guard let d = payload.data(using: .utf8),
-                      let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
-                      let type = o["type"] as? String else { continue }
+                guard let data = payload.data(using: .utf8),
+                      let event = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let type = event["type"] as? String else { continue }
+
                 switch type {
-                case "text": update(aid) { $0.text += o["text"] as? String ?? "" }
-                case "tool": insertTool("▸ \(o["name"] as? String ?? "tool")", before: aid)
-                case "error": update(aid) { $0.text += "\n⚠︎ " + (o["error"] as? String ?? "error") }
-                default: break
+                case "text":
+                    assistant.text += event["text"] as? String ?? ""
+                case "tool":
+                    insertTool(event, before: assistant)
+                case "error":
+                    assistant.text += "\n" + (event["error"] as? String ?? "error")
+                default:
+                    break
                 }
             }
         } catch {
-            update(aid) { $0.text += "\n⚠︎ " + error.localizedDescription }
+            assistant.text += "\n" + error.localizedDescription
         }
+
+        assistant.timestamp = Date().timeIntervalSince1970
+        assistant.isFinal = true
         sending = false
         await refreshCredits()
     }
 
-    private func update(_ id: UUID, _ f: (inout Msg) -> Void) {
-        if let i = messages.firstIndex(where: { $0.id == id }) { f(&messages[i]) }
-    }
-    private func insertTool(_ text: String, before id: UUID) {
-        let at = messages.firstIndex(where: { $0.id == id }) ?? messages.count
-        messages.insert(Msg(role: "tool", text: text), at: at)
+    private func insertTool(_ event: [String: Any], before assistant: ChatMessage) {
+        let name = event["name"] as? String ?? "tool"
+        let detail = event["detail"] as? String ?? name
+        let tool = ChatMessage(role: .tool, text: detail, toolName: "shell", toolDetail: detail)
+        tool.toolDone = event["done"] as? Bool ?? true
+        let index = conversation.messages.firstIndex { $0 === assistant } ?? conversation.messages.count
+        conversation.messages.insert(tool, at: index)
     }
 }
 
-// MARK: - Views
+private enum MobileSheet: String, Identifiable {
+    case settings
+    var id: String { rawValue }
+}
 
 @main
 struct DynAgentMobileApp: App {
-    var body: some Scene { WindowGroup { ContentView() } }
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
 }
 
 struct ContentView: View {
-    @StateObject private var store = Store()
-    @State private var showSettings = false
+    @State private var store = MobileChatStore()
+    @State private var activeSheet: MobileSheet?
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
-                            ForEach(store.messages) { MessageRow(msg: $0) }
-                        }
-                        .padding()
-                    }
-                    .onChange(of: store.messages.last?.text) { _, _ in
-                        if let id = store.messages.last?.id { withAnimation { proxy.scrollTo(id, anchor: .bottom) } }
-                    }
-                }
-                composer
+                TranscriptList(messages: store.conversation.messages, sending: store.sending)
+                ComposerBar(store: store)
             }
             .navigationTitle(store.workspace.isEmpty ? "DynAgent" : store.workspace)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Text(store.credits).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    Text(store.credits)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                    Button {
+                        activeSheet = .settings
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Settings")
                 }
             }
-            .sheet(isPresented: $showSettings) { SettingsView(store: store) }
+            .sheet(item: $activeSheet) { _ in
+                SettingsView(store: store)
+            }
         }
-        .task { await store.load() }
+        .task {
+            await store.load()
+        }
+    }
+}
+
+private struct TranscriptList: View {
+    let messages: [ChatMessage]
+    let sending: Bool
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(messages, id: \.stableID) { message in
+                        MessageRow(message: message)
+                            .id(message.stableID)
+                    }
+                    if sending {
+                        Text(WorkDividerModel.durationText(seconds: 0, active: true))
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id("mobile-working")
+                    }
+                }
+                .padding()
+            }
+            .onChange(of: messages.count) {
+                scrollToBottom(proxy: proxy)
+            }
+            .onChange(of: messages.last?.text) {
+                scrollToBottom(proxy: proxy)
+            }
+        }
     }
 
-    private var composer: some View {
+    private func scrollToBottom(proxy: ScrollViewProxy) {
+        withAnimation {
+            if sending {
+                proxy.scrollTo("mobile-working", anchor: .bottom)
+            } else if let id = messages.last?.stableID {
+                proxy.scrollTo(id, anchor: .bottom)
+            }
+        }
+    }
+}
+
+private struct MessageRow: View {
+    let message: ChatMessage
+
+    var body: some View {
+        switch message.role {
+        case .user:
+            HStack {
+                Spacer(minLength: 48)
+                Text(message.text)
+                    .textSelection(.enabled)
+                    .padding(.vertical, 9)
+                    .padding(.horizontal, 12)
+                    .background(.secondary.opacity(0.12), in: .rect(cornerRadius: 10))
+            }
+        case .tool:
+            ToolMessageRow(message: message)
+        case .assistant:
+            Text(assistantText)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var assistantText: AttributedString {
+        (try? AttributedString(markdown: message.text)) ?? AttributedString(message.text)
+    }
+}
+
+private struct ToolMessageRow: View {
+    let message: ChatMessage
+
+    var body: some View {
+        let summary = ShellToolModel.summary(from: message.toolDetail ?? message.text)
+        let title = ShellToolModel.title(command: summary.command.nilIfEmpty ?? message.text, done: message.toolDone)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(toolTitle(title))
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            if !summary.output.isEmpty {
+                Text(summary.output)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(4)
+                    .textSelection(.enabled)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func toolTitle(_ title: ShellToolTitle) -> String {
+        if let detail = title.detail, !detail.isEmpty {
+            return "\(title.action) \(detail)"
+        }
+        return title.action
+    }
+}
+
+private struct ComposerBar: View {
+    @Bindable var store: MobileChatStore
+
+    var body: some View {
         HStack(spacing: 10) {
             Menu {
-                ForEach(store.models, id: \.self) { id in Button(id) { store.model = id } }
+                ForEach(store.models, id: \.self) { id in
+                    Button(id) {
+                        store.conversation.model = id
+                    }
+                }
             } label: {
-                Label(store.model, systemImage: "cpu").font(.caption).lineLimit(1)
+                Text(ComposerModel.shortCodexModelName(store.conversation.model))
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
             }
-            TextField("Message…", text: $store.input, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
+            TextField(ComposerModel.placeholder(agent: store.conversation.harness), text: $store.input, axis: .vertical)
                 .lineLimit(1...5)
-            Button { Task { await store.send() } } label: {
-                Image(systemName: "arrow.up.circle.fill").font(.title2)
+                .textFieldStyle(.plain)
+                .padding(.vertical, 8)
+            Button {
+                Task { await store.send() }
+            } label: {
+                Image(systemName: ComposerModel.sendState(
+                    streaming: store.sending,
+                    trimmedText: store.input.trimmingCharacters(in: .whitespacesAndNewlines),
+                    hasAttachments: false
+                ).symbol)
+                .font(.title2)
             }
-            .disabled(store.sending || store.input.isEmpty)
+            .disabled(store.sending || store.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("Send")
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -162,35 +296,14 @@ struct ContentView: View {
     }
 }
 
-struct MessageRow: View {
-    let msg: Msg
-    var body: some View {
-        switch msg.role {
-        case "user":
-            HStack {
-                Spacer(minLength: 50)
-                Text(msg.text)
-                    .padding(10)
-                    .background(Color.accentColor.opacity(0.18), in: RoundedRectangle(cornerRadius: 14))
-                    .textSelection(.enabled)
-            }
-        case "tool":
-            Text(msg.text)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(.orange)
-        default:
-            Text(msg.text).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-struct SettingsView: View {
-    @ObservedObject var store: Store
+private struct SettingsView: View {
+    @Bindable var store: MobileChatStore
     @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("Server (Tailscale)") {
+                Section("Server") {
                     TextField("http://100.x.y.z:4319", text: $store.serverURL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -200,9 +313,19 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { store.saveURL(); Task { await store.load() }; dismiss() }
+                    Button("Done") {
+                        store.saveURL()
+                        Task { await store.load() }
+                        dismiss()
+                    }
                 }
             }
         }
+    }
+}
+
+private extension ChatMessage {
+    var stableID: ObjectIdentifier {
+        ObjectIdentifier(self)
     }
 }
