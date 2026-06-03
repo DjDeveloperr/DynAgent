@@ -193,25 +193,25 @@ final class SearchOverlayController: NSWindowController, NSSearchFieldDelegate {
     }
 
     private func reload() {
-        let query = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let matches = allConversations()
-            .filter { query.isEmpty || $0.title.lowercased().contains(query) || $0.messages.contains { $0.text.lowercased().contains(query) } }
-            .sorted { $0.updatedAt > $1.updatedAt }
-            .prefix(14)
+        let matches = SearchOverlayModel.matches(
+            conversations: allConversations(),
+            query: field.stringValue
+        )
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         rows.removeAll()
         for c in matches {
+            let rowModel = SearchOverlayModel.rowModel(for: c)
             let row = SidebarRow(height: 46, onClick: { [weak self, weak c] in
                 guard let self, let c else { return }
                 self.close()
                 self.onSelect(c)
             }) { container in
-                let title = NSTextField(labelWithString: c.title)
+                let title = NSTextField(labelWithString: rowModel.title)
                 title.font = .systemFont(ofSize: 14, weight: .medium)
                 title.lineBreakMode = .byTruncatingTail
                 title.maximumNumberOfLines = 1
                 title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-                let detail = NSTextField(labelWithString: (c.workspace as NSString).lastPathComponent)
+                let detail = NSTextField(labelWithString: rowModel.detail)
                 detail.font = .systemFont(ofSize: 11.5)
                 detail.textColor = .tertiaryLabelColor
                 detail.lineBreakMode = .byTruncatingTail
