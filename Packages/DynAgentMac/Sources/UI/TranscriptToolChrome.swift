@@ -1,5 +1,96 @@
 import AppKit
 
+struct InlineToolRowChrome {
+    let view: NSView
+    let editStats: EditStatsView?
+}
+
+enum TranscriptInlineToolChrome {
+    static func make(label: MessageTextView, message: ChatMessage) -> InlineToolRowChrome {
+        let isEdit = message.toolName == "edit"
+        let icon = NSImageView(image: NSImage(
+            systemSymbolName: TranscriptToolFormatter.toolIconName(message.toolName),
+            accessibilityDescription: nil
+        ) ?? NSImage())
+        icon.contentTintColor = .secondaryLabelColor
+        icon.translatesAutoresizingMaskIntoConstraints = false
+
+        let status = NSTextField(labelWithString: message.toolDone ? "" : "Running")
+        status.font = .systemFont(ofSize: 11, weight: .medium)
+        status.textColor = message.toolDone ? .tertiaryLabelColor : .secondaryLabelColor
+        status.translatesAutoresizingMaskIntoConstraints = false
+
+        let chevron = NSImageView(image: NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 10, weight: .semibold)) ?? NSImage())
+        chevron.contentTintColor = .tertiaryLabelColor
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let textStack = NSStackView(views: [label])
+        textStack.orientation = .vertical
+        textStack.alignment = .width
+        textStack.spacing = 3
+        textStack.translatesAutoresizingMaskIntoConstraints = false
+        let summary = isEdit ? TranscriptToolFormatter.editSummary(message) : nil
+        if isEdit && !message.toolDone {
+            label.isHidden = true
+            let name = summary?.changes.first.map { TranscriptToolFormatter.fileName($0.path) }
+            textStack.addArrangedSubview(ShimmerLabel(text: name.map { "Editing \($0)" } ?? "Editing"))
+        }
+
+        let editStats = isEdit ? EditStatsView(added: summary?.added ?? 0, deleted: summary?.deleted ?? 0) : nil
+        if let editStats {
+            editStats.isHidden = (summary?.added ?? 0) == 0 && (summary?.deleted ?? 0) == 0
+        }
+
+        let row = NSView()
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.addSubview(icon)
+        row.addSubview(textStack)
+        if let editStats { row.addSubview(editStats) }
+        if !isEdit { row.addSubview(chevron) }
+        if !message.toolDone && !isEdit { row.addSubview(status) }
+        NSLayoutConstraint.activate([
+            icon.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 16),
+            icon.heightAnchor.constraint(equalToConstant: 16),
+            textStack.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 10),
+            textStack.topAnchor.constraint(equalTo: row.topAnchor, constant: 4),
+            textStack.bottomAnchor.constraint(equalTo: row.bottomAnchor, constant: -4),
+            icon.centerYAnchor.constraint(equalTo: textStack.centerYAnchor),
+            label.widthAnchor.constraint(lessThanOrEqualToConstant: 820),
+        ])
+        if isEdit {
+            if let editStats {
+                NSLayoutConstraint.activate([
+                    editStats.leadingAnchor.constraint(equalTo: textStack.trailingAnchor, constant: 12),
+                    editStats.centerYAnchor.constraint(equalTo: textStack.centerYAnchor),
+                    editStats.trailingAnchor.constraint(lessThanOrEqualTo: row.trailingAnchor, constant: -4),
+                ])
+            } else {
+                textStack.trailingAnchor.constraint(lessThanOrEqualTo: row.trailingAnchor, constant: -4).isActive = true
+            }
+        } else if message.toolDone {
+            NSLayoutConstraint.activate([
+                chevron.widthAnchor.constraint(equalToConstant: 10),
+                chevron.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -4),
+                chevron.centerYAnchor.constraint(equalTo: icon.centerYAnchor),
+            ])
+            textStack.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -12).isActive = true
+        } else {
+            NSLayoutConstraint.activate([
+                chevron.widthAnchor.constraint(equalToConstant: 10),
+                chevron.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -4),
+                chevron.centerYAnchor.constraint(equalTo: icon.centerYAnchor),
+                status.trailingAnchor.constraint(equalTo: chevron.leadingAnchor, constant: -10),
+                status.centerYAnchor.constraint(equalTo: icon.centerYAnchor),
+                textStack.trailingAnchor.constraint(lessThanOrEqualTo: status.leadingAnchor, constant: -12),
+            ])
+        }
+        return InlineToolRowChrome(view: row, editStats: editStats)
+    }
+}
+
 final class DiffFileBlock: NSView {
     private let body = NSStackView()
     private let chevron = NSImageView()

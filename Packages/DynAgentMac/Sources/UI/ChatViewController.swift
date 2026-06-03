@@ -1433,7 +1433,11 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             }
             content.isSelectable = false
             content.setRich(TranscriptToolFormatter.toolString(m))
-            let row = toolInlineRow(content, for: m)
+            let inline = TranscriptInlineToolChrome.make(label: content, message: m)
+            if let editStats = inline.editStats {
+                editStatsByMessage[ObjectIdentifier(m)] = editStats
+            }
+            let row = inline.view
             toolByView[ObjectIdentifier(row)] = m
             row.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(toolClicked(_:))))
             container.addSubview(row)
@@ -1482,88 +1486,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         guard let s = shimmerView, let sc = s.superview else { return }
         transcript.removeArrangedSubview(sc)
         transcript.addArrangedSubview(sc)
-    }
-
-    private func toolInlineRow(_ label: MessageTextView, for m: ChatMessage) -> NSView {
-        let isEdit = m.toolName == "edit"
-        let icon = NSImageView(image: NSImage(systemSymbolName: TranscriptToolFormatter.toolIconName(m.toolName), accessibilityDescription: nil) ?? NSImage())
-        icon.contentTintColor = .secondaryLabelColor
-        icon.translatesAutoresizingMaskIntoConstraints = false
-
-        let status = NSTextField(labelWithString: m.toolDone ? "" : "Running")
-        status.font = .systemFont(ofSize: 11, weight: .medium)
-        status.textColor = m.toolDone ? .tertiaryLabelColor : .secondaryLabelColor
-        status.translatesAutoresizingMaskIntoConstraints = false
-
-        let chevron = NSImageView(image: NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 10, weight: .semibold)) ?? NSImage())
-        chevron.contentTintColor = .tertiaryLabelColor
-        chevron.translatesAutoresizingMaskIntoConstraints = false
-        label.translatesAutoresizingMaskIntoConstraints = false
-
-        let textStack = NSStackView(views: [label])
-        textStack.orientation = .vertical
-        textStack.alignment = .width
-        textStack.spacing = 3
-        textStack.translatesAutoresizingMaskIntoConstraints = false
-        if isEdit && !m.toolDone {
-            label.isHidden = true
-            let summary = TranscriptToolFormatter.editSummary(m)
-            let name = summary.changes.first.map { TranscriptToolFormatter.fileName($0.path) }
-            textStack.addArrangedSubview(ShimmerLabel(text: name.map { "Editing \($0)" } ?? "Editing"))
-        }
-        let summary = isEdit ? TranscriptToolFormatter.editSummary(m) : nil
-        let editStats = isEdit ? EditStatsView(added: summary?.added ?? 0, deleted: summary?.deleted ?? 0) : nil
-        if let editStats {
-            editStats.isHidden = (summary?.added ?? 0) == 0 && (summary?.deleted ?? 0) == 0
-            editStatsByMessage[ObjectIdentifier(m)] = editStats
-        }
-
-        let row = NSView()
-        row.translatesAutoresizingMaskIntoConstraints = false
-        row.addSubview(icon)
-        row.addSubview(textStack)
-        if let editStats { row.addSubview(editStats) }
-        if !isEdit { row.addSubview(chevron) }
-        if !m.toolDone && !isEdit { row.addSubview(status) }
-        NSLayoutConstraint.activate([
-            icon.leadingAnchor.constraint(equalTo: row.leadingAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 16),
-            icon.heightAnchor.constraint(equalToConstant: 16),
-            textStack.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 10),
-            textStack.topAnchor.constraint(equalTo: row.topAnchor, constant: 4),
-            textStack.bottomAnchor.constraint(equalTo: row.bottomAnchor, constant: -4),
-            icon.centerYAnchor.constraint(equalTo: textStack.centerYAnchor),
-            label.widthAnchor.constraint(lessThanOrEqualToConstant: 820),
-        ])
-        if isEdit {
-            if let editStats {
-                NSLayoutConstraint.activate([
-                    editStats.leadingAnchor.constraint(equalTo: textStack.trailingAnchor, constant: 12),
-                    editStats.centerYAnchor.constraint(equalTo: textStack.centerYAnchor),
-                    editStats.trailingAnchor.constraint(lessThanOrEqualTo: row.trailingAnchor, constant: -4),
-                ])
-            } else {
-                textStack.trailingAnchor.constraint(lessThanOrEqualTo: row.trailingAnchor, constant: -4).isActive = true
-            }
-        } else if m.toolDone {
-            NSLayoutConstraint.activate([
-                chevron.widthAnchor.constraint(equalToConstant: 10),
-                chevron.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -4),
-                chevron.centerYAnchor.constraint(equalTo: icon.centerYAnchor),
-            ])
-            textStack.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -12).isActive = true
-        } else {
-            NSLayoutConstraint.activate([
-                chevron.widthAnchor.constraint(equalToConstant: 10),
-                chevron.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -4),
-                chevron.centerYAnchor.constraint(equalTo: icon.centerYAnchor),
-                status.trailingAnchor.constraint(equalTo: chevron.leadingAnchor, constant: -10),
-                status.centerYAnchor.constraint(equalTo: icon.centerYAnchor),
-                textStack.trailingAnchor.constraint(lessThanOrEqualTo: status.leadingAnchor, constant: -12),
-            ])
-        }
-        return row
     }
 
     /// Show a popover with the full tool name + detail when a tool pill is clicked.
