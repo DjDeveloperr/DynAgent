@@ -915,27 +915,28 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
 
     func windowDidResize(_ notification: Notification) {
         unlockWindowSizing()
+        guard !mainWindowFrameState.isUserLiveResizing else {
+            return
+        }
         switch MainWindowFrameModel.resizeDecision(current: window.frame, state: mainWindowFrameState) {
         case .restore(let frame):
-            window.setFrame(frame, display: true)
-            mainWindowFrameState = MainWindowFrameModel.recordingApplied(window.frame, in: mainWindowFrameState)
-            applyMainLayoutStabilization()
-            writeLayoutMetrics(reason: "window-resize-restored")
-            for delay in [0.05, 0.2, 0.6] {
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                    guard let self else { return }
-                    self.unlockWindowSizing()
-                    self.applyMainLayoutStabilization()
-                    self.writeLayoutMetrics(reason: "window-resize-restored")
-                }
-            }
+            scheduleResizeRestoration(to: frame)
             return
         case .accept(let frame):
             mainWindowFrameState = MainWindowFrameModel.recordingApplied(frame, in: mainWindowFrameState)
             saveMainWindowFrame(frame)
         }
-        applyMainLayoutStabilization()
         writeLayoutMetrics(reason: "window-resize")
+    }
+
+    private func scheduleResizeRestoration(to frame: NSRect) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.mainWindowFrameState.isUserLiveResizing else { return }
+            self.window.setFrame(frame, display: true)
+            self.mainWindowFrameState = MainWindowFrameModel.recordingApplied(self.window.frame, in: self.mainWindowFrameState)
+            self.applyMainLayoutStabilization()
+            self.writeLayoutMetrics(reason: "window-resize-restored")
+        }
     }
 
     func windowWillStartLiveResize(_ notification: Notification) {
