@@ -122,9 +122,15 @@ enum WindowLayoutChrome {
             width: max(0, splitView.bounds.width - wrapper.frame.minX),
             height: splitView.bounds.height
         )
-        guard wrapper.frame != target else { return }
-        wrapper.frame = target
-        wrapper.bounds = NSRect(origin: .zero, size: target.size)
-        mainView.frame = wrapper.bounds
+        if wrapper.frame != target {
+            wrapper.frame = target
+        }
+        let bounds = NSRect(origin: .zero, size: target.size)
+        if wrapper.bounds != bounds {
+            wrapper.bounds = bounds
+        }
+        if mainView.frame != wrapper.bounds {
+            mainView.frame = wrapper.bounds
+        }
     }
 }

@@ -44,10 +44,18 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private let thinkingCoordinator = ChatThinkingCoordinator()
     private let streamEventCoordinator = ChatStreamEventCoordinator()
     private let maxRenderedMessages = 240
-    private let attachmentCoordinator = ComposerAttachmentCoordinator()
     private let activityCoordinator = ChatActivityCoordinator()
     private var renderSession = TranscriptRenderSessionState()
     private let transcriptScrollCoordinator = TranscriptScrollCoordinator()
+    private lazy var composerSessionCoordinator = ChatComposerSessionCoordinator(
+        composer: composer,
+        placeholder: placeholder,
+        attachmentStack: attachmentStack,
+        attachmentScroll: attachmentScroll,
+        attachmentHeightConstraint: attachmentHeightConstraint,
+        removeTarget: self,
+        removeAction: #selector(removeAttachment(_:))
+    )
     private lazy var titleGenerationCoordinator = ChatTitleGenerationCoordinator(client: client)
     private lazy var composerMenuCoordinator = ComposerMenuCoordinator(
         modelPopup: modelPopup,
@@ -282,46 +290,25 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func addAttachments(_ urls: [URL]) {
-        guard attachmentCoordinator.add(urls) else { return }
-        renderAttachments()
+        guard composerSessionCoordinator.addAttachments(urls, conversation: conversation) else { return }
         updateSendButton()
-        saveComposerDraft()
-    }
-
-    private func renderAttachments() {
-        attachmentCoordinator.render(
-            into: attachmentStack,
-            inside: attachmentScroll,
-            heightConstraint: attachmentHeightConstraint,
-            target: self,
-            removeAction: #selector(removeAttachment(_:))
-        )
     }
 
     @objc private func removeAttachment(_ sender: NSButton) {
-        guard attachmentCoordinator.remove(sender: sender) else { return }
-        renderAttachments()
+        guard composerSessionCoordinator.removeAttachment(sender: sender, conversation: conversation) else { return }
         updateSendButton()
-        saveComposerDraft()
     }
 
     func saveComposerDraft() {
-        guard let c = conversation else { return }
-        attachmentCoordinator.save(text: composer.string, for: c)
+        composerSessionCoordinator.saveDraft(for: conversation)
     }
 
     private func scheduleComposerDraftSave() {
-        attachmentCoordinator.scheduleSave(
-            textProvider: { [weak self] in self?.composer.string ?? "" },
-            conversationProvider: { [weak self] in self?.conversation }
-        )
+        composerSessionCoordinator.scheduleDraftSave(conversationProvider: { [weak self] in self?.conversation })
     }
 
     private func restoreComposerDraft(for c: Conversation) {
-        let state = attachmentCoordinator.restore(for: c) { FileManager.default.fileExists(atPath: $0) }
-        composer.string = state.text
-        renderAttachments()
-        placeholder.isHidden = state.placeholderHidden
+        composerSessionCoordinator.restoreDraft(for: c)
     }
 
     private func adoptComposerSelection(for c: Conversation) {
@@ -501,7 +488,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         guard let c = conversation else { return }
         let action = ChatSendModel.action(
             typedText: composer.string,
-            attachmentPaths: attachmentCoordinator.attachmentPaths,
+            attachmentPaths: composerSessionCoordinator.attachmentPaths,
             streaming: streaming,
             harness: c.harness,
             codexThreadId: c.codexThreadId
@@ -512,9 +499,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             return
         }
 
-        let cleared = attachmentCoordinator.clear(for: c)
-        composer.string = cleared.text
-        renderAttachments()
+        composerSessionCoordinator.clearAfterSend(for: c)
         textDidChange(Notification(name: NSText.didChangeNotification))
 
         switch action {
@@ -756,7 +741,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         let state = ComposerModel.sendState(
             streaming: streaming,
             trimmedText: composer.string.trimmingCharacters(in: .whitespacesAndNewlines),
-            hasAttachments: attachmentCoordinator.hasAttachments
+            hasAttachments: composerSessionCoordinator.hasAttachments
         )
         ComposerChrome.applySendState(state, to: sendButton)
     }

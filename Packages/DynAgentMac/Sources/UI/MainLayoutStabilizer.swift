@@ -48,9 +48,15 @@ enum MainLayoutStabilizer {
             width: max(0, splitView.bounds.width - wrapper.frame.minX),
             height: splitView.bounds.height
         )
-        guard wrapper.frame != target else { return }
-        wrapper.frame = target
-        wrapper.bounds = NSRect(origin: .zero, size: target.size)
-        workspaceArea.view.frame = wrapper.bounds
+        if wrapper.frame != target {
+            wrapper.frame = target
+        }
+        let bounds = NSRect(origin: .zero, size: target.size)
+        if wrapper.bounds != bounds {
+            wrapper.bounds = bounds
+        }
+        if workspaceArea.view.frame != wrapper.bounds {
+            workspaceArea.view.frame = wrapper.bounds
+        }
     }
 }

@@ -146,6 +146,49 @@ final class MainLayoutStabilizerTests: XCTestCase {
         XCTAssertEqual(fixture.chat.frame.width, mainFrame.width, accuracy: 0.5)
     }
 
+    func testStabilizeRepinsStaleWorkspaceWhenCollapsedGitWrapperIsAlreadyWide() throws {
+        let fixture = makeFixture(windowWidth: 1_472, windowHeight: 780)
+        fixture.root.splitView.setPosition(328, ofDividerAt: 0)
+
+        _ = try XCTUnwrap(MainLayoutStabilizer.stabilize(
+            window: fixture.window,
+            rootContentController: fixture.root,
+            splitView: fixture.root.splitView,
+            rootSplitController: fixture.root,
+            workspaceArea: fixture.workspace,
+            sidebarItem: fixture.sidebarItem,
+            gitItem: fixture.gitItem,
+            preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
+        ))
+
+        let wideWrapper = try XCTUnwrap(splitFrame(containing: fixture.workspace.view))
+        XCTAssertGreaterThan(wideWrapper.width, ChatLayoutModel.preferredMainWidthWithInspector)
+
+        fixture.workspace.view.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: ChatLayoutModel.preferredMainWidthWithInspector,
+            height: wideWrapper.height
+        )
+        fixture.chat.frame = fixture.workspace.view.bounds
+
+        _ = try XCTUnwrap(MainLayoutStabilizer.stabilize(
+            window: fixture.window,
+            rootContentController: fixture.root,
+            splitView: fixture.root.splitView,
+            rootSplitController: fixture.root,
+            workspaceArea: fixture.workspace,
+            sidebarItem: fixture.sidebarItem,
+            gitItem: fixture.gitItem,
+            preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
+        ))
+
+        let repairedWrapper = try XCTUnwrap(splitFrame(containing: fixture.workspace.view))
+        XCTAssertEqual(repairedWrapper.width, wideWrapper.width, accuracy: 0.5)
+        XCTAssertEqual(fixture.workspace.view.frame.width, repairedWrapper.width, accuracy: 0.5)
+        XCTAssertEqual(fixture.chat.frame.width, repairedWrapper.width, accuracy: 0.5)
+    }
+
     func testLatestThreadLoadDoesNotShrinkWorkspaceAfterShellTransition() throws {
         let fixture = makeChatFixture(windowWidth: 1_472, windowHeight: 780)
         fixture.root.splitView.setPosition(260, ofDividerAt: 0)
