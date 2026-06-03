@@ -15,6 +15,60 @@ final class ComposerModelTests: XCTestCase {
         XCTAssertEqual(ComposerModel.resolvedCodexModel(nil, available: []), "gpt-5.5")
     }
 
+    func testSelectedModelForListPrefersDesiredThenNonAuto() {
+        XCTAssertEqual(
+            ComposerModel.selectedModelForList(ids: ["auto", "claude-opus"], desiredModel: "claude-opus"),
+            "claude-opus"
+        )
+        XCTAssertEqual(
+            ComposerModel.selectedModelForList(ids: ["auto", "claude-opus"], desiredModel: "missing"),
+            "claude-opus"
+        )
+        XCTAssertEqual(
+            ComposerModel.selectedModelForList(ids: ["auto"], desiredModel: nil),
+            "auto"
+        )
+        XCTAssertNil(ComposerModel.selectedModelForList(ids: [], desiredModel: nil))
+    }
+
+    func testCodexMenuModelPreservesCurrentModelAndMarksEntries() {
+        let model = ComposerModel.codexMenuModel(
+            ids: ["gpt-5.5-codex", "gpt-5.5-mini"],
+            desiredModel: nil,
+            currentModel: "gpt-5.5-mini",
+            selectedEffort: "xhigh"
+        )
+
+        XCTAssertEqual(model.selectedModel, "gpt-5.5-mini")
+        XCTAssertEqual(model.modelItems.map(\.title), ["5.5 Codex", "5.5 Mini"])
+        XCTAssertEqual(model.modelItems.map(\.representedValue), ["gpt-5.5-codex", "gpt-5.5-mini"])
+        XCTAssertEqual(model.modelItems.map(\.isSelected), [false, true])
+        XCTAssertEqual(model.effortItems.map(\.title), ["Low", "Medium", "High", "Extra High"])
+        XCTAssertEqual(model.effortItems.map(\.representedValue), ["low", "medium", "high", "xhigh"])
+        XCTAssertEqual(model.effortItems.map(\.isSelected), [false, false, false, true])
+    }
+
+    func testCodexMenuModelDesiredAndFallbackSelection() {
+        XCTAssertEqual(
+            ComposerModel.codexMenuModel(
+                ids: ["gpt-5.5-codex", "gpt-5.5-mini"],
+                desiredModel: "gpt-5.5-codex",
+                currentModel: "gpt-5.5-mini",
+                selectedEffort: "high"
+            ).selectedModel,
+            "gpt-5.5-codex"
+        )
+        XCTAssertEqual(
+            ComposerModel.codexMenuModel(
+                ids: [],
+                desiredModel: "missing",
+                currentModel: "missing",
+                selectedEffort: "high"
+            ).selectedModel,
+            "gpt-5.5"
+        )
+    }
+
     func testCodexLabels() {
         XCTAssertEqual(ComposerModel.shortCodexModelName("gpt-5.5-codex"), "5.5 Codex")
         XCTAssertEqual(ComposerModel.shortCodexModelName("gpt-5.5-codex-spark"), "5.5 Codex Spark")

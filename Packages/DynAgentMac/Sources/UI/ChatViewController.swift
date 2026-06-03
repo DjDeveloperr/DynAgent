@@ -146,10 +146,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         modelPopup.addItems(withTitles: ids)
         let icon = NSImage(systemSymbolName: "cpu", accessibilityDescription: nil)
         for i in modelPopup.itemArray.indices { modelPopup.item(at: i)?.image = icon }
-        if let want = desiredModel, ids.contains(want) {
-            modelPopup.selectItem(withTitle: want)
-        } else if let i = ids.firstIndex(where: { $0 != "auto" }) {
-            modelPopup.selectItem(at: i)
+        if let selected = ComposerModel.selectedModelForList(ids: ids, desiredModel: desiredModel) {
+            modelPopup.selectItem(withTitle: selected)
         }
         syncComposerMenus()
     }
@@ -177,25 +175,27 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func installCodexModelMenu(_ ids: [String]) {
         codexModelIds = ids
-        if let desired = desiredModel?.nilIfEmpty, ids.contains(desired) {
-            selectedCodexModel = desired
-        } else if !ids.contains(selectedCodexModel) {
-            selectedCodexModel = ids.first ?? "gpt-5.5"
-        }
+        let menuModel = ComposerModel.codexMenuModel(
+            ids: ids,
+            desiredModel: desiredModel,
+            currentModel: selectedCodexModel,
+            selectedEffort: selectedCodexEffort
+        )
+        selectedCodexModel = menuModel.selectedModel
         let modelMenu = NSMenu()
-        for id in ids {
-            let item = NSMenuItem(title: ComposerModel.shortCodexModelName(id), action: #selector(codexModelPicked(_:)), keyEquivalent: "")
+        for entry in menuModel.modelItems {
+            let item = NSMenuItem(title: entry.title, action: #selector(codexModelPicked(_:)), keyEquivalent: "")
             item.target = self
-            item.representedObject = id
-            item.state = id == selectedCodexModel ? .on : .off
+            item.representedObject = entry.representedValue
+            item.state = entry.isSelected ? .on : .off
             modelMenu.addItem(item)
         }
         let effortMenu = NSMenu()
-        for (title, value) in [("Low", "low"), ("Medium", "medium"), ("High", "high"), ("Extra High", "xhigh")] {
-            let item = NSMenuItem(title: title, action: #selector(codexEffortPicked(_:)), keyEquivalent: "")
+        for entry in menuModel.effortItems {
+            let item = NSMenuItem(title: entry.title, action: #selector(codexEffortPicked(_:)), keyEquivalent: "")
             item.target = self
-            item.representedObject = value
-            item.state = value == selectedCodexEffort ? .on : .off
+            item.representedObject = entry.representedValue
+            item.state = entry.isSelected ? .on : .off
             effortMenu.addItem(item)
         }
         let menu = NSMenu()

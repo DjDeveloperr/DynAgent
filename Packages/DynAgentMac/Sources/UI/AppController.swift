@@ -1185,49 +1185,26 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     // MARK: Settings overlay
 
     private func installSettingsOverlay(over host: NSView) {
-        settingsPill.material = .hudWindow; settingsPill.blendingMode = .withinWindow; settingsPill.state = .active
-        settingsPill.wantsLayer = true; settingsPill.layer?.cornerRadius = 14; settingsPill.layer?.masksToBounds = true
-        settingsPill.layer?.zPosition = 50
-        settingsPill.translatesAutoresizingMaskIntoConstraints = false
-        settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
-        settingsButton.imagePosition = .imageLeading
-        settingsButton.isBordered = false
-        settingsButton.contentTintColor = .labelColor
-        settingsButton.font = .systemFont(ofSize: 13.5, weight: .medium)
-        settingsButton.alignment = .left
-        settingsButton.target = self
-        settingsButton.action = #selector(showSettingsMenu(_:))
-        settingsButton.translatesAutoresizingMaskIntoConstraints = false
-        settingsPill.addSubview(settingsButton)
-        host.addSubview(settingsPill, positioned: .above, relativeTo: nil)
-        NSLayoutConstraint.activate([
-            settingsPill.leadingAnchor.constraint(equalTo: host.leadingAnchor, constant: 10),
-            settingsPill.trailingAnchor.constraint(equalTo: host.trailingAnchor, constant: -10),
-            settingsPill.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -10),
-            settingsPill.heightAnchor.constraint(equalToConstant: 38),
-            settingsButton.leadingAnchor.constraint(equalTo: settingsPill.leadingAnchor, constant: 12),
-            settingsButton.trailingAnchor.constraint(equalTo: settingsPill.trailingAnchor, constant: -12),
-            settingsButton.centerYAnchor.constraint(equalTo: settingsPill.centerYAnchor),
-        ])
+        SettingsOverlayChrome.configurePill(
+            settingsPill,
+            button: settingsButton,
+            target: self,
+            menuAction: #selector(showSettingsMenu(_:))
+        )
+        SettingsOverlayChrome.install(settingsPill, button: settingsButton, over: host)
     }
 
     @objc private func showSettingsMenu(_ sender: NSButton) {
-        let menu = NSMenu()
-        let settings = NSMenuItem(title: "Settings", action: #selector(openSettingsOverlay), keyEquivalent: "")
-        settings.target = self
-        let usage = NSMenuItem(title: usageRemainingTitle, action: nil, keyEquivalent: "")
-        usage.isEnabled = false
-        menu.addItem(settings)
-        menu.addItem(usage)
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 6), in: sender)
+        let menu = SettingsOverlayChrome.makeMenu(
+            usageTitle: usageRemainingTitle,
+            target: self,
+            settingsAction: #selector(openSettingsOverlay)
+        )
+        SettingsOverlayChrome.popUp(menu, from: sender)
     }
 
     @objc private func openSettingsOverlay() {
-        let alert = NSAlert()
-        alert.messageText = "Settings"
-        alert.informativeText = "DynAgent settings will appear here as the native controls land."
-        alert.addButton(withTitle: "Done")
-        alert.beginSheetModal(for: window)
+        SettingsOverlayChrome.makeSettingsAlert().beginSheetModal(for: window)
     }
 
     private func loadQuota() {

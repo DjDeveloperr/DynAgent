@@ -22,6 +22,18 @@ struct ComposerContextState: Equatable {
     var tooltip: String
 }
 
+struct ComposerMenuItemModel: Equatable {
+    var title: String
+    var representedValue: String
+    var isSelected: Bool
+}
+
+struct ComposerCodexMenuModel: Equatable {
+    var selectedModel: String
+    var modelItems: [ComposerMenuItemModel]
+    var effortItems: [ComposerMenuItemModel]
+}
+
 struct ComposerAttachment: Equatable {
     let id: UUID
     let url: URL
@@ -43,6 +55,12 @@ struct ComposerDraftSnapshot: Codable, Equatable {
 
 enum ComposerModel {
     static let defaultDraftPrefix = "DynAgentComposerDraft."
+    static let codexEfforts: [(title: String, value: String)] = [
+        ("Low", "low"),
+        ("Medium", "medium"),
+        ("High", "high"),
+        ("Extra High", "xhigh"),
+    ]
 
     static func menuState(conversation: Conversation?,
                           selectedHarness: Harness,
@@ -76,6 +94,47 @@ enum ComposerModel {
             if available.isEmpty || available.contains(preferred) { return preferred }
         }
         return available.first ?? "gpt-5.5"
+    }
+
+    static func selectedModelForList(ids: [String], desiredModel: String?) -> String? {
+        if let desiredModel = desiredModel?.nilIfEmpty, ids.contains(desiredModel) {
+            return desiredModel
+        }
+        return ids.first { $0 != "auto" } ?? ids.first
+    }
+
+    static func codexMenuModel(
+        ids: [String],
+        desiredModel: String?,
+        currentModel: String,
+        selectedEffort: String
+    ) -> ComposerCodexMenuModel {
+        let selectedModel: String
+        if let desiredModel = desiredModel?.nilIfEmpty, ids.contains(desiredModel) {
+            selectedModel = desiredModel
+        } else if ids.contains(currentModel) {
+            selectedModel = currentModel
+        } else {
+            selectedModel = ids.first ?? "gpt-5.5"
+        }
+
+        return ComposerCodexMenuModel(
+            selectedModel: selectedModel,
+            modelItems: ids.map { id in
+                ComposerMenuItemModel(
+                    title: shortCodexModelName(id),
+                    representedValue: id,
+                    isSelected: id == selectedModel
+                )
+            },
+            effortItems: codexEfforts.map { title, value in
+                ComposerMenuItemModel(
+                    title: title,
+                    representedValue: value,
+                    isSelected: value == selectedEffort
+                )
+            }
+        )
     }
 
     static func draftKey(for conversation: Conversation, prefix: String = defaultDraftPrefix) -> String {

@@ -6,6 +6,7 @@
 - `ChromeControls.swift`: reusable AppKit chrome controls, currently `ChromeIconButton` and `ComposerMenuChrome`.
 - `AppToolbarChrome.swift`: tested AppKit toolbar identifiers and chrome builders for navigation, native actions, Git scope, and chat-title controls.
 - `ChatActionMenuChrome.swift`: tested AppKit chat-title action menu construction for pin, rename, archive, and detached-window actions.
+- `SettingsOverlayChrome.swift`: tested AppKit settings pill, settings/usage menu, and settings sheet chrome.
 - `MarkdownRenderer.swift`: tested markdown rendering for chat text, links, inline code, bullets, code fences, and directive tokens.
 - `GitDiffModel.swift`: tested pure parser for git diff sections, line numbers, metadata filtering, and hunk separator rows.
 - `GitDiffLayoutModel.swift`: tested pure layout model for diff row heights, visible row lookup, file header lookup, and collapsed file sections.
@@ -28,7 +29,7 @@
 - `SidebarModel.swift`: tested pure grouping model for pinned chats, projectless chats, project workspaces, archived filtering, and recency ordering.
 - `SidebarRowModel.swift`: tested pure row-presentation model for short relative timestamps, workspace/chat tooltip content, worktree indicators, and working/pinned/unread state.
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
-- `ComposerModel.swift`: tested composer behavior model for model/reasoning labels, draft keys, attachment message text, draft snapshots, attachment normalization, context state, and send/stop state.
+- `ComposerModel.swift`: tested composer behavior model for model/reasoning menu data, picker selection, draft keys, attachment message text, draft snapshots, attachment normalization, context state, and send/stop state.
 - `ComposerDraftStore.swift`: tested draft persistence store for preserving composer text and attachments across chat switches and hot reloads.
 - `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips, and attachment strip rendering.
 - `NavigationHistoryModel.swift`: tested identity-based back/forward stack behavior for chat navigation.
