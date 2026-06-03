@@ -59,6 +59,7 @@
 - `ComposerSelectionModel.swift`: tested composer model/reasoning selection state for Codex availability, harness sync plans, model-list sync plans, conversation adoption actions, desired-model adoption, fallback selection, and picker updates.
 - `ComposerSessionModel.swift`: tested composer session state transitions for attachment add/remove, draft restoration, placeholder visibility, and send clearing.
 - `ComposerDraftCoordinator.swift`: tested AppKit-free coordinator for composer attachment state, draft save/restore/clear, and debounced draft persistence.
+- `ComposerAttachmentCoordinator.swift`: tested AppKit bridge that combines composer draft persistence, attachment strip rendering, and remove-button identity mapping.
 - `ChatSendModel.swift`: tested prompt/stop/steer send-action routing, attachment-only sends, native Codex steering, and queued steer prompt joining.
 - `ComposerDraftStore.swift`: tested draft persistence store for preserving composer text and attachments across chat switches and hot reloads.
 - `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips/strip rendering, Codex nested model/reasoning menus, menu label styling/state application, send/attachment buttons, send-state application, and stable footer sizing.
