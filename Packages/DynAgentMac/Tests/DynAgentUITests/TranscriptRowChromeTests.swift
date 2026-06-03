@@ -105,6 +105,48 @@ final class TranscriptRowChromeTests: XCTestCase {
         })
     }
 
+    func testTranscriptStackContainerPinsContentEdgesWithoutFixedWidth() throws {
+        let content = NSView()
+        content.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = TranscriptStackChrome.makeFullWidthContainer(containing: content)
+
+        XCTAssertFalse(container.translatesAutoresizingMaskIntoConstraints)
+        XCTAssertTrue(content.superview === container)
+        XCTAssertTrue(container.constraints.contains {
+            $0.firstAnchor == content.topAnchor && $0.secondAnchor == container.topAnchor
+        })
+        XCTAssertTrue(container.constraints.contains {
+            $0.firstAnchor == content.bottomAnchor && $0.secondAnchor == container.bottomAnchor
+        })
+        XCTAssertTrue(container.constraints.contains {
+            $0.firstAnchor == content.leadingAnchor && $0.secondAnchor == container.leadingAnchor
+        })
+        XCTAssertTrue(container.constraints.contains {
+            $0.firstAnchor == content.trailingAnchor && $0.secondAnchor == container.trailingAnchor
+        })
+        XCTAssertFalse(container.constraints.contains {
+            $0.firstAttribute == .width && $0.relation == .equal && $0.secondItem == nil
+        })
+    }
+
+    func testTranscriptStackPinnerTracksTranscriptWidth() {
+        let transcript = NSStackView()
+        transcript.translatesAutoresizingMaskIntoConstraints = false
+        let row = NSView()
+        row.translatesAutoresizingMaskIntoConstraints = false
+        transcript.addArrangedSubview(row)
+
+        let constraint = TranscriptStackChrome.pinRowToTranscriptWidth(row, transcript: transcript)
+
+        XCTAssertEqual(constraint.firstAnchor, row.widthAnchor)
+        XCTAssertEqual(constraint.secondAnchor, transcript.widthAnchor)
+        XCTAssertTrue(constraint.isActive)
+        XCTAssertFalse(row.constraints.contains {
+            $0.firstAttribute == .width && $0.relation == .equal && $0.secondItem == nil
+        })
+    }
+
     private func findSubviews<T: NSView>(of type: T.Type, in root: NSView) -> [T] {
         var result: [T] = []
         if let match = root as? T {

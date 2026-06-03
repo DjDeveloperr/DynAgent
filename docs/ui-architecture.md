@@ -32,7 +32,7 @@
 - `ChatStreamStartModel.swift`: tested turn-start mutation model for harness/model locking, prompt insertion, thinking status, timestamps, and title-generation decisions.
 - `ChatStreamRegistry.swift`: tested stream lifecycle registry for active conversation ids, cancellable tasks, and per-thread stop-error suppression.
 - `WorkDividerModel.swift`: tested label/duration model for active and completed Codex-style work dividers.
-- `TranscriptChrome.swift`: reusable AppKit transcript text, loading shell rows, shimmer/thinking rows, work-divider, edit-stat, and transcript row views.
+- `TranscriptChrome.swift`: reusable AppKit transcript text, full-width row stack helpers, loading shell rows, shimmer/thinking rows, work-divider, edit-stat, and transcript row views.
 - `TranscriptViewportChrome.swift`: tested AppKit transcript scroll/document/stack setup and width-tracking constraints for the loaded-thread layout invariant.
 - `TranscriptRowFactory.swift`: tested row factory that maps chat messages to AppKit row chrome and returns controller metadata for labels, clickable tool views, and edit stats.
 - `TranscriptRowRegistry.swift`: tested transcript interaction registry for message labels, clickable tool rows, edit stats, copy text, and live markdown render throttling.

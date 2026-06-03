@@ -203,6 +203,28 @@ final class WorkDivider: NSView {
     }
 }
 
+enum TranscriptStackChrome {
+    static func makeFullWidthContainer(containing content: NSView) -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: container.topAnchor),
+            content.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            content.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+        ])
+        return container
+    }
+
+    @discardableResult
+    static func pinRowToTranscriptWidth(_ row: NSView, transcript: NSStackView) -> NSLayoutConstraint {
+        let constraint = row.widthAnchor.constraint(equalTo: transcript.widthAnchor)
+        constraint.isActive = true
+        return constraint
+    }
+}
+
 enum TranscriptLoadingShellChrome {
     static let verticalPadding: CGFloat = 14
 
@@ -225,9 +247,7 @@ enum TranscriptLoadingShellChrome {
 
     @discardableResult
     static func pinRowToTranscriptWidth(_ row: NSView, transcript: NSStackView) -> NSLayoutConstraint {
-        let constraint = row.widthAnchor.constraint(equalTo: transcript.widthAnchor)
-        constraint.isActive = true
-        return constraint
+        TranscriptStackChrome.pinRowToTranscriptWidth(row, transcript: transcript)
     }
 }
 
