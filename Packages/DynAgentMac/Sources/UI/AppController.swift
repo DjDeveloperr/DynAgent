@@ -39,7 +39,6 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private var workspaceRefs: [WorkspaceRef] = []
     private var primaryPath = FileManager.default.currentDirectoryPath
     private var active = WorkspaceRef(name: "Workspace", path: FileManager.default.currentDirectoryPath)
-    private var controlTimer: Timer?
     private var attached = false
     private let selectedConversationKey = "selectedConversationId"
     private let mainWindowFrameKey = "DynAgentMainWindowFrame"
@@ -75,6 +74,9 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
     private let projectlessCodexKey = "__codex_projectless__"
     private let navigationCoordinator = AppNavigationCoordinator()
+    private lazy var controlPollingCoordinator = AppControlPollingCoordinator(client: client) { [weak self] in
+        self?.refreshSelectedActiveCodexThreadIfNeeded()
+    }
     private var mainWindowFrameState = MainWindowFrameState()
     private var pendingWindowFrameRestore = false
 
@@ -247,8 +249,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     func detach() {
         guard attached else { return }
         attached = false
-        controlTimer?.invalidate()
-        controlTimer = nil
+        controlPollingCoordinator.stop()
         if let dockObserver {
             NotificationCenter.default.removeObserver(dockObserver)
             self.dockObserver = nil
@@ -274,57 +275,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     // MARK: Agent control polling
 
     private func startControlPolling() {
-        controlTimer?.invalidate()
-        controlTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in
-                await self.processTerminalActions()
-                await self.processBrowserActions()
-                self.refreshSelectedActiveCodexThreadIfNeeded()
-            }
-        }
-    }
-
-    @MainActor private func processTerminalActions() async {
-        let actions = await client.pollTerminalActions()
-        for action in actions {
-            guard let terminal = PanelRegistry.shared.terminal(action.id) else { continue }
-            terminal.write(action.text)
-            // Report output back after a short delay
-            let termId = action.id ?? terminal.panelId
-            let client = client
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak terminal, client] in
-                guard let terminal else { return }
-                let output = terminal.readBuffer(last: 8000)
-                Task { await client.reportTerminalOutput(id: termId, output: output) }
-            }
-        }
-    }
-
-    @MainActor private func processBrowserActions() async {
-        let actions = await client.pollBrowserActions()
-        for action in actions {
-            guard let browser = PanelRegistry.shared.browser(action.id) else { continue }
-            switch action.type {
-            case "navigate":
-                if let url = action.url {
-                    browser.load(url)
-                    // Report state after navigation settles
-                    let client = client
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak browser, client] in
-                        guard let browser else { return }
-                        let id = action.id ?? browser.panelId
-                        Task { await client.reportBrowserState(id: id, url: browser.currentURL, title: browser.pageTitle()) }
-                    }
-                }
-            case "eval":
-                if let script = action.script, let resultId = action.resultId {
-                    let result = await browser.evaluateJS(script)
-                    await client.reportBrowserResult(resultId: resultId, result: result)
-                }
-            default: break
-            }
-        }
+        controlPollingCoordinator.start()
     }
 
     private func refreshSelectedActiveCodexThreadIfNeeded() {

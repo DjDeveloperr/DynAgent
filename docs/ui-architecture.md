@@ -75,6 +75,7 @@
 - `AppNavigationCoordinator.swift`: tested AppKit-free app navigation bridge for visible-conversation gating, draft/new-chat transitions, and back/forward state.
 - `AppDetachedChatWindowCoordinator.swift`: tested detached-window lifecycle bridge for creation, close callbacks, per-conversation refresh, and archive cleanup.
 - `AppSearchOverlayCoordinator.swift`: tested search-overlay presentation bridge for overlay creation, retention, and repeat presentation.
+- `AppControlPollingCoordinator.swift`: tested agent-control polling bridge for terminal writes/output reports, browser navigation state reports, eval results, missing-target skips, and active Codex refresh hooks.
 - `AppConversationIndexModel.swift`: tested visible-conversation de-duping, restored-selection lookup, dock recent payloads, and unread finished-thread counts.
 - `AppDockStateCoordinator.swift`: tested Dock-state bridge for recent-thread JSON payloads and unread badge labels.
 - `AppActivityRefreshModel.swift`: tested app activity throttling policy for sidebar rebuilds, dock updates, quota refreshes, git reloads, persistence, and remote Codex history polling.
