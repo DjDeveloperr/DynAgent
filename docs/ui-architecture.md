@@ -19,6 +19,7 @@
 - `GitDiffViews.swift`: reusable AppKit diff document/header/gutter views that consume the diff parser and layout model.
 - `GitActionModel.swift`: tested git action labels, modal sizing, pending-status text, and commit request payload helpers.
 - `GitActionChrome.swift`: reusable AppKit git action sheet/panel chrome for commit, push, branch, and PR actions.
+- `GitPanelChrome.swift`: tested AppKit Git panel header, scope control, diff scroll, PR/status, and root layout chrome.
 - `GitPanelModel.swift`: tested git status and pull-request presentation model for branch labels, diff text, changed-file counts, and PR summaries.
 - `ShellToolModel.swift`: tested command summarizer and command-title model for shell tool rows.
 - `EditToolModel.swift`: tested edit-tool parser and title model for grouped editing rows and popout diff data.

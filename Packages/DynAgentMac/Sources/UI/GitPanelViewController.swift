@@ -26,39 +26,9 @@ final class GitPanelViewController: NSViewController {
     }
 
     override func loadView() {
-        let title = NSTextField(labelWithString: "Changes")
-        title.font = .systemFont(ofSize: 14, weight: .semibold)
-        title.translatesAutoresizingMaskIntoConstraints = false
-        branchLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        branchLabel.textColor = .secondaryLabelColor
-        branchLabel.translatesAutoresizingMaskIntoConstraints = false
-        let header = NSVisualEffectView()
-        header.material = .contentBackground
-        header.blendingMode = .withinWindow
-        header.state = .active
-        header.translatesAutoresizingMaskIntoConstraints = false
-        header.addSubview(title)
-        header.addSubview(branchLabel)
-        scopeControl.selectedSegment = 0
-        scopeControl.target = self
-        scopeControl.action = #selector(scopeChanged)
-        scopeControl.controlSize = .small
-        scopeControl.translatesAutoresizingMaskIntoConstraints = false
-        let headerBorder = NSBox()
-        headerBorder.boxType = .separator
-        headerBorder.translatesAutoresizingMaskIntoConstraints = false
-        header.addSubview(headerBorder)
-
-        diffScroll.hasVerticalScroller = true
-        diffScroll.hasHorizontalScroller = true
-        diffScroll.autohidesScrollers = true
-        diffScroll.scrollerStyle = .overlay
-        diffScroll.documentView = diffDocument
-        diffScroll.borderType = .noBorder
-        diffScroll.drawsBackground = false
-        diffScroll.automaticallyAdjustsContentInsets = false
-        diffScroll.contentInsets = NSEdgeInsets(top: 54, left: 0, bottom: 0, right: 0)
-        diffScroll.contentView.postsBoundsChangedNotifications = true
+        let header = GitPanelChrome.makeHeader(branchLabel: branchLabel)
+        GitPanelChrome.configureScopeControl(scopeControl, target: self, action: #selector(scopeChanged))
+        GitPanelChrome.configureDiffScroll(diffScroll, document: diffDocument)
         diffDocument.onCollapseChanged = { [weak self] in self?.updateDiffHeader() }
         diffHeader.onClick = { [weak self] in
             guard let self else { return }
@@ -72,56 +42,21 @@ final class GitPanelViewController: NSViewController {
         commitField.placeholderString = "Commit message (blank = auto-generate)"
         commitField.font = .systemFont(ofSize: 13)
 
-        statusLabel.font = .systemFont(ofSize: 11)
-        statusLabel.textColor = .tertiaryLabelColor
-
-        prBox.titlePosition = .noTitle
-        prBox.contentView = prLabel
-        prLabel.font = .systemFont(ofSize: 12)
-        prLabel.textColor = .secondaryLabelColor
-        prBox.isHidden = true
-
-        let insets = NSEdgeInsets(top: 0, left: 0, bottom: 12, right: 0)
-        let stack = NSStackView(views: [diffScroll, prBox, statusLabel] as [NSView])
-        stack.orientation = .vertical
-        stack.spacing = 8
-        stack.alignment = .centerX
-        stack.edgeInsets = insets
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        diffScroll.setContentHuggingPriority(.defaultLow, for: .vertical)
-
-        // Make full-width non-diff elements span the panel with matching horizontal padding.
-        for v in [prBox] as [NSView] {
-            v.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
-        }
-        diffScroll.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        GitPanelChrome.configureStatusLabel(statusLabel)
+        GitPanelChrome.configurePRBox(prBox, label: prLabel)
+        let stack = GitPanelChrome.makeContentStack(diffScroll: diffScroll, prBox: prBox, statusLabel: statusLabel)
 
         let root = NSView()
         root.addSubview(stack)
-        root.addSubview(header)
+        root.addSubview(header.view)
         root.addSubview(diffHeader)
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: root.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            stack.bottomAnchor.constraint(equalTo: root.bottomAnchor),
-            header.topAnchor.constraint(equalTo: root.topAnchor),
-            header.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            header.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            header.heightAnchor.constraint(equalToConstant: 54),
-            diffHeader.topAnchor.constraint(equalTo: header.bottomAnchor),
-            diffHeader.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-            diffHeader.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            diffHeader.heightAnchor.constraint(equalToConstant: 34),
-            title.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 14),
-            title.topAnchor.constraint(equalTo: header.topAnchor, constant: 10),
-            branchLabel.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-            branchLabel.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 2),
-            title.trailingAnchor.constraint(lessThanOrEqualTo: header.trailingAnchor, constant: -14),
-            headerBorder.leadingAnchor.constraint(equalTo: header.leadingAnchor),
-            headerBorder.trailingAnchor.constraint(equalTo: header.trailingAnchor),
-            headerBorder.bottomAnchor.constraint(equalTo: header.bottomAnchor),
-        ])
+        NSLayoutConstraint.activate(GitPanelChrome.rootConstraints(
+            root: root,
+            stack: stack,
+            header: header,
+            diffHeader: diffHeader,
+            branchLabel: branchLabel
+        ))
         view = root
     }
 
