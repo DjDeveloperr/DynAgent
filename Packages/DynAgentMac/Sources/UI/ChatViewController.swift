@@ -842,6 +842,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     var onTitleGenerated: ((Conversation, String) -> Void)?
     var onAddWorkspace: (() -> Void)?
     var onNewWorktree: (() -> Void)?
+    var onLayoutChanged: (() -> Void)?
 
     private(set) var conversation: Conversation?
     private let transcript = NSStackView()
@@ -1068,6 +1069,22 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     func setHeaderTitle(_ title: String) {
         headerTitle.stringValue = title.nilIfEmpty ?? "New Chat"
+    }
+
+    var layoutMetrics: [String: Any] {
+        [
+            "chatViewWidth": Double(view.frame.width),
+            "chatViewHeight": Double(view.frame.height),
+            "scrollWidth": Double(scroll.frame.width),
+            "scrollHeight": Double(scroll.frame.height),
+            "documentWidth": Double((scroll.documentView?.frame.width) ?? -1),
+            "documentHeight": Double((scroll.documentView?.frame.height) ?? -1),
+            "transcriptWidth": Double(transcript.frame.width),
+            "transcriptHeight": Double(transcript.frame.height),
+            "composerWidth": Double(card.frame.width),
+            "composerHeight": Double(card.frame.height),
+            "visibleRows": transcript.arrangedSubviews.count,
+        ]
     }
 
     override func loadView() {
@@ -1745,6 +1762,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         if isActiveConversation(c) { showThinking() }
         updateEmptyState()
         scrollToBottom()
+        onLayoutChanged?()
     }
 
     /// Render one turn with its work divider above the final assistant response.

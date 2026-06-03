@@ -125,21 +125,38 @@ final class WorkspaceAreaViewController: NSViewController {
     override func loadView() {
         root.isVertical = true
         root.dividerStyle = .thin
-        root.translatesAutoresizingMaskIntoConstraints = false
-        let v = NSView()
+        root.translatesAutoresizingMaskIntoConstraints = true
+        root.autoresizingMask = [.width, .height]
+        let v = WorkspaceAreaRootView()
+        v.pinnedSplitView = root
         v.addSubview(root)
-        NSLayoutConstraint.activate([
-            root.topAnchor.constraint(equalTo: v.safeAreaLayoutGuide.topAnchor),
-            root.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            root.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            root.bottomAnchor.constraint(equalTo: v.bottomAnchor),
-        ])
+        root.frame = v.bounds
         view = v
+    }
+
+    var layoutMetrics: [String: Any] {
+        [
+            "workspaceViewWidth": Double(view.frame.width),
+            "workspaceViewHeight": Double(view.frame.height),
+            "workspaceRootWidth": Double(root.frame.width),
+            "workspaceRootHeight": Double(root.frame.height),
+            "workspaceRootSubviewFrames": root.arrangedSubviews.enumerated().map { index, view in
+                [
+                    "index": index,
+                    "class": String(describing: type(of: view)),
+                    "x": Double(view.frame.minX),
+                    "y": Double(view.frame.minY),
+                    "width": Double(view.frame.width),
+                    "height": Double(view.frame.height),
+                ] as [String: Any]
+            },
+        ]
     }
 
     func setPrimary(_ content: NSView, title: String) {
         primaryContent = content; primaryTitle = title
         root.addArrangedSubview(makePanel(title: title, content: content, closable: false, showsHeader: false))
+        forceLayoutToBounds()
     }
 
     /// Tear down all browser/terminal panels, leaving only the primary chat. Used to isolate panels per chat.
@@ -149,7 +166,18 @@ final class WorkspaceAreaViewController: NSViewController {
         if let c = primaryContent {
             c.removeFromSuperview()
             root.addArrangedSubview(makePanel(title: primaryTitle, content: c, closable: false, showsHeader: false))
+            forceLayoutToBounds()
         }
+    }
+
+    func forceLayoutToBounds() {
+        guard isViewLoaded else { return }
+        root.frame = view.bounds
+        root.adjustSubviews()
+        if root.arrangedSubviews.count == 1 {
+            root.arrangedSubviews.first?.frame = root.bounds
+        }
+        view.layoutSubtreeIfNeeded()
     }
 
     private func teardown(_ v: NSView) {
@@ -205,6 +233,20 @@ final class WorkspaceAreaViewController: NSViewController {
             only.removeFromSuperview()
             gp.insertArrangedSubview(only, at: gi)
             parent.removeFromSuperview()
+        }
+    }
+}
+
+private final class WorkspaceAreaRootView: NSView {
+    weak var pinnedSplitView: NSSplitView?
+
+    override func layout() {
+        super.layout()
+        guard let pinnedSplitView else { return }
+        pinnedSplitView.frame = bounds
+        pinnedSplitView.adjustSubviews()
+        if pinnedSplitView.arrangedSubviews.count == 1 {
+            pinnedSplitView.arrangedSubviews.first?.frame = pinnedSplitView.bounds
         }
     }
 }

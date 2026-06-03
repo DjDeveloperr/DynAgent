@@ -92,6 +92,9 @@ final class AppController: NSObject, NSToolbarDelegate {
             self?.updateWindowTitle(c)
             self?.persist()
         }
+        chat.onLayoutChanged = { [weak self] in
+            self?.stabilizeMainLayout(reason: "chat-layout")
+        }
         chat.onHarnessChanged = { [weak self] harness in
             self?.loadModelsForHarness(harness)
         }
@@ -165,20 +168,13 @@ final class AppController: NSObject, NSToolbarDelegate {
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
         setMainWindowFrame(desiredFrame)
-        let root = NSViewController()
-        let rootView = FullWindowHostView(frame: NSRect(origin: .zero, size: desiredFrame.size))
-        rootView.autoresizingMask = [.width, .height]
-        root.view = rootView
-        root.addChild(split)
         split.splitView.translatesAutoresizingMaskIntoConstraints = true
-        split.splitView.frame = rootView.bounds
+        split.view.frame = NSRect(origin: .zero, size: desiredFrame.size)
+        split.view.autoresizingMask = [.width, .height]
+        split.splitView.frame = split.view.bounds
         split.splitView.autoresizingMask = [.width, .height]
-        split.splitView.removeFromSuperview()
-        rootView.pinnedView = split.splitView
-        rootView.addSubview(split.splitView)
-        rootContentController = root
-        window.contentViewController = nil
-        window.contentView = rootView
+        rootContentController = split
+        window.contentViewController = split
         split.deactivateInternalSplitSizingConstraints()
         window.toolbar = makeToolbar()
         updateNavigationControls()
@@ -191,6 +187,7 @@ final class AppController: NSObject, NSToolbarDelegate {
                 let frame = self.wideWindowFrame()
                 self.setMainWindowFrame(frame)
                 self.forceRootSplitToContentSize()
+                self.workspaceArea.forceLayoutToBounds()
                 self.applyInitialSplitWidths()
                 self.writeLayoutMetrics()
             }
@@ -561,6 +558,16 @@ final class AppController: NSObject, NSToolbarDelegate {
         }
     }
 
+    private func stabilizeMainLayout(reason: String) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.forceRootSplitToContentSize()
+            self.workspaceArea.forceLayoutToBounds()
+            self.splitView?.adjustSubviews()
+            self.writeLayoutMetrics(reason: reason)
+        }
+    }
+
     private func forceRootSplitToContentSize() {
         let contentBounds = window.contentView?.bounds ?? .zero
         let width = max(contentBounds.width, window.frame.width, window.contentLayoutRect.width)
@@ -574,7 +581,7 @@ final class AppController: NSObject, NSToolbarDelegate {
         }
     }
 
-    private func writeLayoutMetrics() {
+    private func writeLayoutMetrics(reason: String = "startup") {
         let splitFrames = splitView?.subviews.enumerated().map { index, view in
             [
                 "index": index,
@@ -593,7 +600,8 @@ final class AppController: NSObject, NSToolbarDelegate {
                 "height": Double(view.frame.height),
             ] as [String: Any]
         } ?? []
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
+            "reason": reason,
             "windowWidth": Double(window.frame.width),
             "windowHeight": Double(window.frame.height),
             "contentViewWidth": Double(window.contentView?.bounds.width ?? -1),
@@ -619,8 +627,12 @@ final class AppController: NSObject, NSToolbarDelegate {
             "gitCollapsed": gitItem.isCollapsed,
             "splitFrames": splitFrames,
             "chatViewWidth": Double(chat.view.frame.width),
+            "chatViewHeight": Double(chat.view.frame.height),
             "workspaceWidth": Double(workspaceArea.view.frame.width),
+            "workspaceHeight": Double(workspaceArea.view.frame.height),
         ]
+        payload["chat"] = chat.layoutMetrics
+        payload["workspace"] = workspaceArea.layoutMetrics
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".dynagent")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) {
@@ -651,6 +663,7 @@ final class AppController: NSObject, NSToolbarDelegate {
         draft = c
         workspaceArea.resetPanels()
         chat.show(c)
+        stabilizeMainLayout(reason: "new-chat")
         updateWindowTitle(c)
         gitPanel.show(workspace: active.path)
         rebuildGroups()
@@ -667,6 +680,7 @@ final class AppController: NSObject, NSToolbarDelegate {
         chat.setHarness(c.harness, preferredModel: c.model)
         workspaceArea.resetPanels()   // isolate panels per chat
         chat.showShell(c)
+        stabilizeMainLayout(reason: "thread-loading-shell")
         updateWindowTitle(c)
         gitPanel.show(workspace: path)
         sidebar.selectConversation(c)
@@ -679,6 +693,7 @@ final class AppController: NSObject, NSToolbarDelegate {
                 try? await Task.sleep(nanoseconds: 30_000_000)
                 guard self.pendingRenderConversationId == c.id, self.chat.conversation === c else { return }
                 self.chat.show(c)
+                self.stabilizeMainLayout(reason: "thread-render")
             }
         }
     }
@@ -710,7 +725,10 @@ final class AppController: NSObject, NSToolbarDelegate {
             }
             c.status = latestCodexTurnLooksActive(c) ? .running : .idle
             c.updatedAt = previousUpdatedAt
-            if chat.conversation === c { chat.show(c) }
+            if chat.conversation === c {
+                chat.show(c)
+                stabilizeMainLayout(reason: "codex-history-render")
+            }
             rebuildGroups(select: chat.conversation)
             persist()
             Store.saveCodexStubs(codexStubs)
