@@ -769,43 +769,46 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     @objc private func send() {
         guard let c = conversation else { return }
-        let typedText = composer.string.trimmingCharacters(in: .whitespacesAndNewlines)
-        let text = messageTextWithAttachments(typedText)
-        if text.isEmpty {
-            if streaming { stop() }   // empty + streaming => the button is a Stop button
+        let action = ChatSendModel.action(
+            typedText: composer.string,
+            attachmentPaths: ComposerModel.normalizedAttachmentPaths(attachments),
+            streaming: streaming,
+            harness: c.harness,
+            codexThreadId: c.codexThreadId
+        )
+
+        guard action.clearsComposer else {
+            if action == .stop { stop() }
             return
         }
+
         composer.string = ""
         attachments.removeAll()
         renderAttachments()
         clearComposerDraft(for: c)
         textDidChange(Notification(name: NSText.didChangeNotification))
 
-        // Steering: while a turn streams, inject the message. Codex steers natively (turn/steer);
-        // DynAgent queues it for delivery on the next turn.
-        if streaming {
-            if c.harness == .codex, let tid = c.codexThreadId {
-                addSteerNotice(to: c, text: text)
-                Task { [weak self, weak c] in
-                    guard let self, let c else { return }
-                    do {
-                        try await self.client.codexSteer(threadId: tid, text: text)
-                    } catch {
-                        await MainActor.run { self.addInlineError(error.localizedDescription, to: c) }
-                    }
+        switch action {
+        case .none, .stop:
+            return
+        case .sendCodexSteer(let tid, let text):
+            addSteerNotice(to: c, text: text)
+            Task { [weak self, weak c] in
+                guard let self, let c else { return }
+                do {
+                    try await self.client.codexSteer(threadId: tid, text: text)
+                } catch {
+                    await MainActor.run { self.addInlineError(error.localizedDescription, to: c) }
                 }
-            } else {
-                c.steerQueue.append(text)
-                addSteerNotice(to: c, text: text)
             }
             scrollToBottom()
-            return
+        case .queueSteer(let text):
+            c.steerQueue.append(text)
+            addSteerNotice(to: c, text: text)
+            scrollToBottom()
+        case .startTurn(let text):
+            startTurn(text, on: c)
         }
-        startTurn(text, on: c)
-    }
-
-    private func messageTextWithAttachments(_ text: String) -> String {
-        ComposerModel.messageText(typedText: text, attachmentPaths: ComposerModel.normalizedAttachmentPaths(attachments))
     }
 
     private func stop() {
@@ -980,7 +983,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         }
         streamTasks[c.id] = task
     }
-
     private func finish(_ c: Conversation) {
         ConversationTurnMutationModel.finishLatestPromptTurn(in: c.messages)
         setStreaming(false, for: c)
@@ -989,8 +991,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         if conversation === c { currentAssistant = nil }
         emitActivity(c, force: true)
         // Deliver any messages queued while streaming (steering) as the next turn.
-        if !c.steerQueue.isEmpty {
-            let joined = c.steerQueue.joined(separator: "\n\n")
+        if let joined = ChatSendModel.queuedSteerTurnText(c.steerQueue) {
             c.steerQueue.removeAll()
             startTurn(joined, on: c, appendUser: false)
         }

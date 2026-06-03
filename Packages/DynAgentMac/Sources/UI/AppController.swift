@@ -573,10 +573,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func refreshCodexHistoryIfNeeded(_ c: Conversation, force: Bool = false) {
-        guard c.harness == .codex, let tid = c.codexThreadId else { return }
-        guard force || c.needsLoad else { return }
-        guard force || (c.status != .thinking && c.status != .running) else { return }
-        guard !codexRefreshInFlight.contains(tid) else { return }
+        guard let tid = AppCodexHistoryModel.refreshThreadId(for: c, force: force, inFlight: codexRefreshInFlight) else { return }
         codexRefreshInFlight.insert(tid)
         Task { @MainActor in
             defer {
@@ -585,19 +582,8 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             }
             guard let hist = try? await client.codexThread(id: tid) else { return }
             let previousUpdatedAt = c.updatedAt
-            c.messages = hist.map { item in
-                let role = Role(rawValue: item.role) ?? .assistant
-                let m = ChatMessage(role: role, text: item.content, toolName: item.toolName, toolDetail: item.toolDetail)
-                m.toolDone = item.toolDone ?? false
-                m.timestamp = item.timestamp
-                m.turnDuration = item.turnDuration
-                m.turnStartedAt = item.turnStartedAt
-                m.turnStatus = item.turnStatus
-                m.isFinal = item.isFinal
-                m.isSteer = item.isSteer
-                return m
-            }
-            c.status = TranscriptTurnModel.latestTurnLooksActive(conversation: c) ? .running : .idle
+            c.messages = AppCodexHistoryModel.messages(from: hist)
+            c.status = AppCodexHistoryModel.status(afterLoading: c.messages)
             c.updatedAt = previousUpdatedAt
             if chat.conversation === c {
                 chat.show(c)
