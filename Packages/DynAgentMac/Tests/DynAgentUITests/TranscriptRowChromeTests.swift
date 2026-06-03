@@ -37,12 +37,12 @@ final class TranscriptRowChromeTests: XCTestCase {
     }
 
     func testFinalFooterBuildsCopyButtonAndTimestamp() throws {
-        let target = NSObject()
+        let target = DummyTarget()
         let footer = TranscriptRowChrome.finalFooter(
             text: "final",
             timestamp: 1_785_600_000,
             target: target,
-            copyAction: #selector(NSObject.description)
+            copyAction: #selector(DummyTarget.copy(_:))
         )
 
         XCTAssertEqual(footer.copyButton.toolTip, "Copy")
@@ -69,4 +69,8 @@ final class TranscriptRowChromeTests: XCTestCase {
         }
         return result
     }
+}
+
+private final class DummyTarget: NSObject {
+    @objc func copy(_ sender: Any?) {}
 }
