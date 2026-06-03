@@ -2,8 +2,8 @@ import CoreGraphics
 
 enum ChatLayoutModel {
     static let horizontalInset: CGFloat = 14
-    static let maxReadableWidth: CGFloat = 880
-    static let preferredMainWidthWithInspector: CGFloat = 1_128
+    static let maxReadableWidth: CGFloat = 1_100
+    static let preferredMainWidthWithInspector: CGFloat = maxReadableWidth + horizontalInset * 2
 
     static func readableWidth(for containerWidth: CGFloat,
                               horizontalInset: CGFloat = horizontalInset,

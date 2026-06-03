@@ -50,6 +50,7 @@ enum MainLayoutStabilizer {
         )
         guard wrapper.frame != target else { return }
         wrapper.frame = target
+        wrapper.bounds = NSRect(origin: .zero, size: target.size)
         workspaceArea.view.frame = wrapper.bounds
     }
 }

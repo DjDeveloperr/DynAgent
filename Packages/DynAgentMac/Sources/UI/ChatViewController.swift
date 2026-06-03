@@ -41,8 +41,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private let transcriptInteractions = TranscriptInteractionCoordinator()
     private let streamRegistry = ChatStreamRegistry<URLSessionDataTask>()
     private var turnStart = Date()
-    private var shimmerView: ShimmerLabel?
-    private var liveWorkDividerByConversationId: [String: WorkDivider] = [:]
+    private let thinkingCoordinator = ChatThinkingCoordinator()
     private let streamEventCoordinator = ChatStreamEventCoordinator()
     private let maxRenderedMessages = 240
     private let attachmentCoordinator = ComposerAttachmentCoordinator()
@@ -349,10 +348,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             view.window?.makeFirstResponder(composer)
             return
         }
-        shimmerView = nil
+        thinkingCoordinator.reset()
         streamEventCoordinator.adoptVisibleAssistant(for: c)
         transcriptInteractions.reset()
-        liveWorkDividerByConversationId.removeValue(forKey: c.id)
         TranscriptStackChrome.removeAllRows(from: transcript)
         // Render each turn: prompt + work divider + final answer.
         let plan = TranscriptTurnModel.plan(
@@ -374,10 +372,9 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         renderSession = TranscriptRenderSessionModel.beginLoadingShell(state: renderSession)
         conversation = c
         adoptComposerSelection(for: c)
-        shimmerView = nil
+        thinkingCoordinator.reset()
         streamEventCoordinator.adoptVisibleAssistant(for: c)
         transcriptInteractions.reset()
-        liveWorkDividerByConversationId.removeValue(forKey: c.id)
         TranscriptStackChrome.removeAllRows(from: transcript)
         let container = TranscriptLoadingShellChrome.makeRow(text: ChatPresentationModel.loadingText(needsLoad: c.needsLoad))
         TranscriptStackChrome.appendFullWidthRow(container, to: transcript)
@@ -439,7 +436,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                 },
                 setLiveDivider: { [unowned self, weak c] divider in
                     guard let c else { return }
-                    liveWorkDividerByConversationId[c.id] = divider
+                    thinkingCoordinator.setLiveDivider(divider, for: c.id)
                 },
                 addFinalFooter: { [unowned self] message in
                     transcriptInteractions.appendFinalFooter(for: message, to: transcript)
@@ -461,18 +458,22 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     @discardableResult
     private func addWorkDivider(duration: Double?, collapsed: Bool = true, active: Bool = false) -> WorkDivider {
-        let divider = WorkDivider(duration: duration, collapsed: collapsed, active: active)
-        TranscriptStackChrome.appendFullWidthRow(divider, to: transcript)
-        pinShimmerToBottom()
-        return divider
+        thinkingCoordinator.addWorkDivider(
+            duration: duration,
+            collapsed: collapsed,
+            active: active,
+            to: transcript
+        )
     }
 
     private func ensureLiveWorkDivider(for c: Conversation) -> WorkDivider {
-        if let existing = liveWorkDividerByConversationId[c.id] { return existing }
         let startedAt = activeTurnStartedAt(for: c) ?? turnStart.timeIntervalSince1970
-        let divider = addWorkDivider(duration: Date().timeIntervalSince1970 - startedAt, collapsed: false, active: true)
-        liveWorkDividerByConversationId[c.id] = divider
-        return divider
+        return thinkingCoordinator.ensureLiveDivider(
+            for: c.id,
+            startedAt: startedAt,
+            now: Date().timeIntervalSince1970,
+            transcript: transcript
+        )
     }
 
     private func isActiveConversation(_ c: Conversation) -> Bool {
@@ -659,10 +660,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             scheduleToolRefresh(for: c, trigger: trigger)
         }
         if let final = outcome.finalAssistant {
-            if let divider = liveWorkDividerByConversationId[c.id] {
-                divider.finish(duration: final.turnDuration)
-                liveWorkDividerByConversationId[c.id] = nil
-            }
+            thinkingCoordinator.finishLiveDivider(for: c.id, duration: final.turnDuration)
             transcriptInteractions.appendFinalFooter(for: final, to: transcript)
         }
         if outcome.shouldFinishConversation {
@@ -766,10 +764,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     // MARK: - Thinking shimmer
 
     private func showThinking() {
-        guard shimmerView == nil else { return }
-        let row = TranscriptRowChrome.thinkingRow()
-        shimmerView = row.shimmer
-        TranscriptStackChrome.appendFullWidthRow(row.container, to: transcript)
+        thinkingCoordinator.showThinking(in: transcript)
         scrollToBottom()
     }
 
@@ -786,9 +781,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func hideThinking() {
-        guard let s = shimmerView else { return }
-        s.superview?.removeFromSuperview()
-        shimmerView = nil
+        thinkingCoordinator.hideThinking()
     }
 
     // MARK: - Title generation
@@ -843,8 +836,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func pinShimmerToBottom() {
-        guard let s = shimmerView, let sc = s.superview else { return }
-        TranscriptStackChrome.moveRowToBottom(sc, in: transcript)
+        thinkingCoordinator.pinThinkingToBottom(in: transcript)
     }
 
     private func scrollToBottom() {

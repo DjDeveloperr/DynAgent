@@ -124,6 +124,7 @@ enum WindowLayoutChrome {
         )
         guard wrapper.frame != target else { return }
         wrapper.frame = target
+        wrapper.bounds = NSRect(origin: .zero, size: target.size)
         mainView.frame = wrapper.bounds
     }
 }
