@@ -489,10 +489,11 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func forceRootSplitToContentSize() {
-        let contentBounds = window.contentView?.bounds ?? .zero
-        let width = max(contentBounds.width, window.frame.width, window.contentLayoutRect.width)
-        let height = max(contentBounds.height, window.contentLayoutRect.height)
-        let bounds = NSRect(origin: .zero, size: NSSize(width: width, height: height))
+        let bounds = WindowLayoutModel.rootBounds(
+            contentBounds: window.contentView?.bounds ?? .zero,
+            windowFrame: window.frame,
+            contentLayoutRect: window.contentLayoutRect
+        )
         if rootContentController?.view.frame != bounds {
             rootContentController?.view.frame = bounds
         }

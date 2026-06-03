@@ -4,6 +4,66 @@ import XCTest
 
 @MainActor
 final class ComposerChromeTests: XCTestCase {
+    func testPopupChromeMatchesComposerMenuStyle() {
+        let popup = NSPopUpButton()
+
+        ComposerChrome.configurePopup(popup)
+
+        XCTAssertEqual(popup.controlSize, .large)
+        XCTAssertEqual(popup.font, .systemFont(ofSize: 15, weight: .medium))
+        XCTAssertEqual(popup.bezelStyle, .shadowlessSquare)
+        XCTAssertFalse(popup.isBordered)
+        XCTAssertEqual(popup.imagePosition, .imageLeft)
+        XCTAssertFalse(popup.translatesAutoresizingMaskIntoConstraints)
+    }
+
+    func testSendContainerAndFooterUseStableComposerSizing() {
+        let target = AttachmentRemoveTarget()
+        let sendButton = NSButton()
+        let spinner = NSProgressIndicator()
+        let addAttachment = NSButton()
+        let harnessMenu = ComposerMenuChrome(popup: NSPopUpButton(), minWidth: 82)
+        let modelMenu = ComposerMenuChrome(popup: NSPopUpButton(), minWidth: 58)
+        let reasoningMenu = ComposerMenuChrome(popup: NSPopUpButton(), minWidth: 70)
+        let contextRing = ContextRing()
+
+        ComposerChrome.configureSendButton(sendButton, target: target, action: #selector(AttachmentRemoveTarget.remove(_:)))
+        ComposerChrome.configureSpinner(spinner)
+        ComposerChrome.configureAttachmentButton(addAttachment, target: target, action: #selector(AttachmentRemoveTarget.remove(_:)))
+        let sendContainer = ComposerChrome.makeSendContainer(button: sendButton, spinner: spinner)
+        let footer = ComposerChrome.makeFooter(
+            addAttachmentButton: addAttachment,
+            harnessMenu: harnessMenu,
+            modelMenu: modelMenu,
+            reasoningMenu: reasoningMenu,
+            contextRing: contextRing,
+            sendContainer: sendContainer
+        )
+        let constraints = ComposerChrome.footerControlConstraints(
+            addAttachmentButton: addAttachment,
+            sendContainer: sendContainer,
+            sendButton: sendButton,
+            spinner: spinner
+        )
+        NSLayoutConstraint.activate(constraints)
+
+        XCTAssertEqual(sendContainer.layer?.cornerRadius, ComposerChrome.sendButtonCornerRadius)
+        XCTAssertTrue(sendContainer.layer?.masksToBounds ?? false)
+        XCTAssertEqual(footer.orientation, .horizontal)
+        XCTAssertEqual(footer.spacing, ComposerChrome.footerSpacing)
+        XCTAssertEqual(footer.arrangedSubviews.count, 8)
+        XCTAssertTrue(footer.arrangedSubviews[0] === addAttachment)
+        XCTAssertTrue(footer.arrangedSubviews[1] === harnessMenu)
+        XCTAssertTrue(footer.arrangedSubviews[3] === modelMenu)
+        XCTAssertTrue(footer.arrangedSubviews[4] === reasoningMenu)
+        XCTAssertTrue(footer.arrangedSubviews[5] === contextRing)
+        XCTAssertTrue(footer.arrangedSubviews[7] === sendContainer)
+        XCTAssertEqual(footer.customSpacing(after: modelMenu), ComposerChrome.menuSpacing)
+        XCTAssertEqual(footer.customSpacing(after: reasoningMenu), ComposerChrome.menuSpacing)
+        XCTAssertTrue(constraints.contains { $0.firstAnchor == addAttachment.widthAnchor && $0.constant == ComposerChrome.attachmentButtonSize.width })
+        XCTAssertTrue(constraints.contains { $0.firstAnchor == sendContainer.widthAnchor && $0.constant == ComposerChrome.sendButtonSize })
+    }
+
     func testAttachmentStripHidesAndClearsWhenEmpty() {
         let fixture = AttachmentStripFixture()
         fixture.stack.addArrangedSubview(NSView())

@@ -80,6 +80,148 @@ final class ContextRing: NSView {
     }
 }
 
+enum ComposerChrome {
+    static let attachmentButtonSize = NSSize(width: 32, height: 30)
+    static let sendButtonSize: CGFloat = 30
+    static let sendButtonCornerRadius: CGFloat = 15
+    static let footerSpacing: CGFloat = 2
+    static let menuSpacing: CGFloat = 4
+    static let contextRingTrailingSpacerWidth: CGFloat = 18
+
+    static func configureTextView(_ composer: ComposerTextView) {
+        composer.font = .systemFont(ofSize: 15)
+        composer.isRichText = false
+        composer.drawsBackground = false
+        composer.textContainerInset = NSSize(width: 2, height: 8)
+        composer.textContainer?.lineFragmentPadding = 0
+        composer.isVerticallyResizable = true
+        composer.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        composer.autoresizingMask = [.width]
+    }
+
+    static func configurePlaceholder(_ placeholder: NSTextField) {
+        placeholder.stringValue = "Ask Codex"
+        placeholder.textColor = .placeholderTextColor
+        placeholder.font = .systemFont(ofSize: 15.5)
+        placeholder.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    static func configurePopup(_ popup: NSPopUpButton) {
+        popup.controlSize = .large
+        popup.font = .systemFont(ofSize: 15, weight: .medium)
+        popup.bezelStyle = .shadowlessSquare
+        popup.isBordered = false
+        popup.imagePosition = .imageLeft
+        popup.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    static func configureAttachmentStrip(stack: NSStackView, scroll: NSScrollView) {
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 6
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.isHidden = true
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = false
+        scroll.hasHorizontalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.scrollerStyle = .overlay
+        scroll.documentView = stack
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.isHidden = true
+    }
+
+    static func configureSendButton(_ button: NSButton, target: AnyObject, action: Selector) {
+        button.image = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: "Send")?
+            .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold))
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.target = target
+        button.action = action
+        button.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    static func configureSpinner(_ spinner: NSProgressIndicator) {
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isDisplayedWhenStopped = false
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    static func configureAttachmentButton(_ button: NSButton, target: AnyObject, action: Selector) {
+        button.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "Add attachment")?
+            .withSymbolConfiguration(.init(pointSize: 16, weight: .semibold))
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.contentTintColor = .secondaryLabelColor
+        button.target = target
+        button.action = action
+        button.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    static func makeSendContainer(button: NSButton, spinner: NSProgressIndicator) -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor.white.cgColor
+        container.layer?.cornerRadius = sendButtonCornerRadius
+        container.layer?.masksToBounds = true
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(button)
+        container.addSubview(spinner)
+        return container
+    }
+
+    static func makeFooter(
+        addAttachmentButton: NSButton,
+        harnessMenu: ComposerMenuChrome,
+        modelMenu: ComposerMenuChrome,
+        reasoningMenu: ComposerMenuChrome,
+        contextRing: ContextRing,
+        sendContainer: NSView
+    ) -> NSStackView {
+        contextRing.translatesAutoresizingMaskIntoConstraints = false
+        let ringSpacer = NSView()
+        ringSpacer.translatesAutoresizingMaskIntoConstraints = false
+        ringSpacer.widthAnchor.constraint(equalToConstant: contextRingTrailingSpacerWidth).isActive = true
+        let footer = NSStackView(views: [
+            addAttachmentButton,
+            harnessMenu,
+            NSView(),
+            modelMenu,
+            reasoningMenu,
+            contextRing,
+            ringSpacer,
+            sendContainer,
+        ] as [NSView])
+        footer.orientation = .horizontal
+        footer.spacing = footerSpacing
+        footer.setCustomSpacing(menuSpacing, after: modelMenu)
+        footer.setCustomSpacing(menuSpacing, after: reasoningMenu)
+        footer.translatesAutoresizingMaskIntoConstraints = false
+        return footer
+    }
+
+    static func footerControlConstraints(
+        addAttachmentButton: NSButton,
+        sendContainer: NSView,
+        sendButton: NSButton,
+        spinner: NSProgressIndicator
+    ) -> [NSLayoutConstraint] {
+        [
+            addAttachmentButton.widthAnchor.constraint(equalToConstant: attachmentButtonSize.width),
+            addAttachmentButton.heightAnchor.constraint(equalToConstant: attachmentButtonSize.height),
+            sendContainer.widthAnchor.constraint(equalToConstant: sendButtonSize),
+            sendContainer.heightAnchor.constraint(equalToConstant: sendButtonSize),
+            sendButton.centerXAnchor.constraint(equalTo: sendContainer.centerXAnchor),
+            sendButton.centerYAnchor.constraint(equalTo: sendContainer.centerYAnchor),
+            sendButton.widthAnchor.constraint(equalToConstant: sendButtonSize),
+            sendButton.heightAnchor.constraint(equalToConstant: sendButtonSize),
+            spinner.centerXAnchor.constraint(equalTo: sendContainer.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: sendContainer.centerYAnchor),
+        ]
+    }
+}
+
 enum ComposerAttachmentChip {
     static func make(
         attachment: ComposerAttachment,

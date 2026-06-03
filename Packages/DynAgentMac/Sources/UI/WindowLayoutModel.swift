@@ -119,6 +119,16 @@ enum WindowLayoutModel {
         return current.width < applied.width - tolerance
     }
 
+    static func rootBounds(contentBounds: CGRect, windowFrame: CGRect, contentLayoutRect: CGRect) -> CGRect {
+        if contentBounds.width > 0, contentBounds.height > 0 {
+            return CGRect(origin: .zero, size: contentBounds.size)
+        }
+        if contentLayoutRect.width > 0, contentLayoutRect.height > 0 {
+            return CGRect(origin: .zero, size: contentLayoutRect.size)
+        }
+        return CGRect(origin: .zero, size: windowFrame.size)
+    }
+
     static func splitPlan(_ config: WindowSplitConfiguration) -> WindowSplitPlan {
         let sidebarWidth: CGFloat
         if config.sidebarCollapsed {

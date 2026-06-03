@@ -78,6 +78,33 @@ final class WindowLayoutModelTests: XCTestCase {
         ))
     }
 
+    func testRootBoundsPrefersContentViewBoundsOverWindowFrame() {
+        let bounds = WindowLayoutModel.rootBounds(
+            contentBounds: CGRect(x: 0, y: 0, width: 1211, height: 798),
+            windowFrame: CGRect(x: 20, y: 20, width: 1472, height: 846),
+            contentLayoutRect: CGRect(x: 0, y: 0, width: 1472, height: 798)
+        )
+
+        XCTAssertEqual(bounds.origin, .zero)
+        XCTAssertEqual(bounds.size, CGSize(width: 1211, height: 798))
+    }
+
+    func testRootBoundsFallsBackWhenContentBoundsAreUnavailable() {
+        let layoutBounds = WindowLayoutModel.rootBounds(
+            contentBounds: .zero,
+            windowFrame: CGRect(x: 20, y: 20, width: 1472, height: 846),
+            contentLayoutRect: CGRect(x: 0, y: 0, width: 1452, height: 798)
+        )
+        let windowBounds = WindowLayoutModel.rootBounds(
+            contentBounds: .zero,
+            windowFrame: CGRect(x: 20, y: 20, width: 1472, height: 846),
+            contentLayoutRect: .zero
+        )
+
+        XCTAssertEqual(layoutBounds.size, CGSize(width: 1452, height: 798))
+        XCTAssertEqual(windowBounds.size, CGSize(width: 1472, height: 846))
+    }
+
     func testSplitPlanKeepsCenterWideWhenGitIsCollapsed() {
         let plan = WindowLayoutModel.splitPlan(WindowSplitConfiguration(
             totalWidth: 1452,

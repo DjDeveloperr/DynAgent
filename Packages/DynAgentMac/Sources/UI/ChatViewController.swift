@@ -286,80 +286,34 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         composer.delegate = self
         composer.onSend = { [weak self] in self?.send() }
         composer.onPasteAttachments = { [weak self] urls in self?.addAttachments(urls) }
-        composer.font = .systemFont(ofSize: 15)
-        composer.isRichText = false
-        composer.drawsBackground = false
-        composer.textContainerInset = NSSize(width: 2, height: 8)
-        composer.textContainer?.lineFragmentPadding = 0
-        composer.isVerticallyResizable = true
-        composer.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        composer.autoresizingMask = [.width]
+        ComposerChrome.configureTextView(composer)
         let composerScroll = NSScrollView()
         composerScroll.drawsBackground = false
         composerScroll.documentView = composer
         composerScroll.translatesAutoresizingMaskIntoConstraints = false
 
-        placeholder.stringValue = "Ask Codex"
-        placeholder.textColor = .placeholderTextColor
-        placeholder.font = .systemFont(ofSize: 15.5)
-        placeholder.translatesAutoresizingMaskIntoConstraints = false
+        ComposerChrome.configurePlaceholder(placeholder)
 
-        attachmentStack.orientation = .horizontal
-        attachmentStack.alignment = .centerY
-        attachmentStack.spacing = 6
-        attachmentStack.translatesAutoresizingMaskIntoConstraints = false
-        attachmentStack.isHidden = true
-        attachmentScroll.drawsBackground = false
-        attachmentScroll.hasVerticalScroller = false
-        attachmentScroll.hasHorizontalScroller = true
-        attachmentScroll.autohidesScrollers = true
-        attachmentScroll.scrollerStyle = .overlay
-        attachmentScroll.documentView = attachmentStack
-        attachmentScroll.translatesAutoresizingMaskIntoConstraints = false
-        attachmentScroll.isHidden = true
+        ComposerChrome.configureAttachmentStrip(stack: attachmentStack, scroll: attachmentScroll)
 
         // Composer footer: harness + model selector + context usage on the left, send on the right.
-        stylePopup(harnessPopup)
+        ComposerChrome.configurePopup(harnessPopup)
         harnessPopup.addItems(withTitles: Harness.allCases.map(\.rawValue))
         harnessPopup.target = self
         harnessPopup.action = #selector(harnessDidChange)
-        stylePopup(modelPopup)
+        ComposerChrome.configurePopup(modelPopup)
         modelPopup.target = self
         modelPopup.action = #selector(menuDidChange)
-        stylePopup(reasoningPopup)
+        ComposerChrome.configurePopup(reasoningPopup)
         reasoningPopup.addItems(withTitles: ["high", "medium", "low", "xhigh"])
         reasoningPopup.selectItem(withTitle: "high")
         reasoningPopup.target = self
         reasoningPopup.action = #selector(menuDidChange)
-        contextRing.translatesAutoresizingMaskIntoConstraints = false
 
-        spinner.style = .spinning
-        spinner.controlSize = .small
-        spinner.isDisplayedWhenStopped = false
-        spinner.translatesAutoresizingMaskIntoConstraints = false
-        sendButton.image = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: "Send")?
-            .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold))
-        sendButton.isBordered = false
-        sendButton.imagePosition = .imageOnly
-        sendButton.target = self
-        sendButton.action = #selector(send)
-        addAttachmentButton.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "Add attachment")?
-            .withSymbolConfiguration(.init(pointSize: 16, weight: .semibold))
-        addAttachmentButton.isBordered = false
-        addAttachmentButton.imagePosition = .imageOnly
-        addAttachmentButton.contentTintColor = .secondaryLabelColor
-        addAttachmentButton.target = self
-        addAttachmentButton.action = #selector(addAttachmentClicked)
-        addAttachmentButton.translatesAutoresizingMaskIntoConstraints = false
-        let sendStack = NSView()
-        sendStack.wantsLayer = true
-        sendStack.layer?.backgroundColor = NSColor.white.cgColor
-        sendStack.layer?.cornerRadius = 15
-        sendStack.layer?.masksToBounds = true
-        sendStack.translatesAutoresizingMaskIntoConstraints = false
-        sendButton.translatesAutoresizingMaskIntoConstraints = false
-        sendStack.addSubview(sendButton)
-        sendStack.addSubview(spinner)
+        ComposerChrome.configureSpinner(spinner)
+        ComposerChrome.configureSendButton(sendButton, target: self, action: #selector(send))
+        ComposerChrome.configureAttachmentButton(addAttachmentButton, target: self, action: #selector(addAttachmentClicked))
+        let sendStack = ComposerChrome.makeSendContainer(button: sendButton, spinner: spinner)
 
         let harnessMenu = ComposerMenuChrome(popup: harnessPopup, minWidth: 82)
         let modelMenu = ComposerMenuChrome(popup: modelPopup, minWidth: 58)
@@ -369,24 +323,14 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         self.modelMenu = modelMenu
         self.reasoningMenu = reasoningMenu
 
-        let ringSpacer = NSView()
-        ringSpacer.translatesAutoresizingMaskIntoConstraints = false
-        ringSpacer.widthAnchor.constraint(equalToConstant: 18).isActive = true
-        let footer = NSStackView(views: [
-            addAttachmentButton,
-            harnessMenu,
-            NSView(),
-            modelMenu,
-            reasoningMenu,
-            contextRing,
-            ringSpacer,
-            sendStack
-        ] as [NSView])
-        footer.orientation = .horizontal
-        footer.spacing = 2
-        footer.setCustomSpacing(4, after: modelMenu)
-        footer.setCustomSpacing(4, after: reasoningMenu)
-        footer.translatesAutoresizingMaskIntoConstraints = false
+        let footer = ComposerChrome.makeFooter(
+            addAttachmentButton: addAttachmentButton,
+            harnessMenu: harnessMenu,
+            modelMenu: modelMenu,
+            reasoningMenu: reasoningMenu,
+            contextRing: contextRing,
+            sendContainer: sendStack
+        )
 
         card.cornerRadius = 22
         card.translatesAutoresizingMaskIntoConstraints = false
@@ -473,16 +417,12 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             footer.leadingAnchor.constraint(equalTo: cardContent.leadingAnchor, constant: 12),
             footer.trailingAnchor.constraint(equalTo: cardContent.trailingAnchor, constant: -12),
             footer.bottomAnchor.constraint(equalTo: cardContent.bottomAnchor, constant: -12),
-            addAttachmentButton.widthAnchor.constraint(equalToConstant: 32),
-            addAttachmentButton.heightAnchor.constraint(equalToConstant: 30),
-            sendStack.widthAnchor.constraint(equalToConstant: 30),
-            sendStack.heightAnchor.constraint(equalToConstant: 30),
-            sendButton.centerXAnchor.constraint(equalTo: sendStack.centerXAnchor),
-            sendButton.centerYAnchor.constraint(equalTo: sendStack.centerYAnchor),
-            sendButton.widthAnchor.constraint(equalToConstant: 30),
-            sendButton.heightAnchor.constraint(equalToConstant: 30),
-            spinner.centerXAnchor.constraint(equalTo: sendStack.centerXAnchor),
-            spinner.centerYAnchor.constraint(equalTo: sendStack.centerYAnchor),
+        ] + ComposerChrome.footerControlConstraints(
+            addAttachmentButton: addAttachmentButton,
+            sendContainer: sendStack,
+            sendButton: sendButton,
+            spinner: spinner
+        ) + [
 
             emptyStack.centerXAnchor.constraint(equalTo: scroll.centerXAnchor),
             emptyStack.bottomAnchor.constraint(equalTo: card.topAnchor, constant: -24),
@@ -515,21 +455,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             bottomInsetCache = inset
             scroll.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: inset, right: 0)
         }
-    }
-
-    /// Lower the priority of a "preferred width" constraint so the column can shrink.
-    private func column(_ c: NSLayoutConstraint) -> NSLayoutConstraint {
-        c.priority = .defaultHigh
-        return c
-    }
-
-    private func stylePopup(_ popup: NSPopUpButton) {
-        popup.controlSize = .large
-        popup.font = .systemFont(ofSize: 15, weight: .medium)
-        popup.bezelStyle = .shadowlessSquare
-        popup.isBordered = false
-        popup.imagePosition = .imageLeft
-        popup.translatesAutoresizingMaskIntoConstraints = false
     }
 
     private func syncComposerMenus() {

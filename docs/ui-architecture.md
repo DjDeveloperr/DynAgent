@@ -33,13 +33,13 @@
 - `SearchOverlayModel.swift`: tested pure search overlay model for bounded chat/message matching, recency sorting, result limiting, and row detail labels.
 - `ComposerModel.swift`: tested composer behavior model for model/reasoning menu data, picker selection, draft keys, attachment message text, draft snapshots, attachment normalization, context state, and send/stop state.
 - `ComposerDraftStore.swift`: tested draft persistence store for preserving composer text and attachments across chat switches and hot reloads.
-- `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips, and attachment strip rendering.
+- `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips/strip rendering, menu styling, send/attachment buttons, and stable footer sizing.
 - `MobilePresentationModel.swift`: tested shared iOS presentation bridge for mobile composer labels/send state and mobile tool rows.
 - `NavigationHistoryModel.swift`: tested identity-based back/forward stack behavior for chat navigation.
 - `AppConversationIndexModel.swift`: tested visible-conversation de-duping, restored-selection lookup, dock recent payloads, and unread finished-thread counts.
 - `AppHotStateModel.swift`: tested hot-reload state serializer/restorer for conversations, active Codex thread status, workspace refs, model cache, and selection.
 - `ChatLayoutModel.swift`: shared chat-column constants and inspector-aware split sizing.
-- `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, wide fallback sizing, split divider planning, metrics payloads, and post-load width invariants.
+- `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, root content bounds, wide fallback sizing, split divider planning, metrics payloads, and post-load width invariants.
 - `WindowHosting.swift`: full-window host and split-view pinning used by the hot-reloadable macOS UI.
 - `WorkspacePanelChrome.swift`: reusable AppKit workspace tile chrome and root split pinning for chat, terminal, and browser panels.
 
