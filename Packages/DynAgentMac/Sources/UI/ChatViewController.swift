@@ -40,9 +40,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var attachmentHeightConstraint: NSLayoutConstraint?
     private let transcriptRegistry = TranscriptRowRegistry()
     private let toolPopoverCoordinator = TranscriptToolPopoverCoordinator()
-    private var streamingConversationIds = Set<String>()
-    private var streamTasks: [String: URLSessionDataTask] = [:]
-    private var stopping = false
+    private let streamRegistry = ChatStreamRegistry<URLSessionDataTask>()
     private var turnStart = Date()
     private var shimmerView: ShimmerLabel?
     private var liveWorkDividerByConversationId: [String: WorkDivider] = [:]
@@ -66,7 +64,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     func hasLocalStream(for c: Conversation) -> Bool {
-        streamingConversationIds.contains(c.id)
+        streamRegistry.isActive(c.id)
     }
 
     var selectedModel: String {
@@ -688,7 +686,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func isActiveConversation(_ c: Conversation) -> Bool {
-        streamingConversationIds.contains(c.id) || c.status == .thinking || c.status == .running
+        streamRegistry.isActive(c.id) || c.status == .thinking || c.status == .running
     }
 
     private func activeTurnStartedAt(for c: Conversation) -> Double? {
@@ -773,15 +771,15 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     private func stop() {
         guard let c = conversation else { return }
-        stopping = true
+        streamRegistry.markStopping(c.id)
         c.steerQueue.removeAll()
         if c.harness == .codex, let tid = c.codexThreadId {
             Task { await client.codexCancel(threadId: tid) }
         }
-        client.cancel(streamTasks[c.id])
+        client.cancel(streamRegistry.task(for: c.id))
         hideThinking(); finalizeAssistant(for: c)
         c.status = .idle
-        finish(c)
+        finish(c, preservingStopFlag: true)
     }
 
     private func startTurn(_ text: String, on c: Conversation, appendUser: Bool = true) {
@@ -869,7 +867,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                 }
             case .error(let e):
                 if isVisible { self.hideThinking() }
-                if self.stopping { self.stopping = false; return }   // user-initiated stop, not a real error
+                if self.streamRegistry.consumeStopping(c.id) { return }   // user-initiated stop, not a real error
                 let result = ChatStreamMutationModel.appendErrorText(e, to: c, existing: self.assistantByConversationId[c.id], startedAt: self.activeTurnStartedAt(for: c))
                 if result.created {
                     self.assistantByConversationId[c.id] = result.message
@@ -912,12 +910,12 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         } else {
             task = client.chat(model: selectedModel, conversationId: c.id, cwd: c.workspace, messages: c.history, onEvent: handler)
         }
-        streamTasks[c.id] = task
+        streamRegistry.setTask(task, id: c.id)
     }
-    private func finish(_ c: Conversation) {
+    private func finish(_ c: Conversation, preservingStopFlag: Bool = false) {
         ConversationTurnMutationModel.finishLatestPromptTurn(in: c.messages)
         setStreaming(false, for: c)
-        streamTasks[c.id] = nil
+        streamRegistry.finish(c.id, preservingStopFlag: preservingStopFlag)
         assistantByConversationId[c.id] = nil
         if conversation === c { currentAssistant = nil }
         emitActivity(c, force: true)
@@ -1002,8 +1000,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     }
 
     private func setStreaming(_ on: Bool, for c: Conversation) {
-        if on { streamingConversationIds.insert(c.id) }
-        else { streamingConversationIds.remove(c.id) }
+        streamRegistry.setActive(on, id: c.id)
         if conversation === c { updateSendButton() }
     }
 
