@@ -38,7 +38,7 @@ final class SearchOverlayChromeTests: XCTestCase {
         SearchOverlayChrome.configureField(field, delegate: delegate) { escaped = true }
 
         XCTAssertEqual(field.placeholderString, "Search chats")
-        XCTAssertEqual(field.font, .systemFont(ofSize: 18, weight: .regular))
+        XCTAssertEqual(field.font, DesignSystem.Font.overlaySearch)
         XCTAssertTrue(field.cell is PaddedSearchFieldCell)
         XCTAssertEqual(field.focusRingType, .none)
         XCTAssertTrue(field.delegate === delegate)
@@ -59,7 +59,7 @@ final class SearchOverlayChromeTests: XCTestCase {
         SearchOverlayChrome.configureStack(stack, in: document)
         XCTAssertEqual(stack.orientation, .vertical)
         XCTAssertEqual(stack.alignment, .leading)
-        XCTAssertEqual(stack.spacing, 4)
+        XCTAssertEqual(stack.spacing, DesignSystem.Spacing.xSmall)
         XCTAssertTrue(document.subviews.contains(stack))
         XCTAssertFalse(document.translatesAutoresizingMaskIntoConstraints)
         XCTAssertFalse(stack.translatesAutoresizingMaskIntoConstraints)
@@ -87,6 +87,7 @@ final class SearchOverlayChromeTests: XCTestCase {
             stack: stack
         )
 
+        XCTAssertEqual(card.layer?.cornerRadius, DesignSystem.Radius.overlayCard)
         XCTAssertTrue(constraints.contains { $0.firstItem === card && $0.firstAttribute == .width && $0.constant == SearchOverlayChrome.cardSize.width })
         XCTAssertTrue(constraints.contains { $0.firstItem === card && $0.firstAttribute == .height && $0.constant == SearchOverlayChrome.cardSize.height })
         XCTAssertTrue(constraints.contains { $0.firstItem === card && $0.firstAttribute == .top && $0.constant == SearchOverlayChrome.cardTop })
@@ -103,10 +104,10 @@ final class SearchOverlayChromeTests: XCTestCase {
 
         let labels = row.descendantTextFields()
         XCTAssertEqual(labels.map(\.stringValue), ["Storage Cleanup", "dynamic_agent"])
-        XCTAssertEqual(labels[0].font, .systemFont(ofSize: 14, weight: .medium))
+        XCTAssertEqual(labels[0].font, DesignSystem.Font.overlayRowTitle)
         XCTAssertEqual(labels[0].lineBreakMode, .byTruncatingTail)
         XCTAssertEqual(labels[0].maximumNumberOfLines, 1)
-        XCTAssertEqual(labels[1].font, .systemFont(ofSize: 11.5))
+        XCTAssertEqual(labels[1].font, DesignSystem.Font.overlayRowDetail)
         XCTAssertEqual(labels[1].textColor, .tertiaryLabelColor)
         XCTAssertEqual(labels[1].lineBreakMode, .byTruncatingTail)
         XCTAssertEqual(labels[1].maximumNumberOfLines, 1)

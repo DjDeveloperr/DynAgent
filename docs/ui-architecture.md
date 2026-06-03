@@ -2,7 +2,7 @@
 
 ## Current Shared Mac Components
 
-- `DesignSystem.swift`: shared typography, colors, and paragraph tokens. Add visual constants here before introducing one-off styling in feature controllers.
+- `DesignSystem.swift`: shared typography, colors, radius, spacing, and paragraph tokens. Add visual constants here before introducing one-off styling in feature controllers.
 - `ChromeControls.swift`: reusable AppKit chrome controls, currently `ChromeIconButton` and `ComposerMenuChrome`.
 - `AppMenuChrome.swift`: tested AppKit main-menu command chrome for app, file, edit, and window menus.
 - `AppToolbarChrome.swift`: tested AppKit toolbar identifiers and chrome builders for navigation, native actions, Git scope, and chat-title controls.
@@ -60,6 +60,7 @@
 - `SidebarArchiveConfirmationModel.swift`: tested archive confirmation reducer for first-click confirmation, second-click archive, hover-out cancellation, and reload decisions.
 - `SidebarArchiveConfirmationCoordinator.swift`: tested AppKit-timer bridge for sidebar archive confirmation, hover-out debounce cancellation, and reload triggering.
 - `SidebarHoverTipCoordinator.swift`: tested AppKit-timer bridge for delayed sidebar hover tooltips, cancellation, and stale-row suppression.
+- `DesignSystem.swift`: shared AppKit design tokens for chrome fonts, radii, spacing, and semantic fill/backdrop colors used by reusable UI components.
 - `SidebarChrome.swift`: reusable AppKit sidebar row, scroll-hover clearing, spinner, and liquid tooltip chrome.
 - `SearchOverlayModel.swift`: tested pure search overlay model for bounded chat/message matching, recency sorting, result limiting, and row detail labels.
 - `SearchOverlayChrome.swift`: tested AppKit search overlay panel, backdrop, padded search field, scroll/stack layout, and result-row chrome.
@@ -71,7 +72,7 @@
 - `ComposerAttachmentCoordinator.swift`: tested AppKit bridge that combines composer draft persistence, attachment strip rendering, and remove-button identity mapping.
 - `ChatSendModel.swift`: tested prompt/stop/steer send-action routing, attachment-only sends, native Codex steering, and queued steer prompt joining.
 - `ComposerDraftStore.swift`: tested draft persistence store for preserving composer text and attachments across chat switches and hot reloads.
-- `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips/strip rendering, Codex nested model/reasoning menus, menu label styling/state application, send/attachment buttons, send-state application, and stable footer sizing.
+- `ComposerChrome.swift`: reusable AppKit composer text input, context ring, attachment chips/strip rendering, Codex nested model/reasoning menus, menu label styling/state application, send/attachment buttons, composer card surface layout, send-state application, and stable footer sizing.
 - `MobilePresentationModel.swift`: tested shared iOS presentation bridge for mobile composer labels/send state and mobile tool rows.
 - `NavigationHistoryModel.swift`: tested identity-based back/forward stack behavior for chat navigation.
 - `AppNavigationCoordinator.swift`: tested AppKit-free app navigation bridge for visible-conversation gating, draft/new-chat transitions, and back/forward state.

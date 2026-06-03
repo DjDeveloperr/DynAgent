@@ -40,7 +40,7 @@ final class SidebarRow: NSView {
         self.showsHoverBackground = showsHoverBackground
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.cornerRadius = 7
+        layer?.cornerRadius = DesignSystem.Radius.sidebarRow
         translatesAutoresizingMaskIntoConstraints = false
         heightAnchor.constraint(equalToConstant: height).isActive = true
         build(self)
@@ -82,8 +82,8 @@ final class SidebarRow: NSView {
     }
 
     private func refresh() {
-        let color: NSColor = selected ? .secondaryLabelColor.withAlphaComponent(0.12)
-            : (hovering && showsHoverBackground) ? .secondaryLabelColor.withAlphaComponent(0.06) : .clear
+        let color: NSColor = selected ? DesignSystem.Color.selectedSidebarFill
+            : (hovering && showsHoverBackground) ? DesignSystem.Color.hoverSidebarFill : .clear
         layer?.backgroundColor = color.cgColor
         onHoverChanged?(hovering)
     }

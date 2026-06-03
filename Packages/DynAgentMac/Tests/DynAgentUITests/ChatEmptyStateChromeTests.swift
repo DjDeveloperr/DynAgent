@@ -15,6 +15,10 @@ final class ChatEmptyStateChromeTests: XCTestCase {
         ChatEmptyStateChrome.configureActions(actions)
         ChatEmptyStateChrome.configureStack(stack, title: title, subtitle: subtitle, actions: actions)
 
+        XCTAssertEqual(ChatEmptyStateChrome.titleFont, DesignSystem.Font.emptyStateTitle)
+        XCTAssertEqual(ChatEmptyStateChrome.subtitleFont, DesignSystem.Font.emptyStateSubtitle)
+        XCTAssertEqual(ChatEmptyStateChrome.stackSpacing, DesignSystem.Spacing.large)
+        XCTAssertEqual(ChatEmptyStateChrome.actionSpacing, DesignSystem.Spacing.large)
         XCTAssertEqual(title.font, ChatEmptyStateChrome.titleFont)
         XCTAssertEqual(title.alignment, .center)
         XCTAssertEqual(subtitle.font, ChatEmptyStateChrome.subtitleFont)
@@ -61,6 +65,7 @@ final class ChatEmptyStateChromeTests: XCTestCase {
         XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertFalse(button.isBordered)
         XCTAssertEqual(button.controlSize, .large)
+        XCTAssertEqual(button.font, DesignSystem.Font.actionButton)
     }
 
     private func XCTAssertWidthConstraint(

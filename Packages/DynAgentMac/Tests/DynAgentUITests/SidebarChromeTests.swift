@@ -19,4 +19,12 @@ final class SidebarChromeTests: XCTestCase {
         XCTAssertEqual(scroll.frame.width, 300, accuracy: 0.5)
         XCTAssertEqual(scroll.frame.height, 700, accuracy: 0.5)
     }
+
+    func testSidebarRowUsesSharedRowChrome() {
+        let row = SidebarRow(height: 34, onClick: {}) { _ in }
+
+        XCTAssertEqual(row.layer?.cornerRadius, DesignSystem.Radius.sidebarRow)
+        XCTAssertFalse(row.translatesAutoresizingMaskIntoConstraints)
+        XCTAssertTrue(row.constraints.contains { $0.firstAnchor == row.heightAnchor && $0.constant == 34 })
+    }
 }

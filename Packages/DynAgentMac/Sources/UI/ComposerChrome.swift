@@ -289,6 +289,65 @@ enum ComposerChrome {
     }
 }
 
+enum ComposerSurfaceChrome {
+    static let cornerRadius: CGFloat = 22
+    static let cardContentHorizontalInset: CGFloat = 12
+    static let attachmentTopInset: CGFloat = 10
+    static let attachmentToTextSpacing: CGFloat = 6
+    static let textToFooterSpacing: CGFloat = 8
+    static let textMinHeight: CGFloat = 78
+    static let textMaxHeight: CGFloat = 200
+    static let placeholderTopInset: CGFloat = 8
+    static let placeholderLeadingInset: CGFloat = 2
+    static let footerBottomInset: CGFloat = 12
+
+    static func makeComposerScroll(containing composer: ComposerTextView) -> NSScrollView {
+        let scroll = NSScrollView()
+        scroll.drawsBackground = false
+        scroll.documentView = composer
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        return scroll
+    }
+
+    static func install(
+        card: NSGlassEffectView,
+        content: NSView,
+        composerScroll: NSScrollView,
+        placeholder: NSTextField,
+        attachmentScroll: NSScrollView,
+        footer: NSView,
+        attachmentHeightConstraint: NSLayoutConstraint
+    ) -> [NSLayoutConstraint] {
+        card.cornerRadius = cornerRadius
+        card.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(composerScroll)
+        content.addSubview(placeholder)
+        content.addSubview(attachmentScroll)
+        content.addSubview(footer)
+        card.contentView = content
+
+        return [
+            attachmentScroll.topAnchor.constraint(equalTo: content.topAnchor, constant: attachmentTopInset),
+            attachmentScroll.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: cardContentHorizontalInset),
+            attachmentScroll.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -cardContentHorizontalInset),
+            attachmentHeightConstraint,
+
+            composerScroll.topAnchor.constraint(equalTo: attachmentScroll.bottomAnchor, constant: attachmentToTextSpacing),
+            composerScroll.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: cardContentHorizontalInset),
+            composerScroll.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -cardContentHorizontalInset),
+            composerScroll.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -textToFooterSpacing),
+            composerScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: textMinHeight),
+            composerScroll.heightAnchor.constraint(lessThanOrEqualToConstant: textMaxHeight),
+            placeholder.leadingAnchor.constraint(equalTo: composerScroll.leadingAnchor, constant: placeholderLeadingInset),
+            placeholder.topAnchor.constraint(equalTo: composerScroll.topAnchor, constant: placeholderTopInset),
+
+            footer.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: cardContentHorizontalInset),
+            footer.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -cardContentHorizontalInset),
+            footer.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -footerBottomInset),
+        ]
+    }
+}
+
 enum ComposerAttachmentChip {
     static func make(
         attachment: ComposerAttachment,
@@ -342,8 +401,8 @@ enum ComposerAttachmentChip {
         stack.alignment = .centerY
         stack.edgeInsets = NSEdgeInsets(top: isImage ? 5 : 6, left: 8, bottom: isImage ? 5 : 6, right: 5)
         stack.wantsLayer = true
-        stack.layer?.cornerRadius = 8
-        stack.layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(0.12).cgColor
+        stack.layer?.cornerRadius = DesignSystem.Radius.attachmentChip
+        stack.layer?.backgroundColor = DesignSystem.Color.attachmentFill.cgColor
         stack.toolTip = attachment.url.path
         label.widthAnchor.constraint(lessThanOrEqualToConstant: isImage ? 150 : 190).isActive = true
         return (stack, close)

@@ -1,15 +1,15 @@
 import AppKit
 
 enum ChatEmptyStateChrome {
-    static let titleFont = NSFont.systemFont(ofSize: 22, weight: .semibold)
-    static let subtitleFont = NSFont.systemFont(ofSize: 13)
+    static let titleFont = DesignSystem.Font.emptyStateTitle
+    static let subtitleFont = DesignSystem.Font.emptyStateSubtitle
     static let subtitleMaxWidth: CGFloat = 420
-    static let stackSpacing: CGFloat = 10
-    static let actionSpacing: CGFloat = 10
+    static let stackSpacing = DesignSystem.Spacing.large
+    static let actionSpacing = DesignSystem.Spacing.large
     static let actionHeight: CGFloat = 30
-    static let actionCornerRadius: CGFloat = 13
-    static let actionLeadingInset: CGFloat = 10
-    static let actionTrailingInset: CGFloat = 8
+    static let actionCornerRadius = DesignSystem.Radius.compactGlassControl
+    static let actionLeadingInset = DesignSystem.Spacing.large
+    static let actionTrailingInset = DesignSystem.Spacing.medium
     static let newWorktreeWidth: CGFloat = 142
     static let addWorkspaceWidth: CGFloat = 150
 
@@ -48,7 +48,7 @@ enum ChatEmptyStateChrome {
         button.imagePosition = .imageLeading
         button.isBordered = false
         button.controlSize = .large
-        button.font = .systemFont(ofSize: 13, weight: .medium)
+        button.font = DesignSystem.Font.actionButton
         button.translatesAutoresizingMaskIntoConstraints = false
         return glassControl(button, minWidth: minWidth(for: title))
     }

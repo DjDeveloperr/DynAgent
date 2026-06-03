@@ -170,6 +170,47 @@ final class ComposerChromeTests: XCTestCase {
         XCTAssertTrue(constraints.contains { $0.firstAnchor == sendContainer.widthAnchor && $0.constant == ComposerChrome.sendButtonSize })
     }
 
+    func testComposerSurfaceInstallsCardContentAndStableConstraints() {
+        let composer = ComposerTextView()
+        let composerScroll = ComposerSurfaceChrome.makeComposerScroll(containing: composer)
+        let card = NSGlassEffectView()
+        let content = NSView()
+        let placeholder = NSTextField(labelWithString: "")
+        placeholder.translatesAutoresizingMaskIntoConstraints = false
+        let attachmentScroll = NSScrollView()
+        attachmentScroll.translatesAutoresizingMaskIntoConstraints = false
+        let footer = NSView()
+        footer.translatesAutoresizingMaskIntoConstraints = false
+        let attachmentHeight = attachmentScroll.heightAnchor.constraint(equalToConstant: 0)
+
+        let constraints = ComposerSurfaceChrome.install(
+            card: card,
+            content: content,
+            composerScroll: composerScroll,
+            placeholder: placeholder,
+            attachmentScroll: attachmentScroll,
+            footer: footer,
+            attachmentHeightConstraint: attachmentHeight
+        )
+
+        XCTAssertFalse(composerScroll.drawsBackground)
+        XCTAssertTrue(composerScroll.documentView === composer)
+        XCTAssertEqual(card.cornerRadius, ComposerSurfaceChrome.cornerRadius)
+        XCTAssertFalse(card.translatesAutoresizingMaskIntoConstraints)
+        XCTAssertTrue(card.contentView === content)
+        XCTAssertTrue(content.subviews.contains(composerScroll))
+        XCTAssertTrue(content.subviews.contains(placeholder))
+        XCTAssertTrue(content.subviews.contains(attachmentScroll))
+        XCTAssertTrue(content.subviews.contains(footer))
+        XCTAssertTrue(constraints.contains { $0 === attachmentHeight })
+        XCTAssertTrue(constraints.contains { $0.firstAnchor == attachmentScroll.topAnchor && $0.constant == ComposerSurfaceChrome.attachmentTopInset })
+        XCTAssertTrue(constraints.contains { $0.firstAnchor == composerScroll.topAnchor && $0.secondAnchor == attachmentScroll.bottomAnchor && $0.constant == ComposerSurfaceChrome.attachmentToTextSpacing })
+        XCTAssertTrue(constraints.contains { $0.firstAnchor == composerScroll.heightAnchor && $0.relation == .greaterThanOrEqual && $0.constant == ComposerSurfaceChrome.textMinHeight })
+        XCTAssertTrue(constraints.contains { $0.firstAnchor == composerScroll.heightAnchor && $0.relation == .lessThanOrEqual && $0.constant == ComposerSurfaceChrome.textMaxHeight })
+        XCTAssertTrue(constraints.contains { $0.firstAnchor == placeholder.topAnchor && $0.secondAnchor == composerScroll.topAnchor && $0.constant == ComposerSurfaceChrome.placeholderTopInset })
+        XCTAssertTrue(constraints.contains { $0.firstAnchor == footer.bottomAnchor && $0.constant == -ComposerSurfaceChrome.footerBottomInset })
+    }
+
     func testAttachmentStripHidesAndClearsWhenEmpty() {
         let fixture = AttachmentStripFixture()
         fixture.stack.addArrangedSubview(NSView())
@@ -211,6 +252,8 @@ final class ComposerChromeTests: XCTestCase {
         XCTAssertEqual(fixture.height.constant, ComposerAttachmentStripChrome.visibleHeight)
         XCTAssertEqual(fixture.stack.arrangedSubviews.count, 2)
         XCTAssertEqual(Set(removeIds.values), Set(attachments.map(\.id)))
+        XCTAssertEqual(fixture.stack.arrangedSubviews.first?.layer?.cornerRadius, DesignSystem.Radius.attachmentChip)
+        XCTAssertNotNil(fixture.stack.arrangedSubviews.first?.layer?.backgroundColor)
         XCTAssertGreaterThanOrEqual(fixture.stack.frame.width, fixture.scroll.contentView.bounds.width)
         XCTAssertGreaterThanOrEqual(fixture.stack.frame.height, ComposerAttachmentStripChrome.visibleHeight)
     }

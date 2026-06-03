@@ -147,10 +147,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         composer.onSend = { [weak self] in self?.send() }
         composer.onPasteAttachments = { [weak self] urls in self?.addAttachments(urls) }
         ComposerChrome.configureTextView(composer)
-        let composerScroll = NSScrollView()
-        composerScroll.drawsBackground = false
-        composerScroll.documentView = composer
-        composerScroll.translatesAutoresizingMaskIntoConstraints = false
+        let composerScroll = ComposerSurfaceChrome.makeComposerScroll(containing: composer)
 
         ComposerChrome.configurePlaceholder(placeholder)
 
@@ -198,14 +195,16 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             sendContainer: sendStack
         )
 
-        card.cornerRadius = 22
-        card.translatesAutoresizingMaskIntoConstraints = false
         attachmentHeightConstraint = attachmentScroll.heightAnchor.constraint(equalToConstant: 0)
-        cardContent.addSubview(composerScroll)
-        cardContent.addSubview(placeholder)
-        cardContent.addSubview(attachmentScroll)
-        cardContent.addSubview(footer)
-        card.contentView = cardContent
+        let composerSurfaceConstraints = ComposerSurfaceChrome.install(
+            card: card,
+            content: cardContent,
+            composerScroll: composerScroll,
+            placeholder: placeholder,
+            attachmentScroll: attachmentScroll,
+            footer: footer,
+            attachmentHeightConstraint: attachmentHeightConstraint!
+        )
 
         ChatEmptyStateChrome.configureTitle(emptyTitle)
         ChatEmptyStateChrome.configureSubtitle(emptySub)
@@ -237,25 +236,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         cardBottomConstraint = composerLayout.bottom
         cardCenterYConstraint = composerLayout.centerY
 
-        NSLayoutConstraint.activate([
-            attachmentScroll.topAnchor.constraint(equalTo: cardContent.topAnchor, constant: 10),
-            attachmentScroll.leadingAnchor.constraint(equalTo: cardContent.leadingAnchor, constant: 12),
-            attachmentScroll.trailingAnchor.constraint(equalTo: cardContent.trailingAnchor, constant: -12),
-            attachmentHeightConstraint!,
-
-            composerScroll.topAnchor.constraint(equalTo: attachmentScroll.bottomAnchor, constant: 6),
-            composerScroll.leadingAnchor.constraint(equalTo: cardContent.leadingAnchor, constant: 12),
-            composerScroll.trailingAnchor.constraint(equalTo: cardContent.trailingAnchor, constant: -12),
-            composerScroll.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -8),
-            composerScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 78),
-            composerScroll.heightAnchor.constraint(lessThanOrEqualToConstant: 200),
-            placeholder.leadingAnchor.constraint(equalTo: composerScroll.leadingAnchor, constant: 2),
-            placeholder.topAnchor.constraint(equalTo: composerScroll.topAnchor, constant: 8),
-
-            footer.leadingAnchor.constraint(equalTo: cardContent.leadingAnchor, constant: 12),
-            footer.trailingAnchor.constraint(equalTo: cardContent.trailingAnchor, constant: -12),
-            footer.bottomAnchor.constraint(equalTo: cardContent.bottomAnchor, constant: -12),
-        ] + TranscriptViewportChrome.constraints(
+        NSLayoutConstraint.activate(composerSurfaceConstraints + TranscriptViewportChrome.constraints(
             scroll: scroll,
             root: root,
             document: doc,

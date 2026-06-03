@@ -15,7 +15,7 @@ enum SettingsOverlayChrome {
         pill.blendingMode = .withinWindow
         pill.state = .active
         pill.wantsLayer = true
-        pill.layer?.cornerRadius = 14
+        pill.layer?.cornerRadius = DesignSystem.Radius.floatingPill
         pill.layer?.masksToBounds = true
         pill.layer?.zPosition = 50
         pill.translatesAutoresizingMaskIntoConstraints = false
@@ -24,7 +24,7 @@ enum SettingsOverlayChrome {
         button.imagePosition = .imageLeading
         button.isBordered = false
         button.contentTintColor = .labelColor
-        button.font = .systemFont(ofSize: 13.5, weight: .medium)
+        button.font = DesignSystem.Font.controlSmall
         button.alignment = .left
         button.target = target
         button.action = menuAction

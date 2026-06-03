@@ -105,7 +105,7 @@ enum SearchOverlayChrome {
     static func makeBackdrop(onOutsideClick: @escaping () -> Void) -> SearchBackdropView {
         let root = SearchBackdropView()
         root.wantsLayer = true
-        root.layer?.backgroundColor = NSColor.black.withAlphaComponent(backdropAlpha).cgColor
+        root.layer?.backgroundColor = DesignSystem.Color.backdrop(alpha: backdropAlpha).cgColor
         root.onOutsideClick = onOutsideClick
         return root
     }
@@ -116,7 +116,7 @@ enum SearchOverlayChrome {
         card.blendingMode = .withinWindow
         card.state = .active
         card.wantsLayer = true
-        card.layer?.cornerRadius = 18
+        card.layer?.cornerRadius = DesignSystem.Radius.overlayCard
         card.layer?.masksToBounds = true
         card.translatesAutoresizingMaskIntoConstraints = false
         return card
@@ -125,7 +125,7 @@ enum SearchOverlayChrome {
     static func configureField(_ field: PaddedSearchField, delegate: NSSearchFieldDelegate, onEscape: @escaping () -> Void) {
         field.cell = PaddedSearchFieldCell(textCell: "")
         field.placeholderString = "Search chats"
-        field.font = .systemFont(ofSize: 18, weight: .regular)
+        field.font = DesignSystem.Font.overlaySearch
         field.cell?.font = field.font
         field.focusRingType = .none
         field.delegate = delegate
@@ -146,7 +146,7 @@ enum SearchOverlayChrome {
         document.translatesAutoresizingMaskIntoConstraints = false
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 4
+        stack.spacing = DesignSystem.Spacing.xSmall
         stack.translatesAutoresizingMaskIntoConstraints = false
         document.addSubview(stack)
     }
@@ -183,13 +183,13 @@ enum SearchOverlayChrome {
     static func makeRow(model: SearchOverlayRowModel, onClick: @escaping () -> Void) -> SidebarRow {
         SidebarRow(height: rowHeight, onClick: onClick) { container in
             let title = NSTextField(labelWithString: model.title)
-            title.font = .systemFont(ofSize: 14, weight: .medium)
+            title.font = DesignSystem.Font.overlayRowTitle
             title.lineBreakMode = .byTruncatingTail
             title.maximumNumberOfLines = 1
             title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
             let detail = NSTextField(labelWithString: model.detail)
-            detail.font = .systemFont(ofSize: 11.5)
+            detail.font = DesignSystem.Font.overlayRowDetail
             detail.textColor = .tertiaryLabelColor
             detail.lineBreakMode = .byTruncatingTail
             detail.maximumNumberOfLines = 1
