@@ -44,7 +44,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
     private var turnStart = Date()
     private var shimmerView: ShimmerLabel?
     private var liveWorkDividerByConversationId: [String: WorkDivider] = [:]
-    private let assistantStreamCache = ChatAssistantStreamCache()
+    private let streamEventCoordinator = ChatStreamEventCoordinator()
     private let maxRenderedMessages = 240
     private var composerSelection = ComposerSelectionState()
     private let attachmentCoordinator = ComposerAttachmentCoordinator()
@@ -453,7 +453,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             return
         }
         shimmerView = nil
-        assistantStreamCache.adoptVisibleAssistant(for: c)
+        streamEventCoordinator.adoptVisibleAssistant(for: c)
         transcriptRegistry.reset()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
         TranscriptStackChrome.removeAllRows(from: transcript)
@@ -478,7 +478,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         conversation = c
         adoptComposerSelection(for: c)
         shimmerView = nil
-        assistantStreamCache.adoptVisibleAssistant(for: c)
+        streamEventCoordinator.adoptVisibleAssistant(for: c)
         transcriptRegistry.reset()
         liveWorkDividerByConversationId.removeValue(forKey: c.id)
         TranscriptStackChrome.removeAllRows(from: transcript)
@@ -721,97 +721,27 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
         if start.shouldGenerateTitle { generateTitle(for: c, prompt: text) }
 
-        assistantStreamCache.clearAssistant(for: c, visible: conversation === c)
+        streamEventCoordinator.clearAssistant(for: c, visible: conversation === c)
         let handler: (AgentClient.Event) -> Void = { [weak self, weak c] ev in
             guard let self, let c else { return }
             let isVisible = self.conversation === c
-            switch ev {
-            case .thread(let id):
-                c.codexThreadId = id
-            case .text(let t):
-                self.markOpenToolsCompleted(in: c)
-                let result = ChatStreamMutationModel.appendAssistantText(
-                    t,
-                    to: c,
-                    existing: self.assistantStreamCache.cachedAssistant(for: c)
-                )
-                if result.created {
-                    self.assistantStreamCache.setAssistant(result.message, for: c, visible: isVisible)
-                    if isVisible {
-                        _ = self.ensureLiveWorkDivider(for: c)
-                        self.addRow(for: result.message)
-                    }
-                }
-                if isVisible { self.renderLiveAssistant(result.message) }
-                self.emitActivity(c)
-            case .steer:
-                self.addSteerNotice(to: c)
-            case .tool(let n, let d):
-                self.markOpenToolsCompleted(in: c)
-                c.status = .running
-                c.updatedAt = Date().timeIntervalSince1970
-                self.emitActivity(c)
-                if isVisible { self.finalizeAssistant(for: c) }
-                self.assistantStreamCache.clearAssistant(for: c, visible: isVisible)
-                let tool = ChatStreamMutationModel.appendTool(name: n, detail: d, to: c, startedAt: self.activeTurnStartedAt(for: c))
-                if isVisible {
-                    let divider = self.ensureLiveWorkDivider(for: c)
-                    let row = self.addRow(for: tool)
-                    row.isHidden = true
-                    divider.rows.append(row)
-                    divider.refresh()
-                }
-            case .toolResult(let n, let d):
-                if let t = ChatStreamMutationModel.completeToolResult(name: n, detail: d, in: c) {
-                    if isVisible {
-                        self.transcriptRegistry.label(for: t)?.setRich(TranscriptToolFormatter.toolString(t))
-                        if t.toolName == "edit", let stats = self.transcriptRegistry.editStats(for: t) {
-                            let summary = TranscriptToolFormatter.editSummary(t)
-                            stats.isHidden = summary.added == 0 && summary.deleted == 0
-                            stats.setValues(added: summary.added, deleted: summary.deleted)
-                        }
-                        self.scheduleToolRefresh(for: c, trigger: .completedTool(name: t.toolName))
-                    }
-                    self.emitActivity(c, force: true)
-                }
-            case .error(let e):
-                if isVisible { self.hideThinking() }
-                if self.streamRegistry.consumeStopping(c.id) { return }   // user-initiated stop, not a real error
-                let result = ChatStreamMutationModel.appendErrorText(
-                    e,
-                    to: c,
-                    existing: self.assistantStreamCache.cachedAssistant(for: c),
-                    startedAt: self.activeTurnStartedAt(for: c)
-                )
-                if result.created {
-                    self.assistantStreamCache.setAssistant(result.message, for: c, visible: isVisible)
-                    if isVisible {
-                        _ = self.ensureLiveWorkDivider(for: c)
-                        self.addRow(for: result.message)
-                    }
-                }
-                if isVisible { self.renderLiveAssistant(result.message) }
-                c.status = .error; self.finish(c)
-            case .done:
-                if isVisible { self.hideThinking() }
-                if isVisible { self.finalizeAssistant(for: c) }
-                let started = self.activeTurnStartedAt(for: c) ?? self.turnStart.timeIntervalSince1970
-                if let fa = ChatStreamMutationModel.finishAssistantTurn(
-                    in: c,
-                    assistant: c.messages.last(where: { $0.role == .assistant }),
-                    startedAt: started
-                ) {
-                    if isVisible, let divider = self.liveWorkDividerByConversationId[c.id] {
-                        divider.finish(duration: fa.turnDuration)
-                        self.liveWorkDividerByConversationId[c.id] = nil
-                    }
-                    if isVisible { self.addFinalFooter(for: fa) }
-                }
-                c.status = .idle; self.finish(c)
-                if isVisible { self.scheduleToolRefresh(for: c, trigger: .streamDone) }
+            let started = self.activeTurnStartedAt(for: c) ?? self.turnStart.timeIntervalSince1970
+            let outcome = self.streamEventCoordinator.handle(
+                ev,
+                conversation: c,
+                isVisible: isVisible,
+                activeStartedAt: started,
+                consumeStoppingError: { self.streamRegistry.consumeStopping(c.id) }
+            )
+            if outcome.suppressedStoppingError { return }
+            if outcome.shouldEmitActivity {
+                self.emitActivity(c, force: outcome.forceActivity)
             }
-            c.updatedAt = Date().timeIntervalSince1970
-            if isVisible { self.scrollToBottom() }
+            if !isVisible, outcome.shouldFinishConversation {
+                self.finish(c)
+            }
+            guard isVisible else { return }
+            self.applyVisibleStreamOutcome(outcome, conversation: c)
         }
 
         let task: URLSessionDataTask
@@ -829,7 +759,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         ConversationTurnMutationModel.finishLatestPromptTurn(in: c.messages)
         setStreaming(false, for: c)
         streamRegistry.finish(c.id, preservingStopFlag: preservingStopFlag)
-        assistantStreamCache.clearAssistant(for: c, visible: conversation === c)
+        streamEventCoordinator.clearAssistant(for: c, visible: conversation === c)
         emitActivity(c, force: true)
         // Deliver any messages queued while streaming (steering) as the next turn.
         if let joined = ChatSendModel.queuedSteerTurnText(c.steerQueue) {
@@ -838,8 +768,51 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         }
     }
 
-    private func markOpenToolsCompleted(in c: Conversation) {
-        ConversationTurnMutationModel.markOpenToolsCompleted(in: c.messages)
+    private func applyVisibleStreamOutcome(_ outcome: ChatStreamEventOutcome, conversation c: Conversation) {
+        if outcome.shouldHideThinking { hideThinking() }
+        if outcome.shouldFinalizeAssistant { finalizeAssistant(for: c) }
+        if outcome.receivedSteer { addSteerNotice(to: c) }
+        if let assistant = outcome.createdAssistant {
+            _ = ensureLiveWorkDivider(for: c)
+            addRow(for: assistant)
+        }
+        if let assistant = outcome.assistantToRender {
+            renderLiveAssistant(assistant)
+        }
+        if let tool = outcome.appendedTool {
+            let divider = ensureLiveWorkDivider(for: c)
+            let row = addRow(for: tool)
+            row.isHidden = true
+            divider.rows.append(row)
+            divider.refresh()
+        }
+        if let tool = outcome.completedTool {
+            transcriptRegistry.label(for: tool)?.setRich(TranscriptToolFormatter.toolString(tool))
+            if tool.toolName == "edit", let stats = transcriptRegistry.editStats(for: tool) {
+                let summary = TranscriptToolFormatter.editSummary(tool)
+                stats.isHidden = summary.added == 0 && summary.deleted == 0
+                stats.setValues(added: summary.added, deleted: summary.deleted)
+            }
+        }
+        if let trigger = outcome.completedToolRefresh {
+            scheduleToolRefresh(for: c, trigger: trigger)
+        }
+        if let final = outcome.finalAssistant {
+            if let divider = liveWorkDividerByConversationId[c.id] {
+                divider.finish(duration: final.turnDuration)
+                liveWorkDividerByConversationId[c.id] = nil
+            }
+            addFinalFooter(for: final)
+        }
+        if outcome.shouldFinishConversation {
+            finish(c)
+        }
+        if outcome.shouldScheduleStreamDoneRefresh {
+            scheduleToolRefresh(for: c, trigger: .streamDone)
+        }
+        if outcome.shouldScroll {
+            scrollToBottom()
+        }
     }
 
     private func addSteerNotice(to c: Conversation, text: String? = nil) {
@@ -886,7 +859,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
 
     /// Re-render the active assistant message as markdown once its text is final.
     private func finalizeAssistant(for c: Conversation) {
-        guard let a = assistantStreamCache.finalizableAssistant(for: c, visible: conversation === c),
+        guard let a = streamEventCoordinator.finalizableAssistant(for: c, visible: conversation === c),
               let label = transcriptRegistry.label(for: a) else { return }
         label.setRich(Self.markdown(a.text))
     }
