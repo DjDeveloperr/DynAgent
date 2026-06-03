@@ -460,17 +460,27 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         placeholder.isHidden = state.placeholderHidden
     }
 
+    private func adoptComposerSelection(for c: Conversation) {
+        switch composerSelection.adoptConversationModel(
+            c.model,
+            harness: c.harness,
+            availablePopupItems: modelPopup.itemTitles
+        ) {
+        case .installCodexMenu(let ids):
+            installCodexModelMenu(ids)
+        case .selectPopupItem(let title):
+            modelPopup.selectItem(withTitle: title)
+            syncComposerMenus()
+        case .none:
+            syncComposerMenus()
+        }
+    }
+
     func show(_ c: Conversation) {
         saveComposerDraft()
         let wasShowingSameConversation = conversation === c
         conversation = c
-        composerSelection.adoptConversationModel(c.model, harness: c.harness)
-        if c.harness == .codex {
-            if !composerSelection.codexModelIds.isEmpty { installCodexModelMenu(composerSelection.codexModelIds) }
-        } else if modelPopup.itemTitles.contains(c.model) {
-            modelPopup.selectItem(withTitle: c.model)
-        }
-        syncComposerMenus()
+        adoptComposerSelection(for: c)
         let renderStart = TranscriptRenderSessionModel.beginShow(
             state: renderSession,
             conversation: c,
@@ -510,12 +520,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         saveComposerDraft()
         renderSession = TranscriptRenderSessionModel.beginLoadingShell(state: renderSession)
         conversation = c
-        composerSelection.adoptConversationModel(c.model, harness: c.harness)
-        if c.harness == .codex {
-            if !composerSelection.codexModelIds.isEmpty { installCodexModelMenu(composerSelection.codexModelIds) }
-        } else if modelPopup.itemTitles.contains(c.model) {
-            modelPopup.selectItem(withTitle: c.model)
-        }
+        adoptComposerSelection(for: c)
         shimmerView = nil
         currentAssistant = assistantByConversationId[c.id]
         transcriptRegistry.reset()
@@ -526,7 +531,6 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         emptyStack.isHidden = true
         cardBottomConstraint?.isActive = true
         cardCenterYConstraint?.isActive = false
-        syncComposerMenus()
         restoreComposerDraft(for: c)
         updateSendButton()
         view.window?.makeFirstResponder(composer)

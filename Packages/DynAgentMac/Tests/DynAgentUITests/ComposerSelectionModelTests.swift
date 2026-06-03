@@ -27,6 +27,45 @@ final class ComposerSelectionModelTests: XCTestCase {
         XCTAssertEqual(state.selectedCodexModel, "gpt-5.5-mini")
     }
 
+    func testConversationAdoptionRequestsCodexMenuInstallWhenModelsAreKnown() {
+        var state = ComposerSelectionState(
+            codexModelIds: ["gpt-5.5-codex", "gpt-5.5-mini"],
+            selectedCodexModel: "gpt-5.5-codex"
+        )
+
+        let action = state.adoptConversationModel(
+            "gpt-5.5-mini",
+            harness: .codex,
+            availablePopupItems: ["auto"]
+        )
+
+        XCTAssertEqual(action, .installCodexMenu(["gpt-5.5-codex", "gpt-5.5-mini"]))
+        XCTAssertEqual(state.desiredModel, "gpt-5.5-mini")
+        XCTAssertEqual(state.selectedCodexModel, "gpt-5.5-mini")
+    }
+
+    func testConversationAdoptionSelectsNonCodexPopupOnlyWhenItemExists() {
+        var state = ComposerSelectionState(selectedCodexModel: "gpt-5.5-codex")
+
+        let matching = state.adoptConversationModel(
+            "claude-opus",
+            harness: .dynagent,
+            availablePopupItems: ["auto", "claude-opus"]
+        )
+        XCTAssertEqual(matching, .selectPopupItem("claude-opus"))
+        XCTAssertEqual(state.desiredModel, "claude-opus")
+        XCTAssertEqual(state.selectedCodexModel, "gpt-5.5-codex")
+
+        let missing = state.adoptConversationModel(
+            "missing-model",
+            harness: .dynagent,
+            availablePopupItems: ["auto", "claude-opus"]
+        )
+        XCTAssertEqual(missing, .none)
+        XCTAssertEqual(state.desiredModel, "missing-model")
+        XCTAssertEqual(state.selectedCodexModel, "gpt-5.5-codex")
+    }
+
     func testFallbackUpdatesCodexSelectionOnlyForCodexHarness() {
         var state = ComposerSelectionState(selectedCodexModel: "gpt-5.5-codex")
 

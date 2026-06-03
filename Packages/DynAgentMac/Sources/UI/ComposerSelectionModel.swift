@@ -1,5 +1,11 @@
 import Foundation
 
+enum ComposerConversationAdoptionAction: Equatable {
+    case installCodexMenu([String])
+    case selectPopupItem(String)
+    case none
+}
+
 struct ComposerSelectionState: Equatable {
     var desiredModel: String?
     var codexModelIds: [String] = []
@@ -23,6 +29,19 @@ struct ComposerSelectionState: Equatable {
         if harness == .codex, let model = model?.nilIfEmpty {
             selectedCodexModel = model
         }
+    }
+
+    mutating func adoptConversationModel(
+        _ model: String?,
+        harness: Harness,
+        availablePopupItems: [String]
+    ) -> ComposerConversationAdoptionAction {
+        adoptConversationModel(model, harness: harness)
+        if harness == .codex {
+            return codexModelIds.isEmpty ? .none : .installCodexMenu(codexModelIds)
+        }
+        guard let model, availablePopupItems.contains(model) else { return .none }
+        return .selectPopupItem(model)
     }
 
     mutating func installFallback(for harness: Harness, preferred: String?) -> String {
