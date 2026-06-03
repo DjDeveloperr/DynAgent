@@ -834,10 +834,8 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
         if appendUser { turnStart = Date(timeIntervalSince1970: startedAt) }
 
         if appendUser {
-            let user = ChatMessage(role: .user, text: text)
-            user.turnStartedAt = startedAt
-            user.turnStatus = "running"
-            c.messages.append(user); addRow(for: user)
+            let user = ChatStreamMutationModel.appendUserPrompt(text, to: c, startedAt: startedAt)
+            addRow(for: user)
         }
         if conversation === c { syncComposerMenus() }
         updateEmptyState()
@@ -865,25 +863,16 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                 c.codexThreadId = id
             case .text(let t):
                 self.markOpenToolsCompleted(in: c)
-                let assistant: ChatMessage
-                if let existing = self.assistantByConversationId[c.id] {
-                    assistant = existing
-                } else {
-                    let assistant = ChatMessage(role: .assistant, text: "")
-                    c.messages.append(assistant)
-                    self.assistantByConversationId[c.id] = assistant
+                let result = ChatStreamMutationModel.appendAssistantText(t, to: c, existing: self.assistantByConversationId[c.id])
+                if result.created {
+                    self.assistantByConversationId[c.id] = result.message
                     if isVisible {
                         _ = self.ensureLiveWorkDivider(for: c)
-                        self.addRow(for: assistant)
-                        self.currentAssistant = assistant
+                        self.addRow(for: result.message)
+                        self.currentAssistant = result.message
                     }
-                    assistant.text += t
-                    if isVisible { self.renderLiveAssistant(assistant) }
-                    self.emitActivity(c)
-                    break
                 }
-                assistant.text += t
-                if isVisible { self.renderLiveAssistant(assistant) }
+                if isVisible { self.renderLiveAssistant(result.message) }
                 self.emitActivity(c)
             case .steer:
                 self.addSteerNotice(to: c)
@@ -895,10 +884,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                 if isVisible { self.finalizeAssistant(for: c) }
                 self.assistantByConversationId[c.id] = nil
                 if isVisible { self.currentAssistant = nil }
-                let tool = ChatMessage(role: .tool, text: "", toolName: n, toolDetail: d)
-                tool.turnStartedAt = self.activeTurnStartedAt(for: c)
-                tool.turnStatus = "running"
-                c.messages.append(tool)
+                let tool = ChatStreamMutationModel.appendTool(name: n, detail: d, to: c, startedAt: self.activeTurnStartedAt(for: c))
                 if isVisible {
                     let divider = self.ensureLiveWorkDivider(for: c)
                     let row = self.addRow(for: tool)
@@ -907,10 +893,7 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
                     divider.refresh()
                 }
             case .toolResult(let n, let d):
-                if let t = c.messages.last(where: { $0.role == .tool && $0.toolName == n && !$0.toolDone }) {
-                    t.toolDone = true
-                    t.turnStatus = "completed"
-                    if let d, !d.isEmpty { t.toolDetail = (t.toolDetail.map { $0 + "\n\n" } ?? "") + d }
+                if let t = ChatStreamMutationModel.completeToolResult(name: n, detail: d, in: c) {
                     if isVisible {
                         self.labels[ObjectIdentifier(t)]?.setRich(TranscriptToolFormatter.toolString(t))
                         if t.toolName == "edit", let stats = self.editStatsByMessage[ObjectIdentifier(t)] {
@@ -927,38 +910,26 @@ final class ChatViewController: NSViewController, NSTextViewDelegate {
             case .error(let e):
                 if isVisible { self.hideThinking() }
                 if self.stopping { self.stopping = false; return }   // user-initiated stop, not a real error
-                let assistant: ChatMessage
-                if let existing = self.assistantByConversationId[c.id] {
-                    assistant = existing
-                } else {
-                    let assistant = ChatMessage(role: .assistant, text: "")
-                    assistant.turnStartedAt = self.activeTurnStartedAt(for: c)
-                    assistant.turnStatus = "running"
-                    c.messages.append(assistant)
-                    self.assistantByConversationId[c.id] = assistant
+                let result = ChatStreamMutationModel.appendErrorText(e, to: c, existing: self.assistantByConversationId[c.id], startedAt: self.activeTurnStartedAt(for: c))
+                if result.created {
+                    self.assistantByConversationId[c.id] = result.message
                     if isVisible {
                         _ = self.ensureLiveWorkDivider(for: c)
-                        self.addRow(for: assistant)
-                        self.currentAssistant = assistant
+                        self.addRow(for: result.message)
+                        self.currentAssistant = result.message
                     }
-                    assistant.text += "⚠︎ " + e
-                    if isVisible { self.renderLiveAssistant(assistant) }
-                    c.status = .error; self.finish(c)
-                    break
                 }
-                assistant.text += (assistant.text.isEmpty ? "" : "\n") + "⚠︎ " + e
-                if isVisible { self.renderLiveAssistant(assistant) }
+                if isVisible { self.renderLiveAssistant(result.message) }
                 c.status = .error; self.finish(c)
             case .done:
                 if isVisible { self.hideThinking() }
                 if isVisible { self.finalizeAssistant(for: c) }
-                if let fa = c.messages.last(where: { $0.role == .assistant }) {
-                    fa.timestamp = Date().timeIntervalSince1970
-                    let started = self.activeTurnStartedAt(for: c) ?? self.turnStart.timeIntervalSince1970
-                    fa.turnDuration = Date().timeIntervalSince1970 - started
-                    fa.turnStatus = "completed"
-                    fa.isFinal = true
-                    ConversationTurnMutationModel.finishLatestPromptTurn(in: c.messages)
+                let started = self.activeTurnStartedAt(for: c) ?? self.turnStart.timeIntervalSince1970
+                if let fa = ChatStreamMutationModel.finishAssistantTurn(
+                    in: c,
+                    assistant: c.messages.last(where: { $0.role == .assistant }),
+                    startedAt: started
+                ) {
                     if isVisible, let divider = self.liveWorkDividerByConversationId[c.id] {
                         divider.finish(duration: fa.turnDuration)
                         self.liveWorkDividerByConversationId[c.id] = nil

@@ -25,6 +25,7 @@
 - `TranscriptRenderModel.swift`: tested row data-source model for render-cache fingerprints, turn batching, shell tool grouping, and completed edit grouping.
 - `TranscriptLiveUpdateModel.swift`: tested streaming update policy for markdown render throttling and autoscroll throttling.
 - `ConversationTurnMutationModel.swift`: tested pure mutation model for completing the latest prompt turn, closing open tool rows, and reconciling pending/completed steer notices.
+- `ChatStreamMutationModel.swift`: tested streaming prompt, assistant, error, tool, and final-response mutations used by chat event handling.
 - `WorkDividerModel.swift`: tested label/duration model for active and completed Codex-style work dividers.
 - `TranscriptChrome.swift`: reusable AppKit transcript text, shimmer/thinking rows, work-divider, edit-stat, and transcript row views.
 - `TranscriptViewportChrome.swift`: tested AppKit transcript scroll/document/stack setup and width-tracking constraints for the loaded-thread layout invariant.
@@ -53,6 +54,7 @@
 - `ChatLayoutModel.swift`: shared chat-column constants and inspector-aware split sizing.
 - `WindowLayoutModel.swift`: tested pure layout model for main window frame restoration, root content bounds, wide fallback sizing, split divider planning, metrics payloads, and post-load width invariants.
 - `WindowLayoutChrome.swift`: tested AppKit bridge for applying usable window limits, pinning root/split frames to content bounds, applying split plans, and capturing frame metrics.
+- `MainLayoutStabilizer.swift`: tested AppKit orchestration for the post-load/resize/git-toggle layout pass that keeps the root split, workspace tile, and chat view tracking the real window width.
 - `WindowHosting.swift`: full-window host and split-view pinning used by the hot-reloadable macOS UI.
 - `WorkspacePanelChrome.swift`: reusable AppKit workspace tile chrome and root split pinning for chat, terminal, and browser panels.
 
@@ -76,7 +78,7 @@ The iOS app should share behavior and visual language, but not copy the desktop 
 - Settings/search/commit overlays -> native SwiftUI sheets or presentation detents, using the same labels and action order as macOS.
 - Composer -> same model/reasoning/context/send ordering, with attachments previewed above the text field and keyboard-safe bottom padding.
 
-Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `GitActionModel`, `GitPanelModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `TranscriptLiveUpdateModel`, `ConversationTurnMutationModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `SearchOverlayModel`, `ComposerModel`, `ChatSendModel`, `ComposerDraftStore`, `MobilePresentationModel`, `NavigationHistoryModel`, `AppConversationIndexModel`, `AppActivityRefreshModel`, `AppCodexHistoryModel`, `AppCodexThreadStubModel`, `AppWorkspaceIndexModel`, `AppSidebarSyncModel`, `AppHotStateModel`, `ChatLayoutModel`, `ChatTitleModel`, `ChatPresentationModel`, `WindowLayoutModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
+Pure models should move toward platform-neutral Swift where possible (`MarkdownRenderer`, `GitDiffModel`, `GitDiffLayoutModel`, `GitActionModel`, `GitPanelModel`, `ShellToolModel`, `EditToolModel`, `TranscriptTurnModel`, `TranscriptRenderModel`, `TranscriptLiveUpdateModel`, `ConversationTurnMutationModel`, `ChatStreamMutationModel`, `WorkDividerModel`, `SidebarModel`, `SidebarRowModel`, `SearchOverlayModel`, `ComposerModel`, `ChatSendModel`, `ComposerDraftStore`, `MobilePresentationModel`, `NavigationHistoryModel`, `AppConversationIndexModel`, `AppActivityRefreshModel`, `AppCodexHistoryModel`, `AppCodexThreadStubModel`, `AppWorkspaceIndexModel`, `AppSidebarSyncModel`, `AppHotStateModel`, `ChatLayoutModel`, `ChatTitleModel`, `ChatPresentationModel`, `WindowLayoutModel`). AppKit-only controls remain in macOS files; iOS should build SwiftUI equivalents using the same tokens and model outputs.
 
 ## Verification Gates
 

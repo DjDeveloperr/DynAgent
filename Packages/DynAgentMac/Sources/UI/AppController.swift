@@ -177,9 +177,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
                 ) {
                     self.setMainWindowFrame(self.lastAppliedMainFrame)
                 }
-                self.forceRootSplitToContentSize()
-                self.workspaceArea.forceLayoutToBounds()
-                self.rebalanceMainSplitIfNeeded()
+                self.applyMainLayoutStabilization()
                 self.writeLayoutMetrics()
             }
         }
@@ -449,30 +447,21 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private func stabilizeMainLayout(reason: String) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.unlockWindowSizing()
-            self.forceRootSplitToContentSize()
-            self.workspaceArea.forceLayoutToBounds()
-            self.rebalanceMainSplitIfNeeded()
+            self.applyMainLayoutStabilization()
             self.writeLayoutMetrics(reason: reason)
         }
     }
 
-    private func rebalanceMainSplitIfNeeded() {
-        WindowLayoutChrome.applySplitPlan(
+    private func applyMainLayoutStabilization() {
+        MainLayoutStabilizer.stabilize(
+            window: window,
+            rootContentController: rootContentController,
             splitView: splitView,
             rootSplitController: rootSplitController as? RootSplitViewController,
+            workspaceArea: workspaceArea,
             sidebarItem: sidebarItem,
             gitItem: gitItem,
             preferredMainWidth: ChatLayoutModel.preferredMainWidthWithInspector
-        )
-        workspaceArea.forceLayoutToBounds()
-    }
-
-    private func forceRootSplitToContentSize() {
-        WindowLayoutChrome.pinRootToContentBounds(
-            window: window,
-            rootContentController: rootContentController,
-            splitView: splitView
         )
     }
 
@@ -1038,16 +1027,13 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
             isUserLiveResizing: isUserLiveResizing
         ) {
             window.setFrame(lastAppliedMainFrame, display: true)
-            forceRootSplitToContentSize()
-            workspaceArea.forceLayoutToBounds()
-            rebalanceMainSplitIfNeeded()
+            applyMainLayoutStabilization()
             writeLayoutMetrics(reason: "restored-unexpected-shrink")
             return
         }
         lastAppliedMainFrame = window.frame
         saveMainWindowFrame(window.frame)
-        forceRootSplitToContentSize()
-        rebalanceMainSplitIfNeeded()
+        applyMainLayoutStabilization()
         writeLayoutMetrics(reason: "window-resize")
     }
 
@@ -1060,8 +1046,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
         unlockWindowSizing()
         lastAppliedMainFrame = window.frame
         saveMainWindowFrame(window.frame)
-        forceRootSplitToContentSize()
-        rebalanceMainSplitIfNeeded()
+        applyMainLayoutStabilization()
         writeLayoutMetrics(reason: "window-live-resize")
     }
 
@@ -1076,9 +1061,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
                 if self.window.frame.width < frame.width - 1 {
                     self.window.setFrame(frame, display: true)
                 }
-                self.forceRootSplitToContentSize()
-                self.workspaceArea.forceLayoutToBounds()
-                self.rebalanceMainSplitIfNeeded()
+                self.applyMainLayoutStabilization()
                 self.writeLayoutMetrics(reason: "git-toggle")
             }
         }
