@@ -9,6 +9,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     private let chat = ChatViewController()
     private let workspaceArea = WorkspaceAreaViewController()
     private let gitPanel = GitPanelViewController()
+    private let dockStateCoordinator = AppDockStateCoordinator()
     /// Always-available offscreen browser so the agent can navigate/eval without an open panel.
     private let headlessBrowser = BrowserPanel()
     private weak var splitView: NSSplitView?
@@ -842,15 +843,7 @@ final class AppController: NSObject, NSToolbarDelegate, NSWindowDelegate {
     }
 
     private func updateDockState() {
-        let visible = allVisibleConversations()
-        let recent = AppConversationIndexModel.dockRecent(conversations: visible).map(\.dictionary)
-        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".dynagent")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        if let data = try? JSONSerialization.data(withJSONObject: Array(recent), options: []) {
-            try? data.write(to: dir.appendingPathComponent("dock-recent.json"))
-        }
-        let unread = AppConversationIndexModel.unreadFinishedCount(visible)
-        NSApp.dockTile.badgeLabel = unread > 0 ? "\(unread)" : nil
+        dockStateCoordinator.update(conversations: allVisibleConversations())
     }
 
     private func openConversationFromDock(id: String) {

@@ -73,6 +73,7 @@
 - `MobilePresentationModel.swift`: tested shared iOS presentation bridge for mobile composer labels/send state and mobile tool rows.
 - `NavigationHistoryModel.swift`: tested identity-based back/forward stack behavior for chat navigation.
 - `AppConversationIndexModel.swift`: tested visible-conversation de-duping, restored-selection lookup, dock recent payloads, and unread finished-thread counts.
+- `AppDockStateCoordinator.swift`: tested Dock-state bridge for recent-thread JSON payloads and unread badge labels.
 - `AppActivityRefreshModel.swift`: tested app activity throttling policy for sidebar rebuilds, dock updates, quota refreshes, git reloads, persistence, and remote Codex history polling.
 - `AppCodexHistoryModel.swift`: tested Codex history refresh eligibility, history-message mapping, metadata preservation, and loaded-thread status detection.
 - `AppCodexThreadStubModel.swift`: tested Codex thread stub builder for workspace/projectless threads, archive filtering, pinned state, reuse, limits, and latest-history reload markers.
