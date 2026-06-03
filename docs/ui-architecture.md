@@ -37,6 +37,7 @@
 - `TranscriptChrome.swift`: reusable AppKit transcript text, full-width row lifecycle/stack helpers, loading shell rows, shimmer/thinking rows, work-divider, edit-stat, and transcript row views.
 - `TranscriptViewportChrome.swift`: tested AppKit transcript scroll/document/stack setup and width-tracking constraints for the loaded-thread layout invariant.
 - `ChatViewportMetricsChrome.swift`: tested AppKit runtime metrics payload for chat viewport, scroll/document, transcript, composer, and root subview geometry.
+- `ChatViewportLayoutChrome.swift`: tested AppKit bridge that applies width-critical scroll frame, document width, and composer bottom-inset corrections during chat layout.
 - `TranscriptRowFactory.swift`: tested row factory that maps chat messages to AppKit row chrome and returns controller metadata for labels, clickable tool views, and edit stats.
 - `TranscriptRowRegistry.swift`: tested transcript interaction registry for message labels, clickable tool rows, edit stats, copy text, and live markdown render throttling.
 - `TranscriptToolChrome.swift`: reusable AppKit shell/edit/inline tool rows, grouped tool collapse controls, and inline edit diff popover blocks.
